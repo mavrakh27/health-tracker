@@ -1,5 +1,5 @@
 // Service Worker — Health Tracker PWA
-const CACHE_NAME = 'health-tracker-v19';
+const CACHE_NAME = 'health-tracker-v20';
 
 const ASSETS = [
   './',
@@ -46,8 +46,10 @@ self.addEventListener('fetch', (e) => {
     // Network-first for HTML — always try to get fresh page
     e.respondWith(
       fetch(e.request).then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        }
         return response;
       }).catch(() => caches.match(e.request) || caches.match('./index.html'))
     );
