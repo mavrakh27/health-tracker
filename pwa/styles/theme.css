@@ -1,38 +1,46 @@
-/* Health Tracker Design System */
+/* Health Tracker Design System
+   Theme: Minimal Dark — inspired by Linear, Arc browser.
+   Muted dark grays, soft white text, very subtle borders,
+   one quiet accent color (muted blue). Modern and understated. */
+
 :root {
-  /* Colors — dark theme with health-focused accents */
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-card: #1e293b;
-  --bg-input: #334155;
-  --bg-hover: #334155;
+  /* Backgrounds — true dark, no warmth */
+  --bg-primary: #111111;
+  --bg-secondary: #191919;
+  --bg-card: #1a1a1a;
+  --bg-input: #222222;
+  --bg-hover: #2a2a2a;
 
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  /* Text — soft, not pure white */
+  --text-primary: #ececec;
+  --text-secondary: #8b8b8e;
+  --text-muted: #5a5a5d;
 
-  --accent-green: #4ade80;
-  --accent-green-dim: #166534;
-  --accent-blue: #60a5fa;
-  --accent-blue-dim: #1e3a5f;
-  --accent-orange: #fb923c;
-  --accent-orange-dim: #7c2d12;
-  --accent-red: #f87171;
-  --accent-red-dim: #7f1d1d;
-  --accent-purple: #c084fc;
-  --accent-purple-dim: #581c87;
-  --accent-yellow: #fbbf24;
-  --accent-cyan: #22d3ee;
+  /* Accents — muted, understated */
+  --accent-green: #3ecf6e;
+  --accent-green-dim: #1a2e1f;
+  --accent-blue: #6b9fff;
+  --accent-blue-dim: #1a2640;
+  --accent-orange: #e09347;
+  --accent-orange-dim: #302010;
+  --accent-red: #e5534b;
+  --accent-red-dim: #301414;
+  --accent-purple: #a78bfa;
+  --accent-purple-dim: #211a38;
+  --accent-yellow: #e5c65b;
+  --accent-cyan: #5cb8d4;
+  --accent-gold: #6b9fff;      /* Muted blue as primary */
+  --accent-gold-dim: #1a2640;
 
-  /* Entry type colors */
-  --color-meal: #4ade80;
-  --color-snack: #fbbf24;
-  --color-drink: #22d3ee;
-  --color-workout: #fb923c;
-  --color-water: #60a5fa;
-  --color-weight: #c084fc;
-  --color-body-photo: #f472b6;
-  --color-sleep: #818cf8;
+  /* Entry type colors — desaturated */
+  --color-meal: #3ecf6e;
+  --color-snack: #e5c65b;
+  --color-drink: #5cb8d4;
+  --color-workout: #e09347;
+  --color-water: #6b9fff;
+  --color-weight: #a78bfa;
+  --color-body-photo: #e07086;
+  --color-sleep: #7c7cf5;
 
   /* Spacing */
   --space-xs: 4px;
@@ -42,9 +50,10 @@
   --space-xl: 32px;
   --space-2xl: 48px;
 
-  /* Typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'SF Mono', 'Fira Code', monospace;
+  /* Typography — system fonts */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', ui-monospace, monospace;
 
   --text-xs: 12px;
   --text-sm: 14px;
@@ -53,17 +62,18 @@
   --text-xl: 22px;
   --text-2xl: 28px;
 
-  /* Borders */
+  /* Borders — barely visible */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-full: 9999px;
-  --border-color: #334155;
+  --border-color: #2a2a2a;
+  --border-accent: #2a2a2a;
 
-  /* Shadows */
+  /* Shadows — subtle in dark mode */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
 
   /* Layout */
   --nav-height: 64px;

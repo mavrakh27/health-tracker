@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Dark background -->
-  <rect width="512" height="512" fill="#0f172a"/>
+  <!-- Warm dark background -->
+  <rect width="512" height="512" fill="#1a1614"/>
 
-  <!-- Pulse line (ECG wave) -->
-  <g stroke="#22c55e" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Pulse line (ECG wave) — gold accent -->
+  <g stroke="#d4a843" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round">
     <!-- Left flat section -->
     <line x1="40" y1="256" x2="120" y2="256"/>
     <!-- First rise -->
@@ -15,8 +15,8 @@
     <line x1="305" y1="256" x2="472" y2="256"/>
   </g>
 
-  <!-- Heart shape (centered, green) -->
-  <g fill="#22c55e">
+  <!-- Heart shape (centered, warm gold) -->
+  <g fill="#d4a843">
     <!-- Heart path: two rounded top lobes meeting at a point -->
     <path d="M 256 380
              C 200 340, 160 310, 160 260

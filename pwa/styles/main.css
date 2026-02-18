@@ -64,8 +64,11 @@ body {
 }
 
 .app-header h1 {
-  font-size: var(--text-lg);
+  font-family: var(--font-display);
   font-weight: 600;
+  font-size: var(--text-lg);
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
 }
 
 .header-nav {
@@ -86,7 +89,7 @@ body {
 }
 
 .header-nav-btn:active {
-  color: var(--accent-green);
+  color: var(--accent-blue);
 }
 
 .header-date {
@@ -102,7 +105,9 @@ body {
   transform: translateX(-50%);
   width: 100%;
   max-width: var(--max-width);
-  background: var(--bg-secondary);
+  background: rgba(17, 17, 17, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: space-around;
@@ -129,7 +134,7 @@ body {
 }
 
 .nav-item.active {
-  color: var(--accent-green);
+  color: var(--accent-blue);
 }
 
 .nav-item svg {
@@ -137,13 +142,14 @@ body {
   height: 24px;
 }
 
-/* Section Headers */
+/* Section Headers — minimal, subtle */
 .section-header {
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   margin-bottom: var(--space-sm);
   margin-top: var(--space-lg);
 }

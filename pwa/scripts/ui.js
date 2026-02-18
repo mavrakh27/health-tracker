@@ -132,6 +132,7 @@ const UI = {
   // --- Render an entry item ---
   renderEntryItem(entry) {
     const div = UI.createElement('div', 'entry-item');
+    div.dataset.type = entry.type;
 
     const icon = UI.createElement('div', 'entry-icon');
     icon.textContent = UI.entryIcon(entry.type, entry.subtype);
@@ -221,7 +222,16 @@ const UI = {
         thumb.loading = 'lazy';
         DB.getPhotos(entry.id).then(photos => {
           if (photos.length > 0 && photos[0].blob) {
-            thumb.src = URL.createObjectURL(photos[0].blob);
+            const blobUrl = URL.createObjectURL(photos[0].blob);
+            // Guard against race condition: if the entry was removed
+            // from the DOM (e.g. user navigated away quickly) before
+            // this async photo load resolved, revoke immediately to
+            // prevent a memory leak from orphaned blob URLs.
+            if (!thumb.isConnected) {
+              URL.revokeObjectURL(blobUrl);
+              return;
+            }
+            thumb.src = blobUrl;
           }
         });
         div.appendChild(thumb);
