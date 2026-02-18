@@ -2,7 +2,7 @@
   "name": "Health Tracker",
   "short_name": "Health",
   "description": "Personal health tracking — meals, workouts, water, weight, sleep, and progress",
-  "start_url": "/health-tracker/pwa/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#111111",
   "theme_color": "#111111",
