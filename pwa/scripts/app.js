@@ -155,6 +155,8 @@ const QuickLog = {
     document.getElementById('quick-photo-btn')?.addEventListener('click', () => QuickLog.snapFood());
     document.getElementById('quick-water-btn')?.addEventListener('click', () => QuickLog.showWaterPicker());
     document.getElementById('quick-weight-btn')?.addEventListener('click', () => QuickLog.showWeightEntry());
+    document.getElementById('quick-fiber-btn')?.addEventListener('click', () => QuickLog.logSupplement('fiber'));
+    document.getElementById('quick-collagen-btn')?.addEventListener('click', () => QuickLog.logSupplement('collagen'));
   },
 
   // --- Snap food → auto-save (zero taps after photo) ---
@@ -321,6 +323,37 @@ const QuickLog = {
         UI.toast('Failed to save weight', 'error');
       }
     });
+  },
+
+  // --- One-tap daily supplements ---
+  _supplements: {
+    fiber: { name: 'Fiber supplement', notes: 'Psyllium husk fiber powder', calories: 30, protein: 0, carbs: 10, fat: 0 },
+    collagen: { name: 'Collagen peptides', notes: 'Vital Proteins collagen peptides', calories: 70, protein: 18, carbs: 0, fat: 0 },
+  },
+
+  async logSupplement(type) {
+    const supp = QuickLog._supplements[type];
+    if (!supp) return;
+    const today = UI.today();
+    const entry = {
+      id: UI.generateId('supplement'),
+      type: 'supplement',
+      subtype: type,
+      date: today,
+      timestamp: new Date().toISOString(),
+      notes: supp.notes,
+      photo: null,
+      duration_minutes: null,
+    };
+    try {
+      await DB.addEntry(entry);
+      UI.toast(`${supp.name} logged`);
+      CloudRelay.queueUpload(today);
+      if (App.selectedDate === today) App.loadDayView();
+    } catch (err) {
+      console.error('Supplement log failed:', err);
+      UI.toast('Failed to log', 'error');
+    }
   },
 };
 

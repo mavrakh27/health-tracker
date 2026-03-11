@@ -6,10 +6,11 @@ const GoalsView = {
     if (!container) return;
 
     const date = App.selectedDate;
+    const isToday = date === UI.today();
     let analysis = await DB.getAnalysis(date);
-    let analysisLabel = '';
 
     // Fall back to yesterday's analysis if none for selected date
+    let analysisLabel = '';
     if (!analysis) {
       const prev = new Date(date + 'T12:00:00');
       prev.setDate(prev.getDate() - 1);
@@ -23,37 +24,240 @@ const GoalsView = {
 
     let html = '';
 
-    // --- Daily Summary (from analysis) ---
-    if (analysis) {
-      if (analysisLabel) {
-        html += `<div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-xs);">Showing analysis from ${analysisLabel}</div>`;
+    if (isToday) {
+      // --- TODAY: Forward-looking view ---
+      // Remaining budget
+      if (analysis) {
+        html += GoalsView.renderRemainingBudget(analysis);
       }
-      html += GoalsView.renderAnalysisSummary(analysis);
+
+      // Today's meal plan (what to eat next)
+      if (mealPlan && mealPlan.days) {
+        const todayPlan = mealPlan.days.find(d => d.date === date);
+        if (todayPlan) {
+          html += GoalsView.renderTodayPlan(todayPlan);
+        } else {
+          html += GoalsView.renderMealPlan(mealPlan);
+        }
+      }
+
+      // Today's workout
+      if (regimen) {
+        html += GoalsView.renderTodayWorkout(regimen, date);
+      }
+
+      // Streaks
+      if (analysis && analysis.streaks) {
+        html += GoalsView.renderStreaks(analysis.streaks);
+      }
     } else {
+      // --- PAST DAYS: Summary log view ---
+      if (analysis) {
+        if (analysisLabel) {
+          html += `<div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-xs);">Showing analysis from ${analysisLabel}</div>`;
+        }
+        html += GoalsView.renderDayLog(analysis);
+        html += GoalsView.renderAnalysisSummary(analysis);
+      } else {
+        html += `
+          <div class="card" style="text-align:center; padding: var(--space-lg);">
+            <p style="color: var(--text-muted); font-size: var(--text-sm);">No analysis for ${UI.formatRelativeDate(date)}.</p>
+            <p style="color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-xs);">Log food and sync to get your analysis.</p>
+          </div>
+        `;
+      }
+
+      if (analysis && analysis.streaks) {
+        html += GoalsView.renderStreaks(analysis.streaks);
+      }
+    }
+
+    container.innerHTML = html;
+  },
+
+  // --- Today: forward-looking views ---
+
+  renderRemainingBudget(analysis) {
+    const n = GoalsView._normalizeAnalysis(analysis);
+    let html = '<h2 class="section-header">Remaining Today</h2><div class="card">';
+
+    if (n.calIntake != null && n.calGoal) {
+      const remaining = n.calGoal - n.calIntake;
+      const pct = Math.min(100, Math.round((n.calIntake / n.calGoal) * 100));
+      const color = remaining > 0 ? 'var(--accent-green)' : 'var(--accent-red)';
       html += `
-        <div class="card" style="text-align:center; padding: var(--space-lg);">
-          <p style="color: var(--text-muted); font-size: var(--text-sm);">No analysis yet for ${UI.formatRelativeDate(date)}.</p>
-          <p style="color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-xs);">Log food and sync to get your analysis.</p>
+        <div style="display:flex; justify-content:space-between; margin-bottom: var(--space-xs);">
+          <span style="font-weight:600;">Calories</span>
+          <span style="color:var(--text-secondary)">${remaining > 0 ? remaining + ' remaining' : Math.abs(remaining) + ' over'}</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${color}"></div></div>
+        <div style="font-size:var(--text-xs); color:var(--text-muted); margin-top:2px;">${n.calIntake} eaten of ${n.calGoal}</div>
+      `;
+    }
+
+    // Macro remaining
+    if (Object.keys(n.macros).length > 0) {
+      html += '<div style="margin-top: var(--space-sm);">';
+      for (const [name, m] of Object.entries(n.macros)) {
+        if (!m.goal) continue;
+        const remaining = m.goal - m.actual;
+        html += `
+          <div style="display:flex; justify-content:space-between; font-size:var(--text-sm); margin-bottom:4px;">
+            <span style="text-transform:capitalize;">${name}</span>
+            <span style="color:var(--text-secondary)">${remaining > 0 ? remaining + 'g left' : 'goal hit!'}</span>
+          </div>
+        `;
+      }
+      html += '</div>';
+    }
+
+    // Water remaining
+    if (n.waterActual != null && n.waterGoal) {
+      const remaining = n.waterGoal - n.waterActual;
+      html += `
+        <div style="display:flex; justify-content:space-between; font-size:var(--text-sm); margin-top:var(--space-sm);">
+          <span>Water</span>
+          <span style="color:var(--text-secondary)">${remaining > 0 ? remaining + ' oz left' : 'goal hit!'}</span>
         </div>
       `;
     }
 
-    // --- Streaks ---
-    if (analysis && analysis.streaks) {
-      html += GoalsView.renderStreaks(analysis.streaks);
+    html += '</div>';
+
+    // Highlights/concerns as forward-looking tips
+    if (analysis.concerns?.length) {
+      html += '<div class="card" style="margin-top: var(--space-sm);">';
+      for (const c of analysis.concerns) {
+        html += `<div style="font-size:var(--text-sm); color:var(--accent-orange); margin-bottom:4px;">\u26A0 ${UI.escapeHtml(c)}</div>`;
+      }
+      html += '</div>';
     }
 
-    // --- Meal Plan ---
-    if (mealPlan && mealPlan.days) {
-      html += GoalsView.renderMealPlan(mealPlan);
+    return html;
+  },
+
+  renderTodayPlan(todayPlan) {
+    let html = '<h2 class="section-header">What to Eat</h2>';
+
+    if (todayPlan.remaining_meal) {
+      const rm = todayPlan.remaining_meal;
+      html += `<div class="card" style="margin-bottom: var(--space-sm); border-left: 3px solid var(--accent-green);">
+        <div style="font-weight:600; margin-bottom:4px;">${UI.escapeHtml(rm.name || 'Next Meal')}</div>
+        ${rm.suggestion ? `<div style="font-size:var(--text-sm); color:var(--text-muted); margin-bottom:var(--space-xs);">${UI.escapeHtml(rm.suggestion)}</div>` : ''}
+        <div style="font-size:var(--text-xs); color:var(--text-secondary);">${rm.calories || '?'} cal \u00B7 ${rm.protein || '?'}g protein</div>
+      </div>`;
     }
 
-    // --- Workout Plan ---
-    if (regimen) {
-      html += GoalsView.renderRegimen(regimen);
+    if (todayPlan.meals) {
+      html += '<div class="card">';
+      for (const meal of todayPlan.meals) {
+        const mealType = UI.escapeHtml(meal.type || meal.meal || '');
+        const mealName = UI.escapeHtml(meal.suggestion || meal.name || meal.description || '');
+        html += `
+          <div style="margin-bottom:var(--space-sm); padding-bottom:var(--space-sm); border-bottom:1px solid var(--border-color);">
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <span style="font-weight:500;">${mealName}</span>
+              <span style="font-size:var(--text-xs); color:var(--text-muted); white-space:nowrap; margin-left:var(--space-sm);">${meal.calories || '?'} cal</span>
+            </div>
+            ${meal.description ? `<div style="font-size:var(--text-xs); color:var(--text-muted); margin-top:2px;">${UI.escapeHtml(meal.description)}</div>` : ''}
+            <div style="font-size:var(--text-xs); color:var(--text-secondary); margin-top:2px;">${meal.protein || 0}g protein \u00B7 ${meal.prep_time || ''}</div>
+          </div>
+        `;
+      }
+      if (todayPlan.day_totals) {
+        html += `<div style="font-size:var(--text-xs); color:var(--text-muted);">Day total: ~${todayPlan.day_totals.calories} cal, ~${todayPlan.day_totals.protein}g protein</div>`;
+      }
+      html += '</div>';
     }
 
-    container.innerHTML = html;
+    return html;
+  },
+
+  renderTodayWorkout(regimen, date) {
+    const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const todayPlan = regimen.weeklySchedule?.find(d => d.day === dayName);
+    if (!todayPlan) return '';
+
+    let html = `<h2 class="section-header">Today's Workout</h2>`;
+    html += `<div class="card">`;
+
+    const typeLabel = todayPlan.type || '';
+    html += `<div style="display:flex; justify-content:space-between; margin-bottom:var(--space-xs);">
+      <span style="font-weight:600; text-transform:capitalize;">${dayName}</span>
+      <span style="font-size:var(--text-xs); color:var(--accent-green); text-transform:uppercase;">${UI.escapeHtml(typeLabel)}</span>
+    </div>`;
+
+    // Split description on | for readability
+    const parts = todayPlan.description.split('|').map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      for (const part of parts) {
+        html += `<div style="font-size:var(--text-sm); padding:3px 0; ${part.startsWith('Core:') || part.startsWith('Core ') ? 'margin-top:var(--space-xs); border-top:1px solid var(--border-color); padding-top:var(--space-xs);' : ''}">${UI.escapeHtml(part)}</div>`;
+      }
+    } else {
+      html += `<div style="font-size:var(--text-sm);">${UI.escapeHtml(todayPlan.description)}</div>`;
+    }
+
+    html += '</div>';
+
+    // Weekly review note if present
+    if (regimen.weeklyReview) {
+      html += `<div class="card" style="margin-top:var(--space-sm);">
+        <div style="font-size:var(--text-xs); color:var(--text-muted);">${UI.escapeHtml(regimen.weeklyReview)}</div>
+      </div>`;
+    }
+
+    return html;
+  },
+
+  // --- Past days: summary log view ---
+
+  renderDayLog(analysis) {
+    if (!analysis.entries || analysis.entries.length === 0) return '';
+
+    let html = '<h2 class="section-header">What You Ate</h2><div class="card">';
+
+    for (const entry of analysis.entries) {
+      if (entry.type === 'bodyPhoto') continue;
+      const icon = entry.type === 'workout' ? '\u{1F3CB}\uFE0F' :
+                   entry.type === 'supplement' ? '\u{1F48A}' :
+                   entry.type === 'drink' ? '\u{1F964}' : '\u{1F372}';
+      const cal = entry.type === 'workout' ? `${entry.calories_burned || '?'} cal burned` :
+                  `${entry.calories || 0} cal`;
+      const protein = entry.type !== 'workout' && entry.protein ? ` \u00B7 ${entry.protein}g protein` : '';
+
+      html += `
+        <div style="padding:var(--space-xs) 0; border-bottom:1px solid var(--border-color);">
+          <div style="display:flex; justify-content:space-between; align-items:baseline;">
+            <span style="font-size:var(--text-sm);">${icon} ${UI.escapeHtml(entry.description || entry.notes || entry.type)}</span>
+          </div>
+          <div style="font-size:var(--text-xs); color:var(--text-muted);">${cal}${protein}${entry.confidence ? ' \u00B7 ' + entry.confidence + ' confidence' : ''}</div>
+        </div>
+      `;
+    }
+
+    // Totals row
+    if (analysis.totals) {
+      const t = analysis.totals;
+      html += `
+        <div style="padding-top:var(--space-sm); font-weight:600; font-size:var(--text-sm); display:flex; justify-content:space-between;">
+          <span>Total</span>
+          <span>${t.calories} cal \u00B7 ${t.protein}g protein \u00B7 ${t.carbs}g carbs \u00B7 ${t.fat}g fat</span>
+        </div>
+      `;
+    }
+
+    html += '</div>';
+
+    // Highlights
+    if (analysis.highlights?.length) {
+      html += '<div class="card" style="margin-top: var(--space-sm);">';
+      for (const h of analysis.highlights) {
+        html += `<div style="font-size:var(--text-sm); color:var(--accent-green); margin-bottom:4px;">\u2713 ${UI.escapeHtml(h)}</div>`;
+      }
+      html += '</div>';
+    }
+
+    return html;
   },
 
   // Normalize analysis data to a consistent shape for rendering.

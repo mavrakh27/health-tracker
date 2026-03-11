@@ -51,6 +51,11 @@
   color: var(--accent-blue);
 }
 
+.quick-action-supplement {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
 /* Cards — minimal, barely bordered */
 .card {
   background: var(--bg-card);

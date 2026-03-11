@@ -39,15 +39,17 @@ After ZIP extraction, the data is at `{ICLOUD_DIR}/incoming/{DATE}/`:
    - What to watch (macro deficits, missing nutrients, high sugar)
 
 6. **Generate a rolling 3-day meal plan:**
+   - **Read `preferences.json` first** — it defines meal structure (meals per day, office vs home day split, OMAD rules, snack policy). Follow it exactly.
    - Today's remaining meal (if under budget)
    - Next 2 full days
-   - Based on goals, preferences, and what's been missed
-   - Include prep times and practical suggestions
-   - Be specific — real meal names, estimated macros, not generic "eat a salad"
+   - Meal count and calorie distribution MUST match preferences (e.g. if 2 meals/day with no snacks, don't generate 3 meals + snacks)
+   - Be specific — real meal names, full ingredient lists with amounts, estimated macros per meal, prep times
+   - Prioritize hitting protein target within the calorie budget
 
 7. **Generate/update workout regimen:**
-   - Read existing `regimen.json` if it exists — preserve the user's established plan
-   - If no regimen exists, create a reasonable weekly schedule based on any workout entries logged
+   - **Read `regimen.json` first** — it has the full program (phases, equipment, weekly schedule). Preserve the structure.
+   - Workout descriptions must be **comprehensive**: list every exercise with sets x reps, using the user's actual equipment
+   - Format: "Exercise 3x12 | Exercise 3x10 | ..." — not vague labels like "Full-body strength"
    - Include a `weeklyReview` noting how this day's workout compared to the plan
    - The regimen should cover all 7 days (including rest days)
 
@@ -113,6 +115,7 @@ Write a **single JSON file** to `{ICLOUD_DIR}/analysis/{DATE}.json` containing e
 
 ## Important
 
+- **Read ALL profile files** (goals.json, preferences.json, regimen.json) before generating output. Goal targets, meal structure, and workout plans come from these files — never hardcode or assume defaults.
 - Be precise with calorie estimates — use known nutrition data when available (packaged items with visible labels are high confidence)
 - When a photo shows a packaged product, read the label for exact nutrition info
 - Meal photos without notes should still be fully described and estimated
