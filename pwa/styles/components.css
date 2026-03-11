@@ -56,6 +56,178 @@
   color: var(--accent-green);
 }
 
+/* Supplement picker */
+.supplement-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-sm);
+}
+
+.supplement-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: var(--space-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.supplement-pick:active {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #111;
+}
+
+/* Segment control (Nutrition / Fitness toggle) */
+.segment-control {
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  margin-bottom: var(--space-md);
+}
+
+.segment-btn {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.segment-btn.active {
+  background: var(--accent-green);
+  color: #111;
+  font-weight: 600;
+}
+
+/* Fitness checklist */
+.fitness-exercise-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.fitness-check {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border: 2px solid var(--border-accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent-green);
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all var(--transition-fast);
+  padding: 0;
+  margin-top: 1px;
+}
+
+.fitness-check.checked {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #111;
+}
+
+.fitness-exercise.fitness-done {
+  opacity: 0.6;
+}
+
+.fitness-exercise-name {
+  font-weight: 500;
+  font-size: var(--text-sm);
+}
+
+.fitness-strikethrough {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.fitness-info-btn {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.fitness-info-btn:active {
+  background: var(--bg-hover);
+}
+
+.fitness-details {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border-color);
+}
+
+.fitness-detail-section {
+  margin-bottom: var(--space-sm);
+}
+
+.fitness-detail-section:last-child {
+  margin-bottom: 0;
+}
+
+.fitness-detail-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent-green);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.fitness-detail-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.fitness-notes {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  resize: vertical;
+}
+
+.fitness-notes:focus {
+  outline: none;
+  border-color: var(--accent-green);
+}
+
 /* Cards — minimal, barely bordered */
 .card {
   background: var(--bg-card);

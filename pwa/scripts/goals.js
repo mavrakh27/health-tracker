@@ -1,6 +1,8 @@
 // goals.js — Goals, streaks, meal plan, workout plan display
 
 const GoalsView = {
+  _activeTab: 'diet',
+
   async init() {
     const container = document.getElementById('goals-container');
     if (!container) return;
@@ -25,30 +27,42 @@ const GoalsView = {
     let html = '';
 
     if (isToday) {
-      // --- TODAY: Forward-looking view ---
-      // Remaining budget
-      if (analysis) {
-        html += GoalsView.renderRemainingBudget(analysis);
-      }
+      // --- TODAY: Segment control ---
+      const activeTab = GoalsView._activeTab || 'nutrition';
+      html += `
+        <div class="segment-control">
+          <button class="segment-btn${activeTab === 'diet' ? ' active' : ''}" data-tab="diet">Diet</button>
+          <button class="segment-btn${activeTab === 'fitness' ? ' active' : ''}" data-tab="fitness">Fitness</button>
+        </div>
+      `;
 
-      // Today's meal plan (what to eat next)
-      if (mealPlan && mealPlan.days) {
-        const todayPlan = mealPlan.days.find(d => d.date === date);
-        if (todayPlan) {
-          html += GoalsView.renderTodayPlan(todayPlan);
-        } else {
-          html += GoalsView.renderMealPlan(mealPlan);
+      if (activeTab === 'diet') {
+        // Remaining budget
+        if (analysis) {
+          html += GoalsView.renderRemainingBudget(analysis);
         }
-      }
 
-      // Today's workout
-      if (regimen) {
-        html += GoalsView.renderTodayWorkout(regimen, date);
-      }
+        // Today's meal plan (what to eat next)
+        if (mealPlan && mealPlan.days) {
+          const todayPlan = mealPlan.days.find(d => d.date === date);
+          if (todayPlan) {
+            html += GoalsView.renderTodayPlan(todayPlan);
+          } else {
+            html += GoalsView.renderMealPlan(mealPlan);
+          }
+        }
 
-      // Streaks
-      if (analysis && analysis.streaks) {
-        html += GoalsView.renderStreaks(analysis.streaks);
+        // Streaks
+        if (analysis && analysis.streaks) {
+          html += GoalsView.renderStreaks(analysis.streaks);
+        }
+      } else {
+        // Fitness tab — interactive workout checklist
+        if (regimen) {
+          html += await Fitness.render(regimen, date);
+        } else {
+          html += '<div class="card" style="text-align:center; padding:var(--space-lg);"><p style="color:var(--text-muted);">No workout plan yet. Sync to get your regimen.</p></div>';
+        }
       }
     } else {
       // --- PAST DAYS: Summary log view ---
@@ -73,6 +87,19 @@ const GoalsView = {
     }
 
     container.innerHTML = html;
+
+    // Segment control switching
+    container.querySelectorAll('.segment-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        GoalsView._activeTab = btn.dataset.tab;
+        GoalsView.init();
+      });
+    });
+
+    // Bind fitness events if on fitness tab
+    if (isToday && GoalsView._activeTab === 'fitness') {
+      Fitness.bindEvents(date);
+    }
   },
 
   // --- Today: forward-looking views ---
@@ -149,25 +176,25 @@ const GoalsView = {
     }
 
     if (todayPlan.meals) {
-      html += '<div class="card">';
       for (const meal of todayPlan.meals) {
-        const mealType = UI.escapeHtml(meal.type || meal.meal || '');
+        const mealLabel = meal.type || meal.meal || '';
+        const isOption = mealLabel.toLowerCase().startsWith('option');
         const mealName = UI.escapeHtml(meal.suggestion || meal.name || meal.description || '');
         html += `
-          <div style="margin-bottom:var(--space-sm); padding-bottom:var(--space-sm); border-bottom:1px solid var(--border-color);">
+          <div class="card" style="margin-bottom:var(--space-sm);">
+            ${isOption ? `<div style="font-size:var(--text-xs); color:var(--accent-green); text-transform:uppercase; font-weight:600; margin-bottom:4px;">${UI.escapeHtml(mealLabel)}</div>` : ''}
             <div style="display:flex; justify-content:space-between; align-items:baseline;">
               <span style="font-weight:500;">${mealName}</span>
               <span style="font-size:var(--text-xs); color:var(--text-muted); white-space:nowrap; margin-left:var(--space-sm);">${meal.calories || '?'} cal</span>
             </div>
-            ${meal.description ? `<div style="font-size:var(--text-xs); color:var(--text-muted); margin-top:2px;">${UI.escapeHtml(meal.description)}</div>` : ''}
+            ${meal.description ? `<div style="font-size:var(--text-xs); color:var(--text-muted); margin-top:var(--space-xs);">${UI.escapeHtml(meal.description)}</div>` : ''}
             <div style="font-size:var(--text-xs); color:var(--text-secondary); margin-top:2px;">${meal.protein || 0}g protein \u00B7 ${meal.prep_time || ''}</div>
           </div>
         `;
       }
-      if (todayPlan.day_totals) {
+      if (todayPlan.day_totals && todayPlan.day_totals.calories) {
         html += `<div style="font-size:var(--text-xs); color:var(--text-muted);">Day total: ~${todayPlan.day_totals.calories} cal, ~${todayPlan.day_totals.protein}g protein</div>`;
       }
-      html += '</div>';
     }
 
     return html;

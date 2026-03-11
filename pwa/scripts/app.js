@@ -155,8 +155,7 @@ const QuickLog = {
     document.getElementById('quick-photo-btn')?.addEventListener('click', () => QuickLog.snapFood());
     document.getElementById('quick-water-btn')?.addEventListener('click', () => QuickLog.showWaterPicker());
     document.getElementById('quick-weight-btn')?.addEventListener('click', () => QuickLog.showWeightEntry());
-    document.getElementById('quick-fiber-btn')?.addEventListener('click', () => QuickLog.logSupplement('fiber'));
-    document.getElementById('quick-collagen-btn')?.addEventListener('click', () => QuickLog.logSupplement('collagen'));
+    document.getElementById('quick-supplement-btn')?.addEventListener('click', () => QuickLog.showSupplementPicker());
   },
 
   // --- Snap food → auto-save (zero taps after photo) ---
@@ -325,35 +324,67 @@ const QuickLog = {
     });
   },
 
-  // --- One-tap daily supplements ---
-  _supplements: {
-    fiber: { name: 'Fiber supplement', notes: 'Psyllium husk fiber powder', calories: 30, protein: 0, carbs: 10, fat: 0 },
-    collagen: { name: 'Collagen peptides', notes: 'Vital Proteins collagen peptides', calories: 70, protein: 18, carbs: 0, fat: 0 },
-  },
+  // --- Supplement picker ---
+  _supplements: [
+    { key: 'fiber', name: 'Fiber', notes: 'Psyllium husk fiber powder', icon: '\u{1F33E}', calories: 30, protein: 0, carbs: 10, fat: 0 },
+    { key: 'collagen', name: 'Collagen', notes: 'Vital Proteins collagen peptides', icon: '\u2728', calories: 70, protein: 18, carbs: 0, fat: 0 },
+  ],
 
-  async logSupplement(type) {
-    const supp = QuickLog._supplements[type];
-    if (!supp) return;
-    const today = UI.today();
-    const entry = {
-      id: UI.generateId('supplement'),
-      type: 'supplement',
-      subtype: type,
-      date: today,
-      timestamp: new Date().toISOString(),
-      notes: supp.notes,
-      photo: null,
-      duration_minutes: null,
-    };
-    try {
-      await DB.addEntry(entry);
-      UI.toast(`${supp.name} logged`);
-      CloudRelay.queueUpload(today);
-      if (App.selectedDate === today) App.loadDayView();
-    } catch (err) {
-      console.error('Supplement log failed:', err);
-      UI.toast('Failed to log', 'error');
-    }
+  showSupplementPicker() {
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.style.maxHeight = '50dvh';
+
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title">Log Supplement</span>
+        <button class="modal-close" id="sp-close">&times;</button>
+      </div>
+      <div class="supplement-grid">
+        ${QuickLog._supplements.map(s => `
+          <button class="supplement-pick" data-key="${s.key}">
+            <div style="font-size:1.5rem;">${s.icon}</div>
+            <div style="font-weight:500;">${s.name}</div>
+            <div style="font-size:var(--text-xs); color:var(--text-muted);">${s.calories} cal · ${s.protein}g protein</div>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    document.getElementById('sp-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    sheet.querySelectorAll('.supplement-pick').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const supp = QuickLog._supplements.find(s => s.key === btn.dataset.key);
+        if (!supp) return;
+        const today = UI.today();
+        const entry = {
+          id: UI.generateId('supplement'),
+          type: 'supplement',
+          subtype: supp.key,
+          date: today,
+          timestamp: new Date().toISOString(),
+          notes: supp.notes,
+          photo: null,
+          duration_minutes: null,
+        };
+        try {
+          await DB.addEntry(entry);
+          UI.toast(`${supp.name} logged`);
+          CloudRelay.queueUpload(today);
+          closeModal();
+          if (App.selectedDate === today) App.loadDayView();
+        } catch (err) {
+          console.error('Supplement log failed:', err);
+          UI.toast('Failed to log', 'error');
+        }
+      });
+    });
   },
 };
 
