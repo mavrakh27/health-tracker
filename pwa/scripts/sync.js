@@ -541,22 +541,31 @@ const CloudRelay = {
       this.log(`Found ${newResults.length} result(s): ${newResults.join(', ')}`);
 
       for (const date of newResults) {
-        this.log(`Downloading analysis for ${date}...`);
-        const resultResp = await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/${date}`);
-        if (!resultResp.ok) {
-          this.log(`Failed to download ${date}: HTTP ${resultResp.status}`, 'error');
-          continue;
+        try {
+          const dlUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}`;
+          this.log(`Downloading: ${dlUrl}`);
+          const resultResp = await fetch(dlUrl);
+          if (!resultResp.ok) {
+            this.log(`Failed to download ${date}: HTTP ${resultResp.status}`, 'error');
+            continue;
+          }
+
+          this.log(`Parsing JSON for ${date}...`);
+          const analysis = await resultResp.json();
+          this.log(`Importing ${date} into DB (${Object.keys(analysis).length} keys)...`);
+          await DB.importAnalysis(date, analysis);
+          this.log(`Imported ${date}`, 'ok');
+
+          const ackUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}/ack`;
+          this.log(`Sending ack: ${ackUrl}`);
+          await fetch(ackUrl, { method: 'POST' });
+          this.log(`Ack sent for ${date}`, 'ok');
+
+          UI.toast(`Analysis for ${UI.formatDate(date)} imported!`);
+          if (date === App.selectedDate) App.loadDayView();
+        } catch (innerErr) {
+          this.log(`Error processing ${date}: ${innerErr.message}`, 'error');
         }
-
-        const analysis = await resultResp.json();
-        await DB.importAnalysis(date, analysis);
-        this.log(`Imported analysis for ${date}`, 'ok');
-
-        // Acknowledge receipt
-        await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/${date}/ack`, { method: 'POST' });
-
-        UI.toast(`Analysis for ${UI.formatDate(date)} imported!`);
-        if (date === App.selectedDate) App.loadDayView();
       }
     } catch (err) {
       this.log(`Results check error: ${err.message}`, 'error');
