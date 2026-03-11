@@ -543,16 +543,22 @@ const CloudRelay = {
       for (const date of newResults) {
         try {
           const dlUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}`;
-          this.log(`Downloading: ${dlUrl}`);
+          this.log(`Downloading ${date}...`);
           const resultResp = await fetch(dlUrl);
           if (!resultResp.ok) {
             this.log(`Failed to download ${date}: HTTP ${resultResp.status}`, 'error');
             continue;
           }
 
-          this.log(`Parsing JSON for ${date}...`);
-          const analysis = await resultResp.json();
-          this.log(`Importing ${date} into DB (${Object.keys(analysis).length} keys)...`);
+          // Use text + JSON.parse for better error diagnostics than .json()
+          const text = await resultResp.text();
+          let analysis;
+          try {
+            analysis = JSON.parse(text);
+          } catch (parseErr) {
+            this.log(`Invalid JSON for ${date}: ${parseErr.message} (first 100 chars: ${text.slice(0, 100)})`, 'error');
+            continue;
+          }
           await DB.importAnalysis(date, analysis);
           this.log(`Imported ${date}`, 'ok');
 

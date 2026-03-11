@@ -106,7 +106,7 @@ if !RELAY_MODE! equ 1 (
     for %%d in (!RELAY_DATES!) do (
         if exist "%ICLOUD_DIR%\analysis\%%d.json" (
             echo [%TODAY%] Uploading analysis for %%d...
-            curl -s -X POST -H "Content-Type: application/json" -d @"%ICLOUD_DIR%\analysis\%%d.json" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/%%d/done"
+            curl -s -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%ICLOUD_DIR%\analysis\%%d.json" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/%%d/done"
             if not errorlevel 1 (
                 echo [%TODAY%] Uploaded results for %%d
             ) else (
