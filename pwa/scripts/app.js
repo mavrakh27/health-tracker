@@ -85,8 +85,8 @@ const Coach = {
       tips.push({ icon: '\u{1F4F8}', text: `${meals.length} meal${meals.length > 1 ? 's' : ''} logged. Sync to get calorie & protein tracking.` });
     }
 
-    // --- Meal timing nudges (no analysis needed) ---
-    if (meals.length === 0 && hour >= 11) {
+    // --- Meal timing nudges (only when no analysis context is showing) ---
+    if (meals.length === 0 && hour >= 11 && !analysis) {
       tips.push({ icon: '\u{1F372}', text: hour >= 14 ? 'No meals logged yet today \u2014 snap a photo of what you eat!' : 'Morning going well? Log your first meal when you eat.' });
     }
 
