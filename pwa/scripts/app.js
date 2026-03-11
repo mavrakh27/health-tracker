@@ -1,6 +1,6 @@
 // app.js — Routing, init, navigation
 
-// --- Daily Coach (suggestions based on yesterday's data + goals) ---
+// --- Daily Coach (suggestions based on latest analysis + goals) ---
 const Coach = {
   async getSuggestions(date) {
     // Only show coach for today — past dates don't need forward-looking tips
@@ -8,42 +8,71 @@ const Coach = {
 
     const tips = [];
     const goals = await DB.getProfile('goals') || {};
+
+    // Use today's analysis if available (processed within 30 min), fall back to yesterday
     const yesterday = Coach._prevDate(date);
-    const analysis = await DB.getAnalysis(yesterday);
+    const todayAnalysis = await DB.getAnalysis(date);
+    const yesterdayAnalysis = await DB.getAnalysis(yesterday);
+    const analysis = todayAnalysis || yesterdayAnalysis;
+    const isToday = !!todayAnalysis;
 
     if (analysis) {
       const totals = analysis.totals || {};
+      const label = isToday ? 'So far today' : 'Yesterday';
 
-      // Calorie gap
+      // Calorie status
       if (goals.calories && totals.calories != null) {
-        const gap = goals.calories - totals.calories;
-        if (gap > 200) {
-          tips.push({ icon: '\u{1F525}', text: `Yesterday: ${totals.calories} cal (${gap} under). Aim for ${goals.calories} today.`, highlight: true });
-        } else if (gap < -200) {
-          tips.push({ icon: '\u{2696}\uFE0F', text: `Yesterday: ${totals.calories} cal (${Math.abs(gap)} over). Lighter day today.` });
+        const remaining = goals.calories - totals.calories;
+        if (isToday) {
+          if (remaining > 200) {
+            tips.push({ icon: '\u{1F525}', text: `${label}: ${totals.calories} cal. ${remaining} cal left \u2014 you've got room.`, highlight: true });
+          } else if (remaining > 0) {
+            tips.push({ icon: '\u{2705}', text: `${label}: ${totals.calories} cal. Almost at your ${goals.calories} target!`, highlight: true });
+          } else {
+            tips.push({ icon: '\u{2696}\uFE0F', text: `${label}: ${totals.calories} cal (${Math.abs(remaining)} over ${goals.calories} target). Easy on the next meal.` });
+          }
         } else {
-          tips.push({ icon: '\u{2705}', text: `Yesterday: ${totals.calories} cal \u2014 right on target!`, highlight: true });
+          const gap = goals.calories - totals.calories;
+          if (gap > 200) {
+            tips.push({ icon: '\u{1F525}', text: `${label}: ${totals.calories} cal (${gap} under). Aim for ${goals.calories} today.`, highlight: true });
+          } else if (gap < -200) {
+            tips.push({ icon: '\u{2696}\uFE0F', text: `${label}: ${totals.calories} cal (${Math.abs(gap)} over). Lighter day today.` });
+          } else {
+            tips.push({ icon: '\u{2705}', text: `${label}: ${totals.calories} cal \u2014 right on target!`, highlight: true });
+          }
         }
       }
 
-      // Protein gap
+      // Protein status
       if (goals.protein && totals.protein != null) {
-        const gap = goals.protein - totals.protein;
-        if (gap > 20) {
-          const foods = Coach._proteinIdeas(yesterday);
-          tips.push({ icon: '\u{1F4AA}', text: `Protein was ${totals.protein}g (goal: ${goals.protein}g). Try: ${foods}`, highlight: true });
+        const remaining = goals.protein - totals.protein;
+        if (remaining > 20) {
+          const foods = Coach._proteinIdeas(date);
+          if (isToday) {
+            tips.push({ icon: '\u{1F4AA}', text: `Protein: ${totals.protein}g so far (need ${remaining}g more). Try: ${foods}`, highlight: true });
+          } else {
+            tips.push({ icon: '\u{1F4AA}', text: `Protein was ${totals.protein}g (goal: ${goals.protein}g). Try: ${foods}`, highlight: true });
+          }
+        } else if (isToday && remaining <= 0) {
+          tips.push({ icon: '\u{2705}', text: `Protein: ${totals.protein}g \u2014 goal hit!`, highlight: true });
         }
       }
 
-      // Water gap — try analysis.goals.water first, fall back to daily summary
+      // Water status
       if (goals.water_oz) {
         let waterActual = analysis.goals?.water?.actual_oz;
         if (waterActual == null) {
-          const yesterdaySummary = await DB.getDailySummary(yesterday);
-          waterActual = yesterdaySummary.water_oz || null;
+          const summaryDate = isToday ? date : yesterday;
+          const summary = await DB.getDailySummary(summaryDate);
+          waterActual = summary.water_oz || null;
         }
-        if (waterActual != null && waterActual < goals.water_oz * 0.7) {
-          tips.push({ icon: '\u{1F4A7}', text: `Only ${waterActual} oz water yesterday. Start sipping early \u2014 goal is ${goals.water_oz} oz.` });
+        if (waterActual != null) {
+          const waterLeft = goals.water_oz - waterActual;
+          if (isToday && waterLeft > 0) {
+            tips.push({ icon: '\u{1F4A7}', text: `Water: ${waterActual} oz of ${goals.water_oz} oz. ${waterLeft} oz to go.` });
+          } else if (!isToday && waterActual < goals.water_oz * 0.7) {
+            tips.push({ icon: '\u{1F4A7}', text: `Only ${waterActual} oz water yesterday. Start sipping early \u2014 goal is ${goals.water_oz} oz.` });
+          }
         }
       }
     }
