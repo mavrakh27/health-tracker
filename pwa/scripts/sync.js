@@ -517,21 +517,38 @@ const CloudRelay = {
   // Check for new analysis results from the relay
   async checkForResults() {
     const config = await this.getConfig();
-    if (!config || !config.workerUrl || !config.syncKey) return;
+    if (!config || !config.workerUrl || !config.syncKey) {
+      this.log('Results check skipped — not configured');
+      return;
+    }
 
     try {
+      this.log('Checking for analysis results...');
       const resp = await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/new`);
-      if (!resp.ok) return;
+      if (!resp.ok) {
+        this.log(`Results check failed: HTTP ${resp.status}`, 'error');
+        return;
+      }
 
       const { newResults } = await resp.json();
-      if (!newResults || newResults.length === 0) return;
+      if (!newResults || newResults.length === 0) {
+        this.log('No new results available');
+        return;
+      }
+
+      this.log(`Found ${newResults.length} result(s): ${newResults.join(', ')}`);
 
       for (const date of newResults) {
+        this.log(`Downloading analysis for ${date}...`);
         const resultResp = await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/${date}`);
-        if (!resultResp.ok) continue;
+        if (!resultResp.ok) {
+          this.log(`Failed to download ${date}: HTTP ${resultResp.status}`, 'error');
+          continue;
+        }
 
         const analysis = await resultResp.json();
         await DB.importAnalysis(date, analysis);
+        this.log(`Imported analysis for ${date}`, 'ok');
 
         // Acknowledge receipt
         await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/${date}/ack`, { method: 'POST' });
@@ -540,7 +557,7 @@ const CloudRelay = {
         if (date === App.selectedDate) App.loadDayView();
       }
     } catch (err) {
-      console.error('CloudRelay: check results failed', err);
+      this.log(`Results check error: ${err.message}`, 'error');
     }
   },
 
@@ -623,13 +640,14 @@ const CloudRelay = {
       }
     }
 
-    document.getElementById('cs-sync-now').addEventListener('click', () => {
+    document.getElementById('cs-sync-now').addEventListener('click', async () => {
       const today = UI.today();
       clearTimeout(CloudRelay._uploadTimer);
       CloudRelay._uploadTimer = null;
       CloudRelay.log(`Manual sync triggered for ${today}`);
       CloudRelay._pendingDate = today;
-      CloudRelay._doUpload();
+      await CloudRelay._doUpload();
+      await CloudRelay.checkForResults();
     });
 
     document.getElementById('cs-test')?.addEventListener('click', async () => {
