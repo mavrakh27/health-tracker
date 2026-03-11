@@ -3,124 +3,43 @@
 // --- Quick Log (zero-friction logging from Today screen) ---
 const QuickLog = {
   init() {
-    document.getElementById('quick-photo-btn')?.addEventListener('click', () => QuickLog.snapMeal());
+    document.getElementById('quick-photo-btn')?.addEventListener('click', () => QuickLog.snapFood());
     document.getElementById('quick-water-8')?.addEventListener('click', () => QuickLog.addWater(8));
     document.getElementById('quick-water-16')?.addEventListener('click', () => QuickLog.addWater(16));
     document.getElementById('quick-weight-btn')?.addEventListener('click', () => QuickLog.showWeightEntry());
   },
 
-  // --- Snap meal → quick log modal (always logs to today) ---
-  async snapMeal() {
+  // --- Snap food → auto-save (zero taps after photo) ---
+  async snapFood() {
     const photo = await Camera.capture('meal');
     if (!photo) return;
-    QuickLog.showQuickLogModal(photo);
-  },
 
-  showQuickLogModal(photo) {
-    const autoSub = UI.autoMealSubtype();
-    let selectedType = 'meal';
-    let selectedSubtype = autoSub;
-
-    const overlay = UI.createElement('div', 'modal-overlay');
-
-    const sheet = UI.createElement('div', 'modal-sheet');
-    sheet.innerHTML = `
-      <div class="modal-header">
-        <span class="modal-title">Quick Log</span>
-        <button class="modal-close" id="ql-close">&times;</button>
-      </div>
-      <div class="ql-photo-preview">
-        <img src="${photo.url}" alt="">
-      </div>
-      <div class="subtype-row" id="ql-type-chips">
-        <button class="subtype-chip selected" data-type="meal">\u{1F37D}\uFE0F Meal</button>
-        <button class="subtype-chip" data-type="snack">\u{1F36A} Snack</button>
-        <button class="subtype-chip" data-type="drink">\u{1F964} Drink</button>
-      </div>
-      <div class="subtype-row" id="ql-subtype-chips">
-        <button class="subtype-chip${autoSub === 'breakfast' ? ' selected' : ''}" data-sub="breakfast">Breakfast</button>
-        <button class="subtype-chip${autoSub === 'lunch' ? ' selected' : ''}" data-sub="lunch">Lunch</button>
-        <button class="subtype-chip${autoSub === 'dinner' ? ' selected' : ''}" data-sub="dinner">Dinner</button>
-      </div>
-      <div class="form-group">
-        <textarea class="form-input" id="ql-notes" placeholder="Add notes (optional)" rows="2"></textarea>
-      </div>
-      <button class="btn btn-primary btn-block btn-lg" id="ql-save">Save</button>
-    `;
-
-    overlay.appendChild(sheet);
-    document.body.appendChild(overlay);
-
-    // Type chip selection
-    sheet.querySelectorAll('#ql-type-chips .subtype-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        sheet.querySelectorAll('#ql-type-chips .subtype-chip').forEach(c => c.classList.remove('selected'));
-        chip.classList.add('selected');
-        selectedType = chip.dataset.type;
-        const subtypeRow = document.getElementById('ql-subtype-chips');
-        subtypeRow.style.display = selectedType === 'meal' ? 'flex' : 'none';
-        if (selectedType !== 'meal') selectedSubtype = null;
-      });
-    });
-
-    // Subtype chip selection
-    sheet.querySelectorAll('#ql-subtype-chips .subtype-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        sheet.querySelectorAll('#ql-subtype-chips .subtype-chip').forEach(c => c.classList.remove('selected'));
-        chip.classList.add('selected');
-        selectedSubtype = chip.dataset.sub;
-      });
-    });
-
-    const closeModal = () => {
-      Camera.revokeURL(photo.url);
-      overlay.remove();
+    const today = UI.today();
+    const entry = {
+      id: UI.generateId('meal'),
+      type: 'meal',
+      subtype: null,
+      date: today,
+      timestamp: new Date().toISOString(),
+      notes: '',
+      photo: true,
+      duration_minutes: null,
     };
 
-    document.getElementById('ql-close').addEventListener('click', closeModal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-
-    // Save
-    document.getElementById('ql-save').addEventListener('click', async () => {
-      if (selectedType === 'meal' && !selectedSubtype) {
-        UI.toast('Pick a meal type', 'error');
-        return;
+    try {
+      await DB.addEntry(entry, photo.blob);
+      UI.toast('Food logged');
+      CloudRelay.queueUpload(today);
+      if (App.selectedDate !== today) {
+        App.selectedDate = today;
+        App.updateHeaderDate();
       }
-
-      const notes = document.getElementById('ql-notes')?.value?.trim() || '';
-      const today = UI.today();
-      const entry = {
-        id: UI.generateId(selectedType),
-        type: selectedType,
-        subtype: selectedSubtype,
-        date: today,
-        timestamp: new Date().toISOString(),
-        notes,
-        photo: true,
-        duration_minutes: null,
-      };
-
-      const saveBtn = document.getElementById('ql-save');
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving...';
-
-      try {
-        await DB.addEntry(entry, photo.blob);
-        UI.toast(`${UI.entryLabel(entry.type, entry.subtype)} logged`);
-        overlay.remove(); // Don't revoke — blob is in DB now
-        // If viewing today, refresh; otherwise switch to today
-        if (App.selectedDate !== today) {
-          App.selectedDate = today;
-          App.updateHeaderDate();
-        }
-        App.loadDayView();
-      } catch (err) {
-        console.error('Quick save failed:', err);
-        UI.toast('Failed to save', 'error');
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save';
-      }
-    });
+      App.loadDayView();
+    } catch (err) {
+      console.error('Quick save failed:', err);
+      UI.toast('Failed to save', 'error');
+      Camera.revokeURL(photo.url);
+    }
   },
 
   // --- Quick water increment (always logs to today) ---
@@ -135,6 +54,7 @@ const QuickLog = {
       const newTotal = current + oz;
       await DB.updateDailySummary(today, { water_oz: newTotal });
       UI.toast(`Water: ${newTotal} oz (+${oz})`);
+      CloudRelay.queueUpload(today);
       if (App.selectedDate === today) App.loadDayView();
     } catch (err) {
       console.error('Quick water failed:', err);
@@ -201,6 +121,7 @@ const QuickLog = {
       try {
         await DB.updateDailySummary(today, { weight: { value, unit: 'lbs' } });
         UI.toast(`Weight: ${value} lbs saved`);
+        CloudRelay.queueUpload(today);
         overlay.remove();
         if (App.selectedDate === today) App.loadDayView();
       } catch (err) {
@@ -226,6 +147,10 @@ const App = {
     // Initialize DB, then load the initial route
     DB.openDB().then(() => {
       console.log('DB ready');
+      // Initialize auto-sync (runs backup if needed)
+      AutoSync.init().catch(err => console.warn('AutoSync init failed:', err));
+      // Check for cloud relay results
+      CloudRelay.checkForResults().catch(err => console.warn('CloudRelay check failed:', err));
       App.handleRoute();
     }).catch(err => {
       console.error('DB init failed:', err);
@@ -270,7 +195,11 @@ const App = {
     if (screenId === 'log') Log.init();
     if (screenId === 'calendar') Calendar.init();
     if (screenId === 'goals') GoalsView.init();
-    if (screenId === 'settings') Settings.loadStorageInfo();
+    if (screenId === 'settings') {
+      Settings.loadStorageInfo();
+      Settings.loadCloudSyncStatus();
+      Settings.initAutoSyncToggle();
+    }
   },
 
   // --- Navigation ---
@@ -341,6 +270,8 @@ const App = {
       // Check if this is a brand new user (no entries anywhere)
       const hasAnyEntries = isToday ? await DB.hasAnyEntries() : true;
       if (isToday && !hasAnyEntries) {
+        // Pre-populate goals for new users
+        App.ensureDefaultGoals();
         entryList.innerHTML = App.renderWelcomeCard();
       } else {
         const dateLabel = isToday ? 'today' : `for ${UI.formatDate(date)}`;
@@ -398,6 +329,13 @@ const App = {
     `;
   },
 
+  async ensureDefaultGoals() {
+    const existing = await DB.getProfile('goals');
+    if (!existing) {
+      await DB.setProfile('goals', { calories: 1800, protein: 130, water_oz: 96 });
+    }
+  },
+
   async showGoalSetup() {
     const overlay = UI.createElement('div', 'modal-overlay');
 
@@ -449,7 +387,7 @@ const App = {
     const statsEl = document.getElementById('today-stats');
     if (!statsEl) return;
 
-    const mealCount = entries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
+    const foodCount = entries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
     const workouts = entries.filter(e => e.type === 'workout');
     const workoutMin = workouts.reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
 
@@ -459,8 +397,8 @@ const App = {
         <div class="stat-label">Water</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" style="color: var(--color-meal)">${mealCount}</div>
-        <div class="stat-label">Meals logged</div>
+        <div class="stat-value" style="color: var(--color-meal)">${foodCount}</div>
+        <div class="stat-label">Food logged</div>
       </div>
       <div class="stat-card">
         <div class="stat-value" style="color: var(--color-workout)">${workoutMin}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> min</span></div>
@@ -497,6 +435,25 @@ const Settings = {
     if (!confirm('Delete all processed meal photos? Body photos are kept.')) return;
     await Sync.clearProcessedPhotos();
     Settings.loadStorageInfo();
+  },
+
+  async loadCloudSyncStatus() {
+    const el = document.getElementById('cloud-sync-status');
+    if (!el) return;
+    const configured = await CloudRelay.isConfigured();
+    el.textContent = configured ? 'Connected — syncing automatically' : 'Not configured';
+  },
+
+  async initAutoSyncToggle() {
+    const toggle = document.getElementById('autosync-toggle');
+    if (!toggle) return;
+
+    const status = await AutoSync.getStatus();
+    toggle.checked = status.enabled;
+    toggle.addEventListener('change', async () => {
+      await AutoSync.toggle(toggle.checked);
+      UI.toast(toggle.checked ? 'Auto-backup enabled' : 'Auto-backup disabled');
+    });
   },
 };
 

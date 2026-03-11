@@ -34,7 +34,7 @@
 
       <div class="quick-actions" id="quick-actions">
         <button class="quick-action quick-action-primary" id="quick-photo-btn">
-          <span>&#x1F4F7;</span> Snap meal
+          <span>&#x1F4F7;</span> Snap food
         </button>
         <button class="quick-action quick-action-water" id="quick-water-8">
           <span>&#x1F4A7;</span> +8 oz
@@ -100,8 +100,19 @@
       </div>
 
       <div class="card" style="margin-top: var(--space-sm);">
-        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">Sync</h3>
-        <button class="btn btn-primary btn-block" onclick="Sync.exportDay()">Export Today's Data</button>
+        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">Cloud Sync</h3>
+        <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-sm);">Auto-sync entries to the cloud relay for nightly processing.</p>
+        <div id="cloud-sync-status" style="font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm);"></div>
+        <button class="btn btn-primary btn-block" onclick="CloudRelay.showSetup()">Configure Cloud Sync</button>
+      </div>
+
+      <div class="card" style="margin-top: var(--space-sm);">
+        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">Manual Sync</h3>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-sm);">
+          <label style="font-size: var(--text-sm); color: var(--text-secondary);">Auto-backup daily</label>
+          <input type="checkbox" id="autosync-toggle" style="cursor: pointer; width: 20px; height: 20px;">
+        </div>
+        <button class="btn btn-secondary btn-block" onclick="Sync.exportDay()">Export Today's Data</button>
         <button class="btn btn-secondary btn-block" style="margin-top: var(--space-sm);" onclick="Sync.importAll()">Import (select all files at once)</button>
       </div>
 

@@ -1,14 +1,6 @@
 // ui.js — Shared UI utilities
 
 const UI = {
-  // --- Smart Defaults ---
-  autoMealSubtype() {
-    const hour = new Date().getHours();
-    if (hour < 11) return 'breakfast';
-    if (hour < 16) return 'lunch';
-    return 'dinner';
-  },
-
   // --- Date Helpers ---
   today() {
     const d = new Date();
@@ -75,9 +67,9 @@ const UI = {
   // --- Entry Icons & Labels ---
   entryIcon(type, subtype) {
     const icons = {
-      meal: { breakfast: '\u{1F373}', lunch: '\u{1F96A}', dinner: '\u{1F35D}', default: '\u{1F37D}\uFE0F' },
-      snack: '\u{1F36A}',
-      drink: '\u{1F964}',
+      meal: '\u{1F37D}\uFE0F',
+      snack: '\u{1F37D}\uFE0F',
+      drink: '\u{1F37D}\uFE0F',
       workout: { strength: '\u{1F4AA}', cardio: '\u{1F3C3}', flexibility: '\u{1F9D8}', default: '\u{1F3CB}\uFE0F' },
       water: '\u{1F4A7}',
       weight: '\u{2696}\uFE0F',
@@ -90,11 +82,12 @@ const UI = {
   },
 
   entryLabel(type, subtype) {
-    if (subtype) {
+    // Workout subtypes still display as their subtype name
+    if (type === 'workout' && subtype) {
       return subtype.charAt(0).toUpperCase() + subtype.slice(1);
     }
     const labels = {
-      meal: 'Meal', snack: 'Snack', drink: 'Drink',
+      meal: 'Food', snack: 'Food', drink: 'Food',
       workout: 'Workout', water: 'Water', weight: 'Weight',
       bodyPhoto: 'Body Photo', sleep: 'Sleep',
     };
@@ -144,28 +137,6 @@ const UI = {
 
     body.appendChild(typeLabel);
 
-    // Delete button (hidden until entry is tapped)
-    const deleteBtn = UI.createElement('button', 'entry-delete-btn');
-    deleteBtn.innerHTML = '&times;';
-    deleteBtn.title = 'Delete entry';
-    deleteBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (!confirm(`Delete this ${UI.entryLabel(entry.type, entry.subtype).toLowerCase()} entry?`)) return;
-      try {
-        await DB.deleteEntry(entry.id);
-        UI.toast('Entry deleted');
-        App.loadDayView();
-      } catch (err) {
-        console.error('Delete failed:', err);
-        UI.toast('Failed to delete', 'error');
-      }
-    });
-
-    // Tap entry to toggle delete button visibility
-    div.addEventListener('click', () => {
-      div.classList.toggle('show-delete');
-    });
-
     if (entry.notes) {
       const notes = UI.createElement('div', 'entry-notes');
       notes.textContent = entry.notes;
@@ -185,7 +156,9 @@ const UI = {
 
     div.appendChild(icon);
     div.appendChild(body);
-    div.appendChild(deleteBtn);
+
+    // Tap entry to open edit modal
+    div.addEventListener('click', () => UI.showEditModal(entry));
 
     // Load photo thumbnail if entry has a photo
     if (entry.photo) {
@@ -223,10 +196,6 @@ const UI = {
         DB.getPhotos(entry.id).then(photos => {
           if (photos.length > 0 && photos[0].blob) {
             const blobUrl = URL.createObjectURL(photos[0].blob);
-            // Guard against race condition: if the entry was removed
-            // from the DOM (e.g. user navigated away quickly) before
-            // this async photo load resolved, revoke immediately to
-            // prevent a memory leak from orphaned blob URLs.
             if (!thumb.isConnected) {
               URL.revokeObjectURL(blobUrl);
               return;
@@ -239,5 +208,87 @@ const UI = {
     }
 
     return div;
+  },
+
+  // --- Edit Entry Modal ---
+  async showEditModal(entry) {
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+
+    // Load photo if exists
+    let photoUrl = null;
+    if (entry.photo) {
+      const photos = await DB.getPhotos(entry.id);
+      if (photos.length > 0 && photos[0].blob) {
+        photoUrl = URL.createObjectURL(photos[0].blob);
+      }
+    }
+
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title">Edit ${UI.entryLabel(entry.type, entry.subtype)}</span>
+        <button class="modal-close" id="edit-close">&times;</button>
+      </div>
+      ${photoUrl ? `<div class="ql-photo-preview"><img src="${photoUrl}" alt=""></div>` : ''}
+      <div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-md);">
+        ${UI.formatTime(entry.timestamp)} &mdash; ${UI.formatDate(entry.date)}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-input" id="edit-notes" placeholder="Add notes" rows="3">${UI.escapeHtml(entry.notes || '')}</textarea>
+      </div>
+      ${entry.type === 'workout' ? `
+        <div class="form-group">
+          <label class="form-label">Duration (minutes)</label>
+          <input type="number" class="form-input" id="edit-duration" value="${entry.duration_minutes || ''}" placeholder="30" inputmode="numeric">
+        </div>
+      ` : ''}
+      <button class="btn btn-primary btn-block btn-lg" id="edit-save">Save Changes</button>
+      <button class="btn btn-ghost btn-block" id="edit-delete" style="margin-top: var(--space-sm); color: var(--accent-red);">Delete Entry</button>
+    `;
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const closeModal = () => {
+      if (photoUrl) URL.revokeObjectURL(photoUrl);
+      overlay.remove();
+    };
+
+    document.getElementById('edit-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    // Save
+    document.getElementById('edit-save').addEventListener('click', async () => {
+      const notes = document.getElementById('edit-notes')?.value?.trim() || '';
+      const updated = { ...entry, notes };
+      if (entry.type === 'workout') {
+        const dur = document.getElementById('edit-duration')?.value;
+        updated.duration_minutes = dur ? parseInt(dur) : null;
+      }
+      try {
+        await DB.updateEntry(updated);
+        UI.toast('Entry updated');
+        closeModal();
+        App.loadDayView();
+      } catch (err) {
+        console.error('Update failed:', err);
+        UI.toast('Failed to update', 'error');
+      }
+    });
+
+    // Delete
+    document.getElementById('edit-delete').addEventListener('click', async () => {
+      if (!confirm(`Delete this ${UI.entryLabel(entry.type, entry.subtype).toLowerCase()} entry?`)) return;
+      try {
+        await DB.deleteEntry(entry.id);
+        UI.toast('Entry deleted');
+        closeModal();
+        App.loadDayView();
+      } catch (err) {
+        console.error('Delete failed:', err);
+        UI.toast('Failed to delete', 'error');
+      }
+    });
   },
 };

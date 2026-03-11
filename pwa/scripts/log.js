@@ -26,9 +26,7 @@ const Log = {
     if (!grid) return;
 
     const types = [
-      { type: 'meal', icon: '\u{1F37D}\uFE0F', label: 'Meal', color: 'var(--color-meal)' },
-      { type: 'snack', icon: '\u{1F36A}', label: 'Snack', color: 'var(--color-snack)' },
-      { type: 'drink', icon: '\u{1F964}', label: 'Drink', color: 'var(--color-drink)' },
+      { type: 'meal', icon: '\u{1F37D}\uFE0F', label: 'Food', color: 'var(--color-meal)' },
       { type: 'workout', icon: '\u{1F4AA}', label: 'Workout', color: 'var(--color-workout)' },
       { type: 'water', icon: '\u{1F4A7}', label: 'Water', color: 'var(--color-water)' },
       { type: 'weight', icon: '\u{2696}\uFE0F', label: 'Weight', color: 'var(--color-weight)' },
@@ -77,11 +75,7 @@ const Log = {
 
     switch (type) {
       case 'meal':
-        formContent.appendChild(Log.buildMealForm());
-        break;
-      case 'snack':
-      case 'drink':
-        formContent.appendChild(Log.buildSimpleNoteForm(type));
+        formContent.appendChild(Log.buildFoodForm());
         break;
       case 'workout':
         formContent.appendChild(Log.buildWorkoutForm());
@@ -153,51 +147,19 @@ const Log = {
     area.appendChild(preview);
   },
 
-  // --- Meal Form ---
-  buildMealForm() {
+  // --- Food Form (no subtype needed) ---
+  buildFoodForm() {
     const frag = document.createDocumentFragment();
-    const autoSub = UI.autoMealSubtype();
-
-    // Subtype selector (auto-select by time of day)
-    const subtypeRow = UI.createElement('div', 'subtype-row');
-    ['breakfast', 'lunch', 'dinner'].forEach(sub => {
-      const chip = UI.createElement('button', 'subtype-chip');
-      chip.textContent = sub.charAt(0).toUpperCase() + sub.slice(1);
-      if (sub === autoSub) {
-        chip.classList.add('selected');
-        Log.selectedSubtype = sub;
-      }
-      chip.addEventListener('click', () => {
-        Log.selectedSubtype = sub;
-        subtypeRow.querySelectorAll('.subtype-chip').forEach(c => c.classList.remove('selected'));
-        chip.classList.add('selected');
-      });
-      subtypeRow.appendChild(chip);
-    });
-    frag.appendChild(subtypeRow);
 
     // Photo
     frag.appendChild(Log.buildPhotoButton('meal'));
 
     // Notes
-    frag.appendChild(Log.buildNotesField('What did you eat?'));
+    frag.appendChild(Log.buildNotesField('What did you eat or drink?'));
 
     // Save button
     frag.appendChild(Log.buildSaveButton());
 
-    return frag;
-  },
-
-  // --- Simple Note Form (snack, drink) ---
-  buildSimpleNoteForm(type) {
-    const frag = document.createDocumentFragment();
-    const placeholder = type === 'snack' ? 'What did you have?' : 'What did you drink?';
-
-    // Photo
-    frag.appendChild(Log.buildPhotoButton('meal'));
-
-    frag.appendChild(Log.buildNotesField(placeholder));
-    frag.appendChild(Log.buildSaveButton());
     return frag;
   },
 
@@ -473,11 +435,6 @@ const Log = {
   async saveEntry(stayOnLog = false) {
     if (!Log.selectedType || Log._saveBusy) return;
 
-    if (Log.selectedType === 'meal' && !Log.selectedSubtype) {
-      UI.toast('Pick a meal type', 'error');
-      return;
-    }
-
     const notes = document.getElementById('log-notes')?.value?.trim() || '';
 
     const entry = {
@@ -505,6 +462,7 @@ const Log = {
       const photoBlob = Log.pendingPhoto ? Log.pendingPhoto.blob : null;
       await DB.addEntry(entry, photoBlob);
       UI.toast(`${UI.entryLabel(entry.type, entry.subtype)} logged`);
+      CloudRelay.queueUpload(entry.date);
       Log.pendingPhoto = null; // Don't revoke — blob is now in DB
 
       if (stayOnLog) {
@@ -570,6 +528,7 @@ const Log = {
       }
 
       UI.toast('Progress photos saved');
+      CloudRelay.queueUpload(date);
       Log._pendingFacePhoto = null;
       Log._pendingBodyPhoto = null;
       Log.init();
@@ -588,6 +547,7 @@ const Log = {
     try {
       await DB.updateDailySummary(App.selectedDate, { water_oz: oz });
       UI.toast(`Water: ${oz} oz saved`);
+      CloudRelay.queueUpload(App.selectedDate);
       window.location.hash = '';
     } catch (err) {
       console.error('Save water failed:', err);
@@ -613,6 +573,7 @@ const Log = {
         weight: { value, unit: 'lbs' },
       });
       UI.toast(`Weight: ${value} lbs saved`);
+      CloudRelay.queueUpload(App.selectedDate);
       window.location.hash = '';
     } catch (err) {
       console.error('Save weight failed:', err);

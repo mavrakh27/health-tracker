@@ -408,3 +408,301 @@ const Sync = {
     return (crc ^ 0xFFFFFFFF) >>> 0;
   },
 };
+
+// --- Cloud Relay Sync ---
+// Zero-tap sync via Cloudflare Worker + R2
+const CloudRelay = {
+  _uploadTimer: null,
+  _pendingDate: null,
+
+  // Get relay config from IndexedDB
+  async getConfig() {
+    return await DB.getProfile('cloudRelay') || null;
+  },
+
+  async saveConfig(config) {
+    await DB.setProfile('cloudRelay', config);
+  },
+
+  async isConfigured() {
+    const config = await this.getConfig();
+    return !!(config && config.workerUrl && config.syncKey);
+  },
+
+  // Generate a new sync key (UUID v4)
+  generateKey() {
+    return crypto.randomUUID();
+  },
+
+  // Queue a day for upload (debounced — batches saves within 3s)
+  queueUpload(dateStr) {
+    this._pendingDate = dateStr;
+    if (this._uploadTimer) clearTimeout(this._uploadTimer);
+    this._uploadTimer = setTimeout(() => this._doUpload(), 3000);
+  },
+
+  async _doUpload() {
+    const date = this._pendingDate;
+    if (!date) return;
+    this._pendingDate = null;
+
+    const config = await this.getConfig();
+    if (!config || !config.workerUrl || !config.syncKey) return;
+
+    try {
+      CloudRelay.setSyncStatus('uploading');
+      const data = await DB.exportDay(date);
+      if (!data.log.entries.length && !data.log.water_oz && !data.log.weight) return;
+
+      const files = [];
+      const logJson = JSON.stringify(data.log, null, 2);
+      files.push({ name: `daily/${date}/log.json`, data: new TextEncoder().encode(logJson) });
+
+      for (const photo of data.photoFiles) {
+        const arrayBuf = await photo.blob.arrayBuffer();
+        const isBodyPhoto = photo.name.startsWith('body/');
+        const zipPath = isBodyPhoto
+          ? `progress/${date}/${photo.name.replace('body/', '')}`
+          : `daily/${date}/${photo.name}`;
+        files.push({ name: zipPath, data: new Uint8Array(arrayBuf) });
+      }
+
+      const zipBlob = Sync.buildZip(files);
+      const arrayBuf = await zipBlob.arrayBuffer();
+
+      const resp = await fetch(`${config.workerUrl}/sync/${config.syncKey}/day/${date}`, {
+        method: 'PUT',
+        body: arrayBuf,
+      });
+
+      if (resp.ok) {
+        await Sync.markPhotosSynced(date);
+        CloudRelay.setSyncStatus('synced');
+        console.log(`CloudRelay: uploaded ${date}`);
+      } else {
+        console.error('CloudRelay: upload failed', resp.status);
+        CloudRelay.setSyncStatus('error');
+      }
+    } catch (err) {
+      console.error('CloudRelay: upload error', err);
+      CloudRelay.setSyncStatus('error');
+    }
+  },
+
+  // Check for new analysis results from the relay
+  async checkForResults() {
+    const config = await this.getConfig();
+    if (!config || !config.workerUrl || !config.syncKey) return;
+
+    try {
+      const resp = await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/new`);
+      if (!resp.ok) return;
+
+      const { newResults } = await resp.json();
+      if (!newResults || newResults.length === 0) return;
+
+      for (const date of newResults) {
+        const resultResp = await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/${date}`);
+        if (!resultResp.ok) continue;
+
+        const analysis = await resultResp.json();
+        await DB.importAnalysis(date, analysis);
+
+        // Acknowledge receipt
+        await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/${date}/ack`, { method: 'POST' });
+
+        UI.toast(`Analysis for ${UI.formatDate(date)} imported!`);
+        if (date === App.selectedDate) App.loadDayView();
+      }
+    } catch (err) {
+      console.error('CloudRelay: check results failed', err);
+    }
+  },
+
+  // Sync status indicator in header
+  setSyncStatus(status) {
+    let indicator = document.getElementById('sync-status');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'sync-status';
+      indicator.style.cssText = 'font-size: 12px; position: absolute; right: 8px; top: 50%; transform: translateY(-50%);';
+      const header = document.querySelector('.app-header');
+      if (header) {
+        header.style.position = 'relative';
+        header.appendChild(indicator);
+      }
+    }
+
+    const icons = { uploading: '\u{2B06}\uFE0F', synced: '\u{2705}', error: '\u{26A0}\uFE0F', pending: '\u{1F504}' };
+    indicator.textContent = icons[status] || '';
+    if (status === 'synced') {
+      setTimeout(() => { if (indicator.textContent === icons.synced) indicator.textContent = ''; }, 3000);
+    }
+  },
+
+  // Show sync setup modal
+  async showSetup() {
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const config = await this.getConfig() || {};
+
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title">Cloud Sync Setup</span>
+        <button class="modal-close" id="cs-close">&times;</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Worker URL</label>
+        <input type="url" class="form-input" id="cs-url" value="${UI.escapeHtml(config.workerUrl || '')}" placeholder="https://health-sync.your-account.workers.dev">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sync Key</label>
+        <div style="display: flex; gap: var(--space-sm);">
+          <input type="text" class="form-input" id="cs-key" value="${UI.escapeHtml(config.syncKey || '')}" placeholder="UUID sync key" style="flex: 1;">
+          <button class="btn btn-secondary" id="cs-generate">Generate</button>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block btn-lg" id="cs-save">Save</button>
+      ${config.syncKey ? '<button class="btn btn-ghost btn-block" id="cs-test" style="margin-top: var(--space-sm);">Test Connection</button>' : ''}
+    `;
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    document.getElementById('cs-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    document.getElementById('cs-generate').addEventListener('click', () => {
+      document.getElementById('cs-key').value = CloudRelay.generateKey();
+    });
+
+    document.getElementById('cs-save').addEventListener('click', async () => {
+      const workerUrl = document.getElementById('cs-url')?.value?.trim().replace(/\/$/, '') || '';
+      const syncKey = document.getElementById('cs-key')?.value?.trim() || '';
+      if (!workerUrl || !syncKey) {
+        UI.toast('Fill in both fields', 'error');
+        return;
+      }
+      await CloudRelay.saveConfig({ workerUrl, syncKey });
+      UI.toast('Cloud sync configured');
+      closeModal();
+    });
+
+    document.getElementById('cs-test')?.addEventListener('click', async () => {
+      const url = document.getElementById('cs-url')?.value?.trim().replace(/\/$/, '');
+      const key = document.getElementById('cs-key')?.value?.trim();
+      if (!url || !key) { UI.toast('Fill in both fields', 'error'); return; }
+      try {
+        const resp = await fetch(`${url}/sync/${key}/pending`);
+        if (resp.ok) UI.toast('Connected!');
+        else UI.toast(`Error: ${resp.status}`, 'error');
+      } catch (err) {
+        UI.toast('Connection failed', 'error');
+      }
+    });
+  },
+};
+
+// --- Auto-Sync Module ---
+// Automatic periodic backups without user intervention
+const AutoSync = {
+  // Settings stored in IndexedDB profile
+  SETTING_KEY: 'autoSync_enabled',
+  LAST_BACKUP_KEY: 'autoSync_lastBackupDate',
+  BACKUP_DAYS: 30, // Keep last 30 days of backups
+
+  // Initialize auto-sync on app startup
+  async init() {
+    const enabled = await DB.getProfileSetting(this.SETTING_KEY);
+    if (enabled === false) {
+      console.log('AutoSync: disabled by user');
+      return;
+    }
+
+    // Enable by default for new users
+    if (enabled == null) {
+      await DB.setProfileSetting(this.SETTING_KEY, true);
+    }
+
+    // Check if we've already backed up today
+    const today = UI.today();
+    const lastBackup = await DB.getProfileSetting(this.LAST_BACKUP_KEY);
+
+    if (lastBackup === today) {
+      console.log('AutoSync: already backed up today');
+      return;
+    }
+
+    // Perform backup
+    console.log('AutoSync: starting backup for', today);
+    await this.backupDay(today);
+  },
+
+  // Create and download a backup for a specific day
+  async backupDay(dateStr) {
+    try {
+      const data = await DB.exportDay(dateStr);
+
+      // Skip empty days
+      if (!data.log.entries.length && !data.log.water_oz && !data.log.weight) {
+        console.log(`AutoSync: no data for ${dateStr}, skipping`);
+        return;
+      }
+
+      const files = [];
+
+      // Add log.json
+      const logJson = JSON.stringify(data.log, null, 2);
+      files.push({ name: `daily/${dateStr}/log.json`, data: new TextEncoder().encode(logJson) });
+
+      // Add photos
+      for (const photo of data.photoFiles) {
+        const arrayBuf = await photo.blob.arrayBuffer();
+        const isBodyPhoto = photo.name.startsWith('body/');
+        const zipPath = isBodyPhoto
+          ? `progress/${dateStr}/${photo.name.replace('body/', '')}`
+          : `daily/${dateStr}/${photo.name}`;
+        files.push({ name: zipPath, data: new Uint8Array(arrayBuf) });
+      }
+
+      // Build and download ZIP
+      const zipBlob = Sync.buildZip(files);
+      const fileName = `health-${dateStr}.zip`;
+
+      // Trigger download (headless, no user UI)
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      // Mark as backed up
+      await DB.setProfileSetting(this.LAST_BACKUP_KEY, dateStr);
+
+      console.log(`AutoSync: backup completed for ${dateStr} → ${fileName}`);
+    } catch (err) {
+      console.error('AutoSync: backup failed', err);
+    }
+  },
+
+  // Toggle auto-sync setting
+  async toggle(enabled) {
+    await DB.setProfileSetting(this.SETTING_KEY, enabled);
+    console.log(`AutoSync: ${enabled ? 'enabled' : 'disabled'}`);
+  },
+
+  // Get current status
+  async getStatus() {
+    const enabled = await DB.getProfileSetting(this.SETTING_KEY);
+    const lastBackup = await DB.getProfileSetting(this.LAST_BACKUP_KEY);
+    return {
+      enabled: enabled !== false,
+      lastBackupDate: lastBackup || null,
+    };
+  },
+};

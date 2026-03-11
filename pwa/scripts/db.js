@@ -153,6 +153,16 @@ async function hasAnyEntries() {
   });
 }
 
+async function updateEntry(entry) {
+  const db = await openDB();
+  const tx = db.transaction('entries', 'readwrite');
+  tx.objectStore('entries').put(entry);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve(entry);
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
 async function deleteEntry(id) {
   const db = await openDB();
   const tx = db.transaction(['entries', 'photos'], 'readwrite');
@@ -376,6 +386,16 @@ async function saveRegimen(regimen) {
   return setProfile('regimen', regimen);
 }
 
+// --- Settings (conveniences for profile key-value storage) ---
+
+async function getProfileSetting(key) {
+  return getProfile(key);
+}
+
+async function setProfileSetting(key, value) {
+  return setProfile(key, value);
+}
+
 // --- Export ---
 
 async function exportDay(dateStr) {
@@ -428,6 +448,7 @@ window.DB = {
   getEntriesByDateRange,
   getEntriesByType,
   hasAnyEntries,
+  updateEntry,
   deleteEntry,
   getDailySummary,
   updateDailySummary,
@@ -440,6 +461,8 @@ window.DB = {
   getAnalysisRange,
   getProfile,
   setProfile,
+  getProfileSetting,
+  setProfileSetting,
   getMealPlan,
   saveMealPlan,
   getRegimen,
