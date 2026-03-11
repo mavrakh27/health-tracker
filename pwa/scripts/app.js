@@ -240,6 +240,7 @@ const App = {
       Settings.loadStorageInfo();
       Settings.loadCloudSyncStatus();
       Settings.initAutoSyncToggle();
+      Settings.initUpdateButton();
     }
   },
 
@@ -494,6 +495,25 @@ const Settings = {
     toggle.addEventListener('change', async () => {
       await AutoSync.toggle(toggle.checked);
       UI.toast(toggle.checked ? 'Auto-backup enabled' : 'Auto-backup disabled');
+    });
+  },
+
+  initUpdateButton() {
+    document.getElementById('update-app-btn')?.addEventListener('click', async () => {
+      UI.toast('Updating...');
+      try {
+        // Clear all SW caches
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+        // Unregister SW so it re-installs fresh
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map(r => r.unregister()));
+        // Reload the page
+        window.location.reload();
+      } catch (err) {
+        console.error('Update failed:', err);
+        UI.toast('Update failed — try reloading manually', 'error');
+      }
     });
   },
 };
