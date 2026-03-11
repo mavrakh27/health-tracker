@@ -1,6 +1,6 @@
 // app.js — Routing, init, navigation
 
-// --- Daily Coach (suggestions based on latest analysis + goals) ---
+// --- Daily Coach (suggestions based on entries, summary, analysis + goals) ---
 const Coach = {
   async getSuggestions(date) {
     // Only show coach for today — past dates don't need forward-looking tips
@@ -8,10 +8,33 @@ const Coach = {
 
     const tips = [];
     const goals = await DB.getProfile('goals') || {};
+    const entries = await DB.getEntriesByDate(date);
+    const summary = await DB.getDailySummary(date);
+    const now = new Date();
+    const hour = now.getHours();
 
-    // Use today's analysis if available (processed within 30 min), fall back to yesterday
-    const yesterday = Coach._prevDate(date);
+    // --- Water (always available from summary) ---
+    const waterOz = summary.water_oz || 0;
+    if (goals.water_oz) {
+      const waterLeft = goals.water_oz - waterOz;
+      if (waterLeft <= 0) {
+        tips.push({ icon: '\u{1F4A7}', text: `Water: ${waterOz} oz \u2014 goal hit!`, highlight: true });
+      } else if (hour >= 17 && waterLeft > goals.water_oz * 0.4) {
+        tips.push({ icon: '\u{1F4A7}', text: `Water: only ${waterOz} of ${goals.water_oz} oz and it's getting late. Drink up!`, highlight: true });
+      } else if (waterLeft > 0) {
+        tips.push({ icon: '\u{1F4A7}', text: `Water: ${waterOz} of ${goals.water_oz} oz. ${waterLeft} oz to go.` });
+      }
+    } else if (waterOz > 0) {
+      tips.push({ icon: '\u{1F4A7}', text: `Water: ${waterOz} oz logged today.` });
+    }
+
+    // --- Food entries (always available) ---
+    const meals = entries.filter(e => e.type === 'meal');
+    const workouts = entries.filter(e => e.type === 'workout');
+
+    // Analysis-powered tips (calories/protein) when available
     const todayAnalysis = await DB.getAnalysis(date);
+    const yesterday = Coach._prevDate(date);
     const yesterdayAnalysis = await DB.getAnalysis(yesterday);
     const analysis = todayAnalysis || yesterdayAnalysis;
     const isToday = !!todayAnalysis;
@@ -25,16 +48,16 @@ const Coach = {
         const remaining = goals.calories - totals.calories;
         if (isToday) {
           if (remaining > 200) {
-            tips.push({ icon: '\u{1F525}', text: `${label}: ${totals.calories} cal. ${remaining} cal left \u2014 you've got room.`, highlight: true });
+            tips.push({ icon: '\u{1F525}', text: `${remaining} cal remaining of ${goals.calories}. You've got room.`, highlight: true });
           } else if (remaining > 0) {
-            tips.push({ icon: '\u{2705}', text: `${label}: ${totals.calories} cal. Almost at your ${goals.calories} target!`, highlight: true });
+            tips.push({ icon: '\u{2705}', text: `${totals.calories} cal \u2014 almost at your ${goals.calories} target!`, highlight: true });
           } else {
-            tips.push({ icon: '\u{2696}\uFE0F', text: `${label}: ${totals.calories} cal (${Math.abs(remaining)} over ${goals.calories} target). Easy on the next meal.` });
+            tips.push({ icon: '\u{2696}\uFE0F', text: `${totals.calories} cal (${Math.abs(remaining)} over). Easy on the next meal.` });
           }
         } else {
           const gap = goals.calories - totals.calories;
           if (gap > 200) {
-            tips.push({ icon: '\u{1F525}', text: `${label}: ${totals.calories} cal (${gap} under). Aim for ${goals.calories} today.`, highlight: true });
+            tips.push({ icon: '\u{1F525}', text: `${label}: ${totals.calories} cal (${gap} under target). Aim for ${goals.calories} today.`, highlight: true });
           } else if (gap < -200) {
             tips.push({ icon: '\u{2696}\uFE0F', text: `${label}: ${totals.calories} cal (${Math.abs(gap)} over). Lighter day today.` });
           } else {
@@ -49,44 +72,40 @@ const Coach = {
         if (remaining > 20) {
           const foods = Coach._proteinIdeas(date);
           if (isToday) {
-            tips.push({ icon: '\u{1F4AA}', text: `Protein: ${totals.protein}g so far (need ${remaining}g more). Try: ${foods}`, highlight: true });
+            tips.push({ icon: '\u{1F4AA}', text: `Protein: ${totals.protein}g (need ${remaining}g more). Try: ${foods}`, highlight: true });
           } else {
-            tips.push({ icon: '\u{1F4AA}', text: `Protein was ${totals.protein}g (goal: ${goals.protein}g). Try: ${foods}`, highlight: true });
+            tips.push({ icon: '\u{1F4AA}', text: `Protein was ${totals.protein}g yesterday (goal: ${goals.protein}g). Try: ${foods}`, highlight: true });
           }
-        } else if (isToday && remaining <= 0) {
+        } else if (remaining <= 0) {
           tips.push({ icon: '\u{2705}', text: `Protein: ${totals.protein}g \u2014 goal hit!`, highlight: true });
         }
       }
-
-      // Water status
-      if (goals.water_oz) {
-        let waterActual = analysis.goals?.water?.actual_oz;
-        if (waterActual == null) {
-          const summaryDate = isToday ? date : yesterday;
-          const summary = await DB.getDailySummary(summaryDate);
-          waterActual = summary.water_oz || null;
-        }
-        if (waterActual != null) {
-          const waterLeft = goals.water_oz - waterActual;
-          if (isToday && waterLeft > 0) {
-            tips.push({ icon: '\u{1F4A7}', text: `Water: ${waterActual} oz of ${goals.water_oz} oz. ${waterLeft} oz to go.` });
-          } else if (!isToday && waterActual < goals.water_oz * 0.7) {
-            tips.push({ icon: '\u{1F4A7}', text: `Only ${waterActual} oz water yesterday. Start sipping early \u2014 goal is ${goals.water_oz} oz.` });
-          }
-        }
-      }
+    } else if (meals.length > 0) {
+      // No analysis yet but user has logged food — nudge toward processing
+      tips.push({ icon: '\u{1F4F8}', text: `${meals.length} meal${meals.length > 1 ? 's' : ''} logged. Sync to get calorie & protein tracking.` });
     }
 
-    // Workout suggestion from regimen
+    // --- Meal timing nudges (no analysis needed) ---
+    if (meals.length === 0 && hour >= 11) {
+      tips.push({ icon: '\u{1F372}', text: hour >= 14 ? 'No meals logged yet today \u2014 snap a photo of what you eat!' : 'Morning going well? Log your first meal when you eat.' });
+    }
+
+    // --- Workout (regimen + logged workouts) ---
     const regimen = await DB.getRegimen();
     if (regimen?.weeklySchedule) {
       const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
       const todayPlan = regimen.weeklySchedule.find(d => d.day === dayName);
       if (todayPlan && todayPlan.type !== 'rest') {
-        tips.push({ icon: '\u{1F3CB}\uFE0F', text: `${todayPlan.description}`, highlight: true });
+        if (workouts.length > 0) {
+          tips.push({ icon: '\u{2705}', text: `Workout done! ${todayPlan.description}`, highlight: true });
+        } else {
+          tips.push({ icon: '\u{1F3CB}\uFE0F', text: `Today: ${todayPlan.description}`, highlight: true });
+        }
       } else if (todayPlan?.type === 'rest') {
         tips.push({ icon: '\u{1F9D8}', text: 'Rest day \u2014 stretch, walk, recover.' });
       }
+    } else if (workouts.length > 0) {
+      tips.push({ icon: '\u{1F3CB}\uFE0F', text: `Workout logged today!`, highlight: true });
     }
 
     return tips;
@@ -104,7 +123,6 @@ const Coach = {
       'protein shake (25\u201330g)', 'cottage cheese (14g/cup)', 'tuna can (20g)',
       'edamame (17g/cup)', 'turkey slices (18g/4oz)',
     ];
-    // Deterministic pick based on date
     const seed = parseInt(dateSeed.replace(/-/g, ''), 10);
     const picked = [];
     const copy = [...foods];
@@ -116,15 +134,7 @@ const Coach = {
   },
 
   render(tips) {
-    if (!tips.length) return `
-      <div class="coach-card">
-        <div class="coach-header">Daily Coach</div>
-        <div class="coach-tip">
-          <span class="coach-tip-icon">\u{1F4CB}</span>
-          <span class="coach-tip-text">Log some food and check back after processing for personalized tips.</span>
-        </div>
-      </div>
-    `;
+    if (!tips.length) return '';
     return `
       <div class="coach-card">
         <div class="coach-header">Daily Coach</div>
