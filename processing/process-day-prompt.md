@@ -43,14 +43,20 @@ After ZIP extraction, the data is at `{ICLOUD_DIR}/incoming/{DATE}/`:
    - Next 2 full days
    - Based on goals, preferences, and what's been missed
    - Include prep times and practical suggestions
+   - Be specific — real meal names, estimated macros, not generic "eat a salad"
 
-7. **Skip body/face photos** — note their existence but do NOT analyze, describe, or comment on them. They are private progress photos.
+7. **Generate/update workout regimen:**
+   - Read existing `regimen.json` if it exists — preserve the user's established plan
+   - If no regimen exists, create a reasonable weekly schedule based on any workout entries logged
+   - Include a `weeklyReview` noting how this day's workout compared to the plan
+   - The regimen should cover all 7 days (including rest days)
 
-## Output Files
+8. **Skip body/face photos** — note their existence but do NOT analyze, describe, or comment on them. They are private progress photos.
 
-Write these to `{ICLOUD_DIR}/analysis/{DATE}/`:
+## Output
 
-### summary.json
+Write a **single JSON file** to `{ICLOUD_DIR}/analysis/{DATE}.json` containing everything — analysis, meal plan, and workout regimen. This file gets synced back to the phone automatically.
+
 ```json
 {
   "date": "YYYY-MM-DD",
@@ -78,24 +84,30 @@ Write these to `{ICLOUD_DIR}/analysis/{DATE}/`:
   },
   "highlights": ["..."],
   "concerns": ["..."],
-  "streaks": { "tracking": 0, "calorie_goal": 0, "protein_goal": 0 }
-}
-```
+  "streaks": { "tracking": 0, "calorie_goal": 0, "protein_goal": 0 },
 
-### meal-plan.json
-```json
-{
-  "generated": "YYYY-MM-DD",
-  "days": [
-    {
-      "date": "YYYY-MM-DD",
-      "remaining_meal": { "name": "...", "suggestion": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "prep_time": "..." },
-      "meals": [
-        { "meal": "breakfast|lunch|dinner|snack", "name": "...", "description": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "prep_time": "..." }
-      ],
-      "day_totals": { "calories": 0, "protein": 0, "carbs": 0, "fat": 0 }
-    }
-  ]
+  "mealPlan": {
+    "generatedDate": "YYYY-MM-DD",
+    "days": [
+      {
+        "date": "YYYY-MM-DD",
+        "remaining_meal": { "name": "...", "suggestion": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "prep_time": "..." },
+        "meals": [
+          { "meal": "breakfast|lunch|dinner|snack", "name": "...", "description": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "prep_time": "..." }
+        ],
+        "day_totals": { "calories": 0, "protein": 0, "carbs": 0, "fat": 0 }
+      }
+    ]
+  },
+
+  "regimen": {
+    "description": "Brief description of the workout plan",
+    "weeklySchedule": [
+      { "day": "monday", "type": "strength|cardio|rest|active_recovery", "description": "What to do" },
+      { "day": "tuesday", "type": "...", "description": "..." }
+    ],
+    "weeklyReview": "Optional note on how this week's workouts went vs plan"
+  }
 }
 ```
 

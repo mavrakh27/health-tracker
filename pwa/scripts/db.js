@@ -290,8 +290,24 @@ async function getAnalysis(dateStr) {
 
 async function importAnalysis(dateStr, data) {
   const db = await openDB();
-  const tx = db.transaction(['analysis', 'photos'], 'readwrite');
-  tx.objectStore('analysis').put({ ...data, date: dateStr });
+  const stores = ['analysis', 'photos'];
+  if (data.mealPlan) stores.push('mealPlan');
+  if (data.regimen) stores.push('profile');
+  const tx = db.transaction(stores, 'readwrite');
+
+  // Extract and save bundled meal plan and regimen before storing analysis
+  if (data.mealPlan) {
+    const plan = { ...data.mealPlan };
+    if (!plan.generatedDate) plan.generatedDate = plan.generated || dateStr;
+    tx.objectStore('mealPlan').put(plan);
+  }
+  if (data.regimen) {
+    tx.objectStore('profile').put({ key: 'regimen', value: data.regimen });
+  }
+
+  // Store analysis without the bundled plan/regimen (keep it lean)
+  const { mealPlan, regimen, ...analysisData } = data;
+  tx.objectStore('analysis').put({ ...analysisData, date: dateStr });
 
   // Mark meal photos for this date as processed
   const photoIndex = tx.objectStore('photos').index('date');
