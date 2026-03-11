@@ -414,6 +414,24 @@ const Sync = {
 const CloudRelay = {
   _uploadTimer: null,
   _pendingDate: null,
+  _log: [], // Recent sync events visible in settings
+
+  log(msg, level = 'info') {
+    const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+    this._log.push({ time, msg, level });
+    if (this._log.length > 20) this._log.shift();
+    console[level === 'error' ? 'error' : 'log'](`CloudRelay: ${msg}`);
+    // Update log display if visible
+    const el = document.getElementById('cloud-sync-log');
+    if (el) this._renderLog(el);
+  },
+
+  _renderLog(el) {
+    const colors = { info: 'var(--text-muted)', error: 'var(--accent-red)', ok: 'var(--accent-green)' };
+    el.innerHTML = this._log.slice().reverse().map(e =>
+      `<div style="color: ${colors[e.level] || colors.info}"><span style="opacity: 0.6">${UI.escapeHtml(e.time)}</span> ${UI.escapeHtml(e.msg)}</div>`
+    ).join('');
+  },
 
   // Get relay config from IndexedDB
   async getConfig() {
@@ -429,14 +447,10 @@ const CloudRelay = {
     return !!(config && config.workerUrl && config.syncKey);
   },
 
-  // Generate a new sync key (UUID v4)
-  generateKey() {
-    return crypto.randomUUID();
-  },
-
   // Queue a day for upload (debounced — batches saves within 3s)
   queueUpload(dateStr) {
     this._pendingDate = dateStr;
+    this.log(`Queued ${dateStr} for upload (3s debounce)`);
     if (this._uploadTimer) clearTimeout(this._uploadTimer);
     this._uploadTimer = setTimeout(() => this._doUpload(), 3000);
   },
@@ -447,12 +461,19 @@ const CloudRelay = {
     this._pendingDate = null;
 
     const config = await this.getConfig();
-    if (!config || !config.workerUrl || !config.syncKey) return;
+    if (!config || !config.workerUrl || !config.syncKey) {
+      this.log('Upload skipped — not configured', 'error');
+      return;
+    }
 
     try {
       CloudRelay.setSyncStatus('uploading');
+      this.log(`Building ZIP for ${date}...`);
       const data = await DB.exportDay(date);
-      if (!data.log.entries.length && !data.log.water_oz && !data.log.weight) return;
+      if (!data.log.entries.length && !data.log.water_oz && !data.log.weight) {
+        this.log(`No data for ${date}, skipping`);
+        return;
+      }
 
       const files = [];
       const logJson = JSON.stringify(data.log, null, 2);
@@ -467,10 +488,13 @@ const CloudRelay = {
         files.push({ name: zipPath, data: new Uint8Array(arrayBuf) });
       }
 
+      this.log(`ZIP: ${files.length} file(s), uploading to relay...`);
       const zipBlob = Sync.buildZip(files);
       const arrayBuf = await zipBlob.arrayBuffer();
+      this.log(`ZIP size: ${(arrayBuf.byteLength / 1024).toFixed(1)} KB`);
 
-      const resp = await fetch(`${config.workerUrl}/sync/${config.syncKey}/day/${date}`, {
+      const url = `${config.workerUrl}/sync/${config.syncKey}/day/${date}`;
+      const resp = await fetch(url, {
         method: 'PUT',
         body: arrayBuf,
       });
@@ -478,13 +502,14 @@ const CloudRelay = {
       if (resp.ok) {
         await Sync.markPhotosSynced(date);
         CloudRelay.setSyncStatus('synced');
-        console.log(`CloudRelay: uploaded ${date}`);
+        this.log(`Uploaded ${date} successfully`, 'ok');
       } else {
-        console.error('CloudRelay: upload failed', resp.status);
+        const body = await resp.text().catch(() => '');
+        this.log(`Upload failed: HTTP ${resp.status} ${body}`, 'error');
         CloudRelay.setSyncStatus('error');
       }
     } catch (err) {
-      console.error('CloudRelay: upload error', err);
+      this.log(`Upload error: ${err.message}`, 'error');
       CloudRelay.setSyncStatus('error');
     }
   },
@@ -557,13 +582,15 @@ const CloudRelay = {
       </div>
       <div class="form-group">
         <label class="form-label">Sync Key</label>
-        <div style="display: flex; gap: var(--space-sm);">
-          <input type="text" class="form-input" id="cs-key" value="${UI.escapeHtml(config.syncKey || '')}" placeholder="UUID sync key" style="flex: 1;">
-          <button class="btn btn-secondary" id="cs-generate">Generate</button>
-        </div>
+        <input type="text" class="form-input" id="cs-key" value="${UI.escapeHtml(config.syncKey || '')}" placeholder="UUID sync key">
       </div>
       <button class="btn btn-primary btn-block btn-lg" id="cs-save">Save</button>
       ${config.syncKey ? '<button class="btn btn-ghost btn-block" id="cs-test" style="margin-top: var(--space-sm);">Test Connection</button>' : ''}
+      <button class="btn btn-secondary btn-block" id="cs-sync-now" style="margin-top: var(--space-sm);">Sync Now</button>
+      <div style="margin-top: var(--space-md);">
+        <label class="form-label">Sync Log</label>
+        <div id="cloud-sync-log" style="font-size: var(--text-xs); font-family: monospace; max-height: 200px; overflow-y: auto; padding: var(--space-sm); background: var(--bg-secondary); border-radius: var(--radius-sm);"></div>
+      </div>
     `;
 
     overlay.appendChild(sheet);
@@ -572,10 +599,6 @@ const CloudRelay = {
     const closeModal = () => overlay.remove();
     document.getElementById('cs-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-
-    document.getElementById('cs-generate').addEventListener('click', () => {
-      document.getElementById('cs-key').value = CloudRelay.generateKey();
-    });
 
     document.getElementById('cs-save').addEventListener('click', async () => {
       const workerUrl = document.getElementById('cs-url')?.value?.trim().replace(/\/$/, '') || '';
@@ -587,6 +610,26 @@ const CloudRelay = {
       await CloudRelay.saveConfig({ workerUrl, syncKey });
       UI.toast('Cloud sync configured');
       closeModal();
+      Settings.loadCloudSyncStatus();
+    });
+
+    // Render existing log entries
+    const logEl = document.getElementById('cloud-sync-log');
+    if (logEl) {
+      if (CloudRelay._log.length === 0) {
+        logEl.innerHTML = '<div style="color: var(--text-muted)">No sync activity yet</div>';
+      } else {
+        CloudRelay._renderLog(logEl);
+      }
+    }
+
+    document.getElementById('cs-sync-now').addEventListener('click', () => {
+      const today = UI.today();
+      clearTimeout(CloudRelay._uploadTimer);
+      CloudRelay._uploadTimer = null;
+      CloudRelay.log(`Manual sync triggered for ${today}`);
+      CloudRelay._pendingDate = today;
+      CloudRelay._doUpload();
     });
 
     document.getElementById('cs-test')?.addEventListener('click', async () => {
