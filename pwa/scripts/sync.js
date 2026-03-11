@@ -504,6 +504,8 @@ const CloudRelay = {
         await Sync.markPhotosSynced(date);
         CloudRelay.setSyncStatus('synced');
         this.log(`Uploaded ${date} successfully`, 'ok');
+        // Check for results from previously processed days
+        this.checkForResults().catch(() => {});
       } else {
         const body = await resp.text().catch(() => '');
         this.log(`Upload failed: HTTP ${resp.status} ${body}`, 'error');
