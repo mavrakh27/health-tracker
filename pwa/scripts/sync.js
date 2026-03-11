@@ -493,7 +493,8 @@ const CloudRelay = {
       const arrayBuf = await zipBlob.arrayBuffer();
       this.log(`ZIP size: ${(arrayBuf.byteLength / 1024).toFixed(1)} KB`);
 
-      const url = `${config.workerUrl}/sync/${config.syncKey}/day/${date}`;
+      const url = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/day/${date}`;
+      this.log(`PUT ${url}`);
       const resp = await fetch(url, {
         method: 'PUT',
         body: arrayBuf,
@@ -523,8 +524,9 @@ const CloudRelay = {
     }
 
     try {
-      this.log('Checking for analysis results...');
-      const resp = await fetch(`${config.workerUrl}/sync/${config.syncKey}/results/new`);
+      const resultsUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/new`;
+      this.log(`Checking: ${resultsUrl}`);
+      const resp = await fetch(resultsUrl);
       if (!resp.ok) {
         this.log(`Results check failed: HTTP ${resp.status}`, 'error');
         return;
