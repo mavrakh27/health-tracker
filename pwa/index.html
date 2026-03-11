@@ -44,6 +44,8 @@
         </button>
       </div>
 
+      <div id="today-coach"></div>
+
       <h2 class="section-header" style="margin-top: var(--space-lg)">Today's Log</h2>
 
       <div class="entry-list" id="today-entries">
@@ -88,48 +90,75 @@
 
     <!-- Screen: Settings -->
     <main id="screen-settings" class="screen">
-      <h2 class="section-header">Settings</h2>
+      <h2 class="section-header">Your Plan</h2>
 
-      <div class="card" style="margin-top: var(--space-sm);">
-        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">Goals</h3>
-        <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-sm);">Set your daily calorie, protein, and water targets.</p>
-        <button class="btn btn-secondary btn-block" onclick="App.showGoalSetup()">Edit Goals</button>
-      </div>
-
-      <div class="card" style="margin-top: var(--space-sm);">
-        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">Cloud Sync</h3>
-        <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-sm);">Auto-sync entries to the cloud relay for nightly processing.</p>
-        <div id="cloud-sync-status" style="font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm);"></div>
-        <button class="btn btn-primary btn-block" onclick="CloudRelay.showSetup()">Configure Cloud Sync</button>
-      </div>
-
-      <div class="card" style="margin-top: var(--space-sm);">
-        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">Manual Sync</h3>
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-sm);">
-          <label style="font-size: var(--text-sm); color: var(--text-secondary);">Auto-backup daily</label>
-          <input type="checkbox" id="autosync-toggle" style="cursor: pointer; width: 20px; height: 20px;">
+      <div class="s-card s-card--accent">
+        <div class="s-card-row">
+          <span class="s-icon">&#x1F3AF;</span>
+          <div class="s-card-body">
+            <h3 class="s-title">Daily Goals</h3>
+            <p class="s-subtitle" id="goals-summary">Loading...</p>
+          </div>
+          <button class="s-action-btn" onclick="App.showGoalSetup()">Edit</button>
         </div>
-        <button class="btn btn-secondary btn-block" onclick="Sync.exportDay()">Export Today's Data</button>
-        <button class="btn btn-secondary btn-block" style="margin-top: var(--space-sm);" onclick="Sync.importAll()">Import (select all files at once)</button>
       </div>
 
-      <div class="card" style="margin-top: var(--space-sm);">
-        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">Restore</h3>
-        <p style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-sm);">Restore entries from an exported ZIP backup.</p>
-        <button class="btn btn-secondary btn-block" onclick="Sync.restoreFromZip()">Restore from ZIP</button>
+      <h2 class="section-header">Sync</h2>
+
+      <div class="s-card">
+        <div class="s-card-row">
+          <span class="s-icon">&#x2601;&#xFE0F;</span>
+          <div class="s-card-body">
+            <h3 class="s-title">Cloud Sync</h3>
+            <p class="s-subtitle" id="cloud-sync-status">Not configured</p>
+          </div>
+          <button class="s-action-btn s-action-btn--primary" onclick="CloudRelay.showSetup()">Setup</button>
+        </div>
       </div>
 
-      <div class="card" style="margin-top: var(--space-sm);">
-        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">Storage</h3>
-        <div id="storage-info" style="font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-sm);">Loading...</div>
-        <button class="btn btn-secondary btn-block" id="clear-photos-btn" onclick="Settings.clearPhotos()">Clear Processed Meal Photos</button>
+      <div class="s-card">
+        <div class="s-card-row">
+          <span class="s-icon">&#x1F4E6;</span>
+          <div class="s-card-body">
+            <h3 class="s-title">Manual Backup</h3>
+            <div class="s-toggle-row">
+              <span class="s-toggle-label">Auto-backup daily</span>
+              <label class="s-toggle">
+                <input type="checkbox" id="autosync-toggle">
+                <span class="s-toggle-track"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="s-btn-row">
+          <button class="btn btn-secondary" onclick="Sync.exportDay()">Export</button>
+          <button class="btn btn-secondary" onclick="Sync.importAll()">Import</button>
+          <button class="btn btn-secondary" onclick="Sync.restoreFromZip()">Restore</button>
+        </div>
       </div>
 
-      <div class="card" style="margin-top: var(--space-sm);">
-        <h3 style="font-size: var(--text-base); margin-bottom: var(--space-sm);">About</h3>
-        <p style="font-size: var(--text-sm); color: var(--text-secondary);">Health Tracker <span id="app-version"></span></p>
-        <p style="font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-sm);">Personal AI-powered health tracking.</p>
-        <button class="btn btn-secondary btn-block" id="update-app-btn">Check for Updates</button>
+      <h2 class="section-header">App</h2>
+
+      <div class="s-card">
+        <div class="s-card-row">
+          <span class="s-icon">&#x1F4BE;</span>
+          <div class="s-card-body">
+            <h3 class="s-title">Storage</h3>
+            <p class="s-subtitle" id="storage-info">Loading...</p>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-block" id="clear-photos-btn" onclick="Settings.clearPhotos()" style="margin-top: var(--space-sm);">Clear Processed Photos</button>
+      </div>
+
+      <div class="s-card">
+        <div class="s-card-row">
+          <span class="s-icon">&#x2139;&#xFE0F;</span>
+          <div class="s-card-body">
+            <h3 class="s-title">Health Tracker <span id="app-version" class="s-version-badge"></span></h3>
+            <p class="s-subtitle">Personal AI-powered health tracking</p>
+          </div>
+        </div>
+        <button class="btn btn-secondary btn-block" id="update-app-btn" style="margin-top: var(--space-sm);">Check for Updates</button>
       </div>
     </main>
 

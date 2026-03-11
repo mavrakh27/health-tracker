@@ -1,5 +1,103 @@
 // app.js — Routing, init, navigation
 
+// --- Daily Coach (suggestions based on yesterday's data + goals) ---
+const Coach = {
+  async getSuggestions(date) {
+    // Only show coach for today — past dates don't need forward-looking tips
+    if (date !== UI.today()) return [];
+
+    const tips = [];
+    const goals = await DB.getProfile('goals') || {};
+    const yesterday = Coach._prevDate(date);
+    const analysis = await DB.getAnalysis(yesterday);
+
+    if (analysis) {
+      const totals = analysis.totals || {};
+
+      // Calorie gap
+      if (goals.calories && totals.calories != null) {
+        const gap = goals.calories - totals.calories;
+        if (gap > 200) {
+          tips.push({ icon: '\u{1F525}', text: `Yesterday: ${totals.calories} cal (${gap} under). Aim for ${goals.calories} today.`, highlight: true });
+        } else if (gap < -200) {
+          tips.push({ icon: '\u{2696}\uFE0F', text: `Yesterday: ${totals.calories} cal (${Math.abs(gap)} over). Lighter day today.` });
+        } else {
+          tips.push({ icon: '\u{2705}', text: `Yesterday: ${totals.calories} cal \u2014 right on target!`, highlight: true });
+        }
+      }
+
+      // Protein gap
+      if (goals.protein && totals.protein != null) {
+        const gap = goals.protein - totals.protein;
+        if (gap > 20) {
+          const foods = Coach._proteinIdeas(yesterday);
+          tips.push({ icon: '\u{1F4AA}', text: `Protein was ${totals.protein}g (goal: ${goals.protein}g). Try: ${foods}`, highlight: true });
+        }
+      }
+
+      // Water gap
+      if (goals.water_oz && analysis.goals?.water) {
+        const waterActual = analysis.goals.water.actual_oz;
+        if (waterActual != null && waterActual < goals.water_oz * 0.7) {
+          tips.push({ icon: '\u{1F4A7}', text: `Only ${waterActual} oz water yesterday. Start sipping early \u2014 goal is ${goals.water_oz} oz.` });
+        }
+      }
+    }
+
+    // Workout suggestion from regimen
+    const regimen = await DB.getRegimen();
+    if (regimen?.weeklySchedule) {
+      const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+      const todayPlan = regimen.weeklySchedule.find(d => d.day === dayName);
+      if (todayPlan && todayPlan.type !== 'rest') {
+        tips.push({ icon: '\u{1F3CB}\uFE0F', text: `${todayPlan.description}`, highlight: true });
+      } else if (todayPlan?.type === 'rest') {
+        tips.push({ icon: '\u{1F9D8}', text: 'Rest day \u2014 stretch, walk, recover.' });
+      }
+    }
+
+    return tips;
+  },
+
+  _prevDate(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+
+  _proteinIdeas(dateSeed) {
+    const foods = [
+      'eggs (6g each)', 'Greek yogurt (15g)', 'chicken breast (25g/4oz)',
+      'protein shake (25\u201330g)', 'cottage cheese (14g/cup)', 'tuna can (20g)',
+      'edamame (17g/cup)', 'turkey slices (18g/4oz)',
+    ];
+    // Deterministic pick based on date
+    const seed = parseInt(dateSeed.replace(/-/g, ''), 10);
+    const picked = [];
+    const copy = [...foods];
+    for (let i = 0; i < 3 && copy.length; i++) {
+      const idx = (seed + i * 7) % copy.length;
+      picked.push(copy.splice(idx, 1)[0]);
+    }
+    return picked.join(', ');
+  },
+
+  render(tips) {
+    if (!tips.length) return '';
+    return `
+      <div class="coach-card">
+        <div class="coach-header">Daily Coach</div>
+        ${tips.map(t => `
+          <div class="coach-tip${t.highlight ? ' coach-tip--highlight' : ''}">
+            <span class="coach-tip-icon">${t.icon}</span>
+            <span class="coach-tip-text">${UI.escapeHtml(t.text)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  },
+};
+
 // --- Quick Log (zero-friction logging from Today screen) ---
 const QuickLog = {
   init() {
@@ -46,6 +144,8 @@ const QuickLog = {
     const today = UI.today();
     const summary = await DB.getDailySummary(today);
     const currentOz = summary.water_oz || 0;
+    const goals = await DB.getProfile('goals') || {};
+    const waterGoal = goals.water_oz || 96;
 
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
@@ -66,7 +166,7 @@ const QuickLog = {
         <button class="modal-close" id="wp-close">&times;</button>
       </div>
       <div style="text-align: center; margin-bottom: var(--space-md); color: var(--text-secondary); font-size: var(--text-sm);">
-        Today: <strong style="color: var(--color-water)">${currentOz} oz</strong> of 96 oz goal
+        Today: <strong style="color: var(--color-water)">${currentOz} oz</strong> of ${waterGoal} oz goal
       </div>
       <div class="water-picker-grid">
         ${containers.map(c => `
@@ -237,6 +337,7 @@ const App = {
     if (screenId === 'calendar') Calendar.init();
     if (screenId === 'goals') GoalsView.init();
     if (screenId === 'settings') {
+      Settings.loadGoalsSummary();
       Settings.loadStorageInfo();
       Settings.loadCloudSyncStatus();
       Settings.initAutoSyncToggle();
@@ -318,7 +419,7 @@ const App = {
         entryList.innerHTML = App.renderWelcomeCard();
       } else {
         const dateLabel = isToday ? 'today' : `for ${UI.formatDate(date)}`;
-        const hint = isToday ? 'Use the quick actions above to start logging.' : '';
+        const hint = isToday ? 'Use the buttons above to start logging.' : '';
         entryList.innerHTML = `
           <div class="empty-state">
             <div class="empty-icon">\u{1F4CB}</div>
@@ -337,6 +438,15 @@ const App = {
     // Load daily summary stats
     const summary = await DB.getDailySummary(date);
     App.renderDayStats(summary, entries);
+
+    // Coach suggestions
+    const coachEl = document.getElementById('today-coach');
+    if (coachEl) {
+      try {
+        const tips = await Coach.getSuggestions(date);
+        coachEl.innerHTML = Coach.render(tips);
+      } catch (e) { console.warn('Coach error:', e); coachEl.innerHTML = ''; }
+    }
 
     // Load analysis if available
     const analysis = await DB.getAnalysis(date);
@@ -366,7 +476,7 @@ const App = {
           <button class="btn btn-secondary btn-block" onclick="window.location.hash='log'">Start Logging</button>
         </div>
         <p style="color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-lg);">
-          At the end of each day, export your data from Settings to sync with iCloud Drive.
+          Set up Cloud Sync in Settings for automatic nightly analysis.
         </p>
       </div>
     `;
@@ -457,6 +567,21 @@ const App = {
 
 // Settings helper
 const Settings = {
+  async loadGoalsSummary() {
+    const el = document.getElementById('goals-summary');
+    if (!el) return;
+    const goals = await DB.getProfile('goals');
+    if (goals) {
+      const parts = [];
+      if (goals.calories) parts.push(`${goals.calories} cal`);
+      if (goals.protein) parts.push(`${goals.protein}g protein`);
+      if (goals.water_oz) parts.push(`${goals.water_oz} oz water`);
+      el.textContent = parts.join(' \u00B7 ') || 'Not set';
+    } else {
+      el.textContent = 'Not set \u2014 tap Edit to configure';
+    }
+  },
+
   async loadStorageInfo() {
     const el = document.getElementById('storage-info');
     if (!el) return;
@@ -487,16 +612,20 @@ const Settings = {
     el.textContent = configured ? 'Connected — syncing automatically' : 'Not configured';
   },
 
+  _autoSyncBound: false,
   async initAutoSyncToggle() {
     const toggle = document.getElementById('autosync-toggle');
     if (!toggle) return;
 
     const status = await AutoSync.getStatus();
     toggle.checked = status.enabled;
-    toggle.addEventListener('change', async () => {
-      await AutoSync.toggle(toggle.checked);
-      UI.toast(toggle.checked ? 'Auto-backup enabled' : 'Auto-backup disabled');
-    });
+    if (!Settings._autoSyncBound) {
+      Settings._autoSyncBound = true;
+      toggle.addEventListener('change', async () => {
+        await AutoSync.toggle(toggle.checked);
+        UI.toast(toggle.checked ? 'Auto-backup enabled' : 'Auto-backup disabled');
+      });
+    }
   },
 
   async loadVersion() {
@@ -509,7 +638,10 @@ const Settings = {
     } catch { el.textContent = 'unknown'; }
   },
 
+  _updateBound: false,
   initUpdateButton() {
+    if (Settings._updateBound) return;
+    Settings._updateBound = true;
     document.getElementById('update-app-btn')?.addEventListener('click', async () => {
       UI.toast('Updating...');
       try {

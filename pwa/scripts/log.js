@@ -307,12 +307,13 @@ const Log = {
       { label: 'Big jug', oz: 40, icon: '\u{1FAD9}', desc: '40oz Stanley, Hydroflask' },
     ];
 
-    DB.getDailySummary(App.selectedDate).then(summary => {
+    Promise.all([DB.getDailySummary(App.selectedDate), DB.getProfile('goals')]).then(([summary, goals]) => {
       const currentOz = summary.water_oz || 0;
+      const waterGoal = goals?.water_oz || 96;
 
       const status = UI.createElement('div');
       status.style.cssText = 'text-align: center; margin-bottom: var(--space-md); font-size: var(--text-sm);';
-      status.innerHTML = `Today: <strong id="water-total" style="color: var(--color-water)">${currentOz} oz</strong> of 96 oz goal`;
+      status.innerHTML = `Today: <strong id="water-total" style="color: var(--color-water)">${currentOz} oz</strong> of ${waterGoal} oz goal`;
       wrapper.appendChild(status);
 
       const grid = UI.createElement('div', 'water-picker-grid');
