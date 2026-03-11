@@ -35,9 +35,13 @@ const Coach = {
         }
       }
 
-      // Water gap
-      if (goals.water_oz && analysis.goals?.water) {
-        const waterActual = analysis.goals.water.actual_oz;
+      // Water gap — try analysis.goals.water first, fall back to daily summary
+      if (goals.water_oz) {
+        let waterActual = analysis.goals?.water?.actual_oz;
+        if (waterActual == null) {
+          const yesterdaySummary = await DB.getDailySummary(yesterday);
+          waterActual = yesterdaySummary.water_oz || null;
+        }
         if (waterActual != null && waterActual < goals.water_oz * 0.7) {
           tips.push({ icon: '\u{1F4A7}', text: `Only ${waterActual} oz water yesterday. Start sipping early \u2014 goal is ${goals.water_oz} oz.` });
         }
