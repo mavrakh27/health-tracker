@@ -6,7 +6,18 @@ const GoalsView = {
     if (!container) return;
 
     const date = App.selectedDate;
-    const analysis = await DB.getAnalysis(date);
+    let analysis = await DB.getAnalysis(date);
+    let analysisLabel = '';
+
+    // Fall back to yesterday's analysis if none for selected date
+    if (!analysis) {
+      const prev = new Date(date + 'T12:00:00');
+      prev.setDate(prev.getDate() - 1);
+      const prevDate = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(prev.getDate()).padStart(2, '0')}`;
+      analysis = await DB.getAnalysis(prevDate);
+      if (analysis) analysisLabel = UI.formatRelativeDate(prevDate);
+    }
+
     const mealPlan = await DB.getMealPlan();
     const regimen = await DB.getRegimen();
 
@@ -14,12 +25,15 @@ const GoalsView = {
 
     // --- Daily Summary (from analysis) ---
     if (analysis) {
+      if (analysisLabel) {
+        html += `<div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-xs);">Showing analysis from ${analysisLabel}</div>`;
+      }
       html += GoalsView.renderAnalysisSummary(analysis);
     } else {
       html += `
         <div class="card" style="text-align:center; padding: var(--space-lg);">
           <p style="color: var(--text-muted); font-size: var(--text-sm);">No analysis yet for ${UI.formatRelativeDate(date)}.</p>
-          <p style="color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-xs);">Import analysis from Settings after Claude processes.</p>
+          <p style="color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-xs);">Log food and sync to get your analysis.</p>
         </div>
       `;
     }
