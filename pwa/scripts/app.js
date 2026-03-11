@@ -116,7 +116,15 @@ const Coach = {
   },
 
   render(tips) {
-    if (!tips.length) return '';
+    if (!tips.length) return `
+      <div class="coach-card">
+        <div class="coach-header">Daily Coach</div>
+        <div class="coach-tip">
+          <span class="coach-tip-icon">\u{1F4CB}</span>
+          <span class="coach-tip-text">Log some food and check back after processing for personalized tips.</span>
+        </div>
+      </div>
+    `;
     return `
       <div class="coach-card">
         <div class="coach-header">Daily Coach</div>
