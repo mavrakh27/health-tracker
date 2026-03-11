@@ -241,6 +241,7 @@ const App = {
       Settings.loadCloudSyncStatus();
       Settings.initAutoSyncToggle();
       Settings.initUpdateButton();
+      Settings.loadVersion();
     }
   },
 
@@ -496,6 +497,16 @@ const Settings = {
       await AutoSync.toggle(toggle.checked);
       UI.toast(toggle.checked ? 'Auto-backup enabled' : 'Auto-backup disabled');
     });
+  },
+
+  async loadVersion() {
+    const el = document.getElementById('app-version');
+    if (!el) return;
+    try {
+      const keys = await caches.keys();
+      const current = keys.find(k => k.startsWith('health-tracker-v'));
+      el.textContent = current ? current.replace('health-tracker-', '') : 'unknown';
+    } catch { el.textContent = 'unknown'; }
   },
 
   initUpdateButton() {
