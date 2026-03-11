@@ -293,60 +293,54 @@ const Log = {
     area.appendChild(preview);
   },
 
-  // --- Water Form ---
+  // --- Water Form (visual container picker) ---
   buildWaterForm() {
-    // Use a persistent div (not DocumentFragment) so async content appends work
     const wrapper = UI.createElement('div');
+
+    const containers = [
+      { label: 'Small cup', oz: 6, icon: '\u{1F964}', desc: 'Coffee cup, juice glass' },
+      { label: 'Glass', oz: 10, icon: '\u{1FAD7}', desc: 'Standard drinking glass' },
+      { label: 'Can / small bottle', oz: 12, icon: '\u{1F96B}', desc: 'Soda can, La Croix' },
+      { label: 'Tall glass', oz: 16, icon: '\u{1F95B}', desc: 'Pint glass, tall tumbler' },
+      { label: 'Water bottle', oz: 24, icon: '\u{1FAD9}', desc: 'Standard reusable bottle' },
+      { label: 'Large bottle', oz: 32, icon: '\u{1F4A7}', desc: 'Nalgene, large tumbler' },
+      { label: 'Big jug', oz: 40, icon: '\u{1FAD9}', desc: '40oz Stanley, Hydroflask' },
+    ];
 
     DB.getDailySummary(App.selectedDate).then(summary => {
       const currentOz = summary.water_oz || 0;
 
-      const container = UI.createElement('div', 'slider-container');
-      container.innerHTML = `
-        <div class="slider-value"><span id="water-display">${currentOz}</span> <span class="unit">oz</span></div>
-        <input type="range" id="water-slider" min="0" max="160" step="4" value="${currentOz}">
-        <div style="display:flex; justify-content:space-between; color:var(--text-muted); font-size:var(--text-xs); margin-top:var(--space-xs);">
-          <span>0 oz</span>
-          <span>160 oz</span>
-        </div>
-      `;
-      wrapper.appendChild(container);
+      const status = UI.createElement('div');
+      status.style.cssText = 'text-align: center; margin-bottom: var(--space-md); font-size: var(--text-sm);';
+      status.innerHTML = `Today: <strong id="water-total" style="color: var(--color-water)">${currentOz} oz</strong> of 96 oz goal`;
+      wrapper.appendChild(status);
 
-      // Quick-add buttons
-      const quickRow = UI.createElement('div', 'subtype-row');
-      quickRow.style.justifyContent = 'center';
-      quickRow.style.marginTop = 'var(--space-md)';
-      [8, 12, 16, 24].forEach(oz => {
-        const chip = UI.createElement('button', 'subtype-chip');
-        chip.textContent = `+${oz} oz`;
-        chip.addEventListener('click', () => {
-          const slider = document.getElementById('water-slider');
-          const display = document.getElementById('water-display');
-          const newVal = Math.min(160, parseInt(slider.value) + oz);
-          slider.value = newVal;
-          display.textContent = newVal;
+      const grid = UI.createElement('div', 'water-picker-grid');
+      containers.forEach(c => {
+        const btn = UI.createElement('button', 'water-pick');
+        btn.dataset.oz = c.oz;
+        btn.innerHTML = `
+          <div class="water-pick-icon">${c.icon}</div>
+          <div class="water-pick-oz">${c.oz} oz</div>
+          <div class="water-pick-label">${c.label}</div>
+        `;
+        btn.addEventListener('click', async () => {
+          try {
+            const fresh = await DB.getDailySummary(App.selectedDate);
+            const newTotal = (fresh.water_oz || 0) + c.oz;
+            await DB.updateDailySummary(App.selectedDate, { water_oz: newTotal });
+            const totalEl = document.getElementById('water-total');
+            if (totalEl) totalEl.textContent = `${newTotal} oz`;
+            UI.toast(`Water: ${newTotal} oz (+${c.oz})`);
+            CloudRelay.queueUpload(App.selectedDate);
+          } catch (err) {
+            console.error('Save water failed:', err);
+            UI.toast('Failed to save', 'error');
+          }
         });
-        quickRow.appendChild(chip);
+        grid.appendChild(btn);
       });
-      wrapper.appendChild(quickRow);
-
-      // Save button
-      const saveArea = UI.createElement('div', 'form-group');
-      saveArea.style.marginTop = 'var(--space-lg)';
-      const saveBtn = UI.createElement('button', 'btn btn-primary btn-block btn-lg');
-      saveBtn.textContent = 'Save Water Intake';
-      saveBtn.addEventListener('click', () => Log.saveWater());
-      saveArea.appendChild(saveBtn);
-      wrapper.appendChild(saveArea);
-
-      // Attach slider event
-      const slider = document.getElementById('water-slider');
-      const display = document.getElementById('water-display');
-      if (slider && display) {
-        slider.addEventListener('input', () => {
-          display.textContent = slider.value;
-        });
-      }
+      wrapper.appendChild(grid);
     });
 
     return wrapper;
@@ -535,22 +529,6 @@ const Log = {
       window.location.hash = '';
     } catch (err) {
       console.error('Save body photos failed:', err);
-      UI.toast('Failed to save', 'error');
-    }
-  },
-
-  async saveWater() {
-    const slider = document.getElementById('water-slider');
-    if (!slider) return;
-
-    const oz = parseInt(slider.value);
-    try {
-      await DB.updateDailySummary(App.selectedDate, { water_oz: oz });
-      UI.toast(`Water: ${oz} oz saved`);
-      CloudRelay.queueUpload(App.selectedDate);
-      window.location.hash = '';
-    } catch (err) {
-      console.error('Save water failed:', err);
       UI.toast('Failed to save', 'error');
     }
   },

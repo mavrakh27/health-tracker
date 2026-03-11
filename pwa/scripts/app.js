@@ -4,8 +4,7 @@
 const QuickLog = {
   init() {
     document.getElementById('quick-photo-btn')?.addEventListener('click', () => QuickLog.snapFood());
-    document.getElementById('quick-water-8')?.addEventListener('click', () => QuickLog.addWater(8));
-    document.getElementById('quick-water-16')?.addEventListener('click', () => QuickLog.addWater(16));
+    document.getElementById('quick-water-btn')?.addEventListener('click', () => QuickLog.showWaterPicker());
     document.getElementById('quick-weight-btn')?.addEventListener('click', () => QuickLog.showWeightEntry());
   },
 
@@ -42,26 +41,68 @@ const QuickLog = {
     }
   },
 
-  // --- Quick water increment (always logs to today) ---
-  _waterBusy: false,
-  async addWater(oz) {
-    if (QuickLog._waterBusy) return;
-    QuickLog._waterBusy = true;
-    try {
-      const today = UI.today();
-      const summary = await DB.getDailySummary(today);
-      const current = summary.water_oz || 0;
-      const newTotal = current + oz;
-      await DB.updateDailySummary(today, { water_oz: newTotal });
-      UI.toast(`Water: ${newTotal} oz (+${oz})`);
-      CloudRelay.queueUpload(today);
-      if (App.selectedDate === today) App.loadDayView();
-    } catch (err) {
-      console.error('Quick water failed:', err);
-      UI.toast('Failed to save water', 'error');
-    } finally {
-      QuickLog._waterBusy = false;
-    }
+  // --- Visual water picker ---
+  async showWaterPicker() {
+    const today = UI.today();
+    const summary = await DB.getDailySummary(today);
+    const currentOz = summary.water_oz || 0;
+
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+
+    const containers = [
+      { label: 'Small cup', oz: 6, icon: '\u{1F964}', desc: 'Coffee cup, juice glass' },
+      { label: 'Glass', oz: 10, icon: '\u{1FAD7}', desc: 'Standard drinking glass' },
+      { label: 'Can / small bottle', oz: 12, icon: '\u{1F96B}', desc: 'Soda can, La Croix' },
+      { label: 'Tall glass', oz: 16, icon: '\u{1F95B}', desc: 'Pint glass, tall tumbler' },
+      { label: 'Water bottle', oz: 24, icon: '\u{1FAD9}', desc: 'Standard reusable bottle' },
+      { label: 'Large bottle', oz: 32, icon: '\u{1F4A7}', desc: 'Nalgene, large tumbler' },
+      { label: 'Big jug', oz: 40, icon: '\u{1FAD9}', desc: '40oz Stanley, Hydroflask' },
+    ];
+
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title">Add Water</span>
+        <button class="modal-close" id="wp-close">&times;</button>
+      </div>
+      <div style="text-align: center; margin-bottom: var(--space-md); color: var(--text-secondary); font-size: var(--text-sm);">
+        Today: <strong style="color: var(--color-water)">${currentOz} oz</strong> of 96 oz goal
+      </div>
+      <div class="water-picker-grid">
+        ${containers.map(c => `
+          <button class="water-pick" data-oz="${c.oz}">
+            <div class="water-pick-icon">${c.icon}</div>
+            <div class="water-pick-oz">${c.oz} oz</div>
+            <div class="water-pick-label">${c.label}</div>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    document.getElementById('wp-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    sheet.querySelectorAll('.water-pick').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const oz = parseInt(btn.dataset.oz);
+        try {
+          const fresh = await DB.getDailySummary(today);
+          const newTotal = (fresh.water_oz || 0) + oz;
+          await DB.updateDailySummary(today, { water_oz: newTotal });
+          UI.toast(`Water: ${newTotal} oz (+${oz})`);
+          CloudRelay.queueUpload(today);
+          closeModal();
+          if (App.selectedDate === today) App.loadDayView();
+        } catch (err) {
+          console.error('Quick water failed:', err);
+          UI.toast('Failed to save water', 'error');
+        }
+      });
+    });
   },
 
   // --- Quick weight modal (always logs to today) ---
@@ -332,7 +373,7 @@ const App = {
   async ensureDefaultGoals() {
     const existing = await DB.getProfile('goals');
     if (!existing) {
-      await DB.setProfile('goals', { calories: 1800, protein: 130, water_oz: 96 });
+      await DB.setProfile('goals', { calories: 1350, protein: 105, water_oz: 96 });
     }
   },
 
