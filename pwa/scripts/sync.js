@@ -604,6 +604,7 @@ const CloudRelay = {
       <button class="btn btn-primary btn-block btn-lg" id="cs-save">Save</button>
       ${config.syncKey ? '<button class="btn btn-ghost btn-block" id="cs-test" style="margin-top: var(--space-sm);">Test Connection</button>' : ''}
       <button class="btn btn-secondary btn-block" id="cs-sync-now" style="margin-top: var(--space-sm);">Sync Now</button>
+      <button class="btn btn-secondary btn-block" id="cs-check-results" style="margin-top: var(--space-xs);">Check for Results</button>
       <div style="margin-top: var(--space-md);">
         <label class="form-label">Sync Log</label>
         <div id="cloud-sync-log" style="font-size: var(--text-xs); font-family: monospace; max-height: 200px; overflow-y: auto; padding: var(--space-sm); background: var(--bg-secondary); border-radius: var(--radius-sm);"></div>
@@ -647,6 +648,10 @@ const CloudRelay = {
       CloudRelay.log(`Manual sync triggered for ${today}`);
       CloudRelay._pendingDate = today;
       await CloudRelay._doUpload();
+      await CloudRelay.checkForResults();
+    });
+
+    document.getElementById('cs-check-results').addEventListener('click', async () => {
       await CloudRelay.checkForResults();
     });
 
