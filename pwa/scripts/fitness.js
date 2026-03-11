@@ -127,6 +127,7 @@ const Fitness = {
         const match = part.match(/^(?:Core:\s*)?(.+?)(?:\s+(\d+x\d+(?:s|sec)?)(?:\s+(.+))?)?$/i);
         if (match) {
           const rawName = match[1].trim();
+          if (!rawName) continue;
           const setsReps = match[2] || '';
           const extra = match[3] || '';
           const isCore = part.toLowerCase().startsWith('core:');
@@ -289,18 +290,19 @@ const Fitness = {
         e.stopPropagation();
         const name = btn.dataset.name;
         const checked = await Fitness.getCheckedExercises(date);
+        const exerciseCard = btn.closest('.fitness-exercise');
         if (checked.has(name)) {
           checked.delete(name);
           btn.classList.remove('checked');
           btn.innerHTML = '';
-          btn.closest('.fitness-exercise').classList.remove('fitness-done');
-          btn.closest('.fitness-exercise').querySelector('.fitness-exercise-name')?.classList.remove('fitness-strikethrough');
+          exerciseCard?.classList.remove('fitness-done');
+          exerciseCard?.querySelector('.fitness-exercise-name')?.classList.remove('fitness-strikethrough');
         } else {
           checked.add(name);
           btn.classList.add('checked');
           btn.innerHTML = '&#x2713;';
-          btn.closest('.fitness-exercise').classList.add('fitness-done');
-          btn.closest('.fitness-exercise').querySelector('.fitness-exercise-name')?.classList.add('fitness-strikethrough');
+          exerciseCard?.classList.add('fitness-done');
+          exerciseCard?.querySelector('.fitness-exercise-name')?.classList.add('fitness-strikethrough');
         }
         await Fitness.saveCheckedExercises(date, checked);
 
@@ -330,13 +332,13 @@ const Fitness = {
       });
     });
 
-    // Notes auto-save
+    // Notes auto-save (module-level timer to prevent leaks across re-renders)
+    clearTimeout(Fitness._saveTimer);
     const notesEl = document.getElementById('fitness-notes');
     if (notesEl) {
-      let saveTimer;
       notesEl.addEventListener('input', () => {
-        clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => {
+        clearTimeout(Fitness._saveTimer);
+        Fitness._saveTimer = setTimeout(() => {
           Fitness.saveWorkoutNotes(date, notesEl.value);
         }, 1000);
       });

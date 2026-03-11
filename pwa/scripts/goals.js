@@ -28,7 +28,7 @@ const GoalsView = {
 
     if (isToday) {
       // --- TODAY: Segment control ---
-      const activeTab = GoalsView._activeTab || 'nutrition';
+      const activeTab = GoalsView._activeTab || 'diet';
       html += `
         <div class="segment-control">
           <button class="segment-btn${activeTab === 'diet' ? ' active' : ''}" data-tab="diet">Diet</button>
