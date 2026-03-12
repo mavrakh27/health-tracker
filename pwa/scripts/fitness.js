@@ -159,7 +159,6 @@ const Fitness = {
     if (isRest) {
       const notes = await Fitness.getWorkoutNotes(date);
       let html = `<div class="card" style="text-align:center; padding:var(--space-lg);">
-        <div style="font-size:1.5rem; margin-bottom:var(--space-xs);">\u{1F9D8}</div>
         <div style="font-weight:600; margin-bottom:4px;">Rest Day</div>
         <div style="font-size:var(--text-sm); color:var(--text-muted);">${todayPlan ? UI.escapeHtml(todayPlan.description) : 'Recover and recharge.'}</div>
       </div>`;

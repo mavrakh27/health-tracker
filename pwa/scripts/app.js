@@ -18,14 +18,14 @@ const Coach = {
     if (goals.water_oz) {
       const waterLeft = goals.water_oz - waterOz;
       if (waterLeft <= 0) {
-        tips.push({ icon: '\u{1F4A7}', text: `Water: ${waterOz} oz \u2014 goal hit!`, highlight: true });
+        tips.push({ text: `Water: ${waterOz} oz \u2014 goal hit!`, highlight: true });
       } else if (hour >= 17 && waterLeft > goals.water_oz * 0.4) {
-        tips.push({ icon: '\u{1F4A7}', text: `Water: only ${waterOz} of ${goals.water_oz} oz and it's getting late. Drink up!`, highlight: true });
+        tips.push({ text: `Water: only ${waterOz} of ${goals.water_oz} oz and it's getting late. Drink up!`, highlight: true });
       } else if (waterLeft > 0) {
-        tips.push({ icon: '\u{1F4A7}', text: `Water: ${waterOz} of ${goals.water_oz} oz. ${waterLeft} oz to go.` });
+        tips.push({ text: `Water: ${waterOz} of ${goals.water_oz} oz. ${waterLeft} oz to go.` });
       }
     } else if (waterOz > 0) {
-      tips.push({ icon: '\u{1F4A7}', text: `Water: ${waterOz} oz logged today.` });
+      tips.push({ text: `Water: ${waterOz} oz logged today.` });
     }
 
     // --- Food entries (always available) ---
@@ -48,20 +48,20 @@ const Coach = {
         const remaining = goals.calories - totals.calories;
         if (isToday) {
           if (remaining > 200) {
-            tips.push({ icon: '\u{1F525}', text: `${remaining} cal remaining of ${goals.calories}. You've got room.`, highlight: true });
+            tips.push({ text: `${remaining} cal remaining of ${goals.calories}. You've got room.`, highlight: true });
           } else if (remaining > 0) {
-            tips.push({ icon: '\u{2705}', text: `${totals.calories} cal \u2014 almost at your ${goals.calories} target!`, highlight: true });
+            tips.push({ text: `${totals.calories} cal \u2014 almost at your ${goals.calories} target!`, highlight: true });
           } else {
-            tips.push({ icon: '\u{2696}\uFE0F', text: `${totals.calories} cal (${Math.abs(remaining)} over). Easy on the next meal.` });
+            tips.push({ text: `${totals.calories} cal (${Math.abs(remaining)} over). Easy on the next meal.` });
           }
         } else {
           const gap = goals.calories - totals.calories;
           if (gap > 200) {
-            tips.push({ icon: '\u{1F525}', text: `${label}: ${totals.calories} cal (${gap} under target). Aim for ${goals.calories} today.`, highlight: true });
+            tips.push({ text: `${label}: ${totals.calories} cal (${gap} under target). Aim for ${goals.calories} today.`, highlight: true });
           } else if (gap < -200) {
-            tips.push({ icon: '\u{2696}\uFE0F', text: `${label}: ${totals.calories} cal (${Math.abs(gap)} over). Lighter day today.` });
+            tips.push({ text: `${label}: ${totals.calories} cal (${Math.abs(gap)} over). Lighter day today.` });
           } else {
-            tips.push({ icon: '\u{2705}', text: `${label}: ${totals.calories} cal \u2014 right on target!`, highlight: true });
+            tips.push({ text: `${label}: ${totals.calories} cal \u2014 right on target!`, highlight: true });
           }
         }
       }
@@ -72,22 +72,21 @@ const Coach = {
         if (remaining > 20) {
           const foods = Coach._proteinIdeas(date);
           if (isToday) {
-            tips.push({ icon: '\u{1F4AA}', text: `Protein: ${totals.protein}g (need ${remaining}g more). Try: ${foods}`, highlight: true });
+            tips.push({ text: `Protein: ${totals.protein}g (need ${remaining}g more). Try: ${foods}`, highlight: true });
           } else {
-            tips.push({ icon: '\u{1F4AA}', text: `Protein was ${totals.protein}g yesterday (goal: ${goals.protein}g). Try: ${foods}`, highlight: true });
+            tips.push({ text: `Protein was ${totals.protein}g yesterday (goal: ${goals.protein}g). Try: ${foods}`, highlight: true });
           }
         } else if (remaining <= 0) {
-          tips.push({ icon: '\u{2705}', text: `Protein: ${totals.protein}g \u2014 goal hit!`, highlight: true });
+          tips.push({ text: `Protein: ${totals.protein}g \u2014 goal hit!`, highlight: true });
         }
       }
     } else if (meals.length > 0) {
-      // No analysis yet but user has logged food — nudge toward processing
-      tips.push({ icon: '\u{1F4F8}', text: `${meals.length} meal${meals.length > 1 ? 's' : ''} logged. Sync to get calorie & protein tracking.` });
+      tips.push({ text: `${meals.length} meal${meals.length > 1 ? 's' : ''} logged. Sync to get calorie & protein tracking.` });
     }
 
     // --- Meal timing nudges (only when no analysis context is showing) ---
     if (meals.length === 0 && hour >= 11 && !analysis) {
-      tips.push({ icon: '\u{1F372}', text: hour >= 14 ? 'No meals logged yet today \u2014 snap a photo of what you eat!' : 'Morning going well? Log your first meal when you eat.' });
+      tips.push({ text: hour >= 14 ? 'No meals logged yet \u2014 snap a photo of what you eat!' : 'Morning going well? Log your first meal when you eat.' });
     }
 
     // --- Workout (regimen + logged workouts) ---
@@ -97,15 +96,15 @@ const Coach = {
       const todayPlan = regimen.weeklySchedule.find(d => d.day === dayName);
       if (todayPlan && todayPlan.type !== 'rest') {
         if (workouts.length > 0) {
-          tips.push({ icon: '\u{2705}', text: `Workout done! ${todayPlan.description}`, highlight: true });
+          tips.push({ text: 'Workout done!', highlight: true });
         } else {
-          tips.push({ icon: '\u{1F3CB}\uFE0F', text: `Today: ${todayPlan.description}`, highlight: true });
+          tips.push({ text: `Today: ${todayPlan.type}`, highlight: true });
         }
       } else if (todayPlan?.type === 'rest') {
-        tips.push({ icon: '\u{1F9D8}', text: 'Rest day \u2014 stretch, walk, recover.' });
+        tips.push({ text: 'Rest day \u2014 stretch, walk, recover.' });
       }
     } else if (workouts.length > 0) {
-      tips.push({ icon: '\u{1F3CB}\uFE0F', text: `Workout logged today!`, highlight: true });
+      tips.push({ text: 'Workout logged!', highlight: true });
     }
 
     return tips;
@@ -140,7 +139,6 @@ const Coach = {
         <div class="coach-header">Daily Coach</div>
         ${tips.map(t => `
           <div class="coach-tip${t.highlight ? ' coach-tip--highlight' : ''}">
-            <span class="coach-tip-icon">${t.icon}</span>
             <span class="coach-tip-text">${UI.escapeHtml(t.text)}</span>
           </div>
         `).join('')}
@@ -203,13 +201,13 @@ const QuickLog = {
     const sheet = UI.createElement('div', 'modal-sheet');
 
     const containers = [
-      { label: 'Small cup', oz: 6, icon: '\u{1F964}', desc: 'Coffee cup, juice glass' },
-      { label: 'Glass', oz: 10, icon: '\u{1FAD7}', desc: 'Standard drinking glass' },
-      { label: 'Can / small bottle', oz: 12, icon: '\u{1F96B}', desc: 'Soda can, La Croix' },
-      { label: 'Tall glass', oz: 16, icon: '\u{1F95B}', desc: 'Pint glass, tall tumbler' },
-      { label: 'Water bottle', oz: 24, icon: '\u{1FAD9}', desc: 'Standard reusable bottle' },
-      { label: 'Large bottle', oz: 32, icon: '\u{1F4A7}', desc: 'Nalgene, large tumbler' },
-      { label: 'Big jug', oz: 40, icon: '\u{1FAD9}', desc: '40oz Stanley, Hydroflask' },
+      { label: 'Small cup', oz: 6, desc: 'Coffee cup, juice glass' },
+      { label: 'Glass', oz: 10, desc: 'Standard drinking glass' },
+      { label: 'Can / small bottle', oz: 12, desc: 'Soda can, La Croix' },
+      { label: 'Tall glass', oz: 16, desc: 'Pint glass, tall tumbler' },
+      { label: 'Water bottle', oz: 24, desc: 'Standard reusable bottle' },
+      { label: 'Large bottle', oz: 32, desc: 'Nalgene, large tumbler' },
+      { label: 'Big jug', oz: 40, desc: '40oz Stanley, Hydroflask' },
     ];
 
     sheet.innerHTML = `
@@ -223,7 +221,6 @@ const QuickLog = {
       <div class="water-picker-grid">
         ${containers.map(c => `
           <button class="water-pick" data-oz="${c.oz}">
-            <div class="water-pick-icon">${c.icon}</div>
             <div class="water-pick-oz">${c.oz} oz</div>
             <div class="water-pick-label">${c.label}</div>
           </button>
@@ -326,8 +323,8 @@ const QuickLog = {
 
   // --- Supplement picker ---
   _supplements: [
-    { key: 'fiber', name: 'Fiber', notes: 'Psyllium husk fiber powder', icon: '\u{1F33E}', calories: 30, protein: 0, carbs: 10, fat: 0 },
-    { key: 'collagen', name: 'Collagen', notes: 'Vital Proteins collagen peptides', icon: '\u2728', calories: 70, protein: 18, carbs: 0, fat: 0 },
+    { key: 'fiber', name: 'Fiber', notes: 'Psyllium husk fiber powder', calories: 30, protein: 0, carbs: 10, fat: 0 },
+    { key: 'collagen', name: 'Collagen', notes: 'Vital Proteins collagen peptides', calories: 70, protein: 18, carbs: 0, fat: 0 },
   ],
 
   showSupplementPicker() {
@@ -343,7 +340,6 @@ const QuickLog = {
       <div class="supplement-grid">
         ${QuickLog._supplements.map(s => `
           <button class="supplement-pick" data-key="${s.key}">
-            <div style="font-size:1.5rem;">${s.icon}</div>
             <div style="font-weight:500;">${s.name}</div>
             <div style="font-size:var(--text-xs); color:var(--text-muted);">${s.calories} cal · ${s.protein}g protein</div>
           </button>
@@ -537,7 +533,7 @@ const App = {
         const hint = isToday ? 'Use the buttons above to start logging.' : '';
         entryList.innerHTML = `
           <div class="empty-state">
-            <div class="empty-icon">\u{1F4CB}</div>
+            <div class="empty-icon"></div>
             <p>No entries ${dateLabel}.${hint ? '<br>' + hint : ''}</p>
           </div>
         `;
@@ -580,7 +576,7 @@ const App = {
   renderWelcomeCard() {
     return `
       <div class="card" style="text-align:center; padding: var(--space-lg);">
-        <div style="font-size: 40px; margin-bottom: var(--space-md);">\u{1F44B}</div>
+        <div style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-md);">Welcome</div>
         <h2 style="font-size: var(--text-lg); margin-bottom: var(--space-sm);">Welcome to Health Tracker</h2>
         <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-lg); line-height: 1.6;">
           Log meals, water, workouts, and weight throughout the day.<br>

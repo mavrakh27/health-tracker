@@ -33,18 +33,10 @@
       </div>
 
       <div class="quick-actions" id="quick-actions">
-        <button class="quick-action quick-action-primary" id="quick-photo-btn">
-          <span>&#x1F4F7;</span> Snap food
-        </button>
-        <button class="quick-action quick-action-water" id="quick-water-btn">
-          <span>&#x1F4A7;</span> Water
-        </button>
-        <button class="quick-action" id="quick-weight-btn">
-          <span>&#x2696;&#xFE0F;</span> Weight
-        </button>
-        <button class="quick-action quick-action-supplement" id="quick-supplement-btn">
-          <span>&#x1F48A;</span> Supps
-        </button>
+        <button class="quick-action quick-action-primary" id="quick-photo-btn">Snap food</button>
+        <button class="quick-action quick-action-water" id="quick-water-btn">Water</button>
+        <button class="quick-action" id="quick-weight-btn">Weight</button>
+        <button class="quick-action quick-action-supplement" id="quick-supplement-btn">Supps</button>
       </div>
 
       <div id="today-coach"></div>
@@ -93,11 +85,8 @@
 
     <!-- Screen: Settings -->
     <main id="screen-settings" class="screen">
-      <h2 class="section-header">Your Plan</h2>
-
       <div class="s-card s-card--accent">
         <div class="s-card-row">
-          <span class="s-icon">&#x1F3AF;</span>
           <div class="s-card-body">
             <h3 class="s-title">Daily Goals</h3>
             <p class="s-subtitle" id="goals-summary">Loading...</p>
@@ -106,11 +95,8 @@
         </div>
       </div>
 
-      <h2 class="section-header">Sync</h2>
-
       <div class="s-card">
         <div class="s-card-row">
-          <span class="s-icon">&#x2601;&#xFE0F;</span>
           <div class="s-card-body">
             <h3 class="s-title">Cloud Sync</h3>
             <p class="s-subtitle" id="cloud-sync-status">Not configured</p>
@@ -121,9 +107,8 @@
 
       <div class="s-card">
         <div class="s-card-row">
-          <span class="s-icon">&#x1F4E6;</span>
           <div class="s-card-body">
-            <h3 class="s-title">Manual Backup</h3>
+            <h3 class="s-title">Backup</h3>
             <div class="s-toggle-row">
               <span class="s-toggle-label">Auto-backup daily</span>
               <label class="s-toggle">
@@ -140,28 +125,19 @@
         </div>
       </div>
 
-      <h2 class="section-header">App</h2>
-
       <div class="s-card">
         <div class="s-card-row">
-          <span class="s-icon">&#x1F4BE;</span>
           <div class="s-card-body">
-            <h3 class="s-title">Storage</h3>
             <p class="s-subtitle" id="storage-info">Loading...</p>
           </div>
         </div>
-        <button class="btn btn-secondary btn-block" id="clear-photos-btn" onclick="Settings.clearPhotos()" style="margin-top: var(--space-sm);">Clear Processed Photos</button>
-      </div>
-
-      <div class="s-card">
-        <div class="s-card-row">
-          <span class="s-icon">&#x2139;&#xFE0F;</span>
-          <div class="s-card-body">
-            <h3 class="s-title">Health Tracker <span id="app-version" class="s-version-badge"></span></h3>
-            <p class="s-subtitle">Personal AI-powered health tracking</p>
-          </div>
+        <div class="s-btn-row">
+          <button class="btn btn-secondary" id="clear-photos-btn" onclick="Settings.clearPhotos()">Clear Photos</button>
+          <button class="btn btn-secondary" id="update-app-btn">Update App</button>
         </div>
-        <button class="btn btn-secondary btn-block" id="update-app-btn" style="margin-top: var(--space-sm);">Check for Updates</button>
+        <div style="text-align:center; margin-top:var(--space-sm);">
+          <span style="font-size:var(--text-xs); color:var(--text-muted);">Health Tracker <span id="app-version" class="s-version-badge"></span></span>
+        </div>
       </div>
     </main>
 

@@ -155,7 +155,7 @@ const GoalsView = {
     if (analysis.concerns?.length) {
       html += '<div class="card" style="margin-top: var(--space-sm);">';
       for (const c of analysis.concerns) {
-        html += `<div style="font-size:var(--text-sm); color:var(--accent-orange); margin-bottom:4px;">\u26A0 ${UI.escapeHtml(c)}</div>`;
+        html += `<div style="font-size:var(--text-sm); color:var(--accent-orange); margin-bottom:4px;">${UI.escapeHtml(c)}</div>`;
       }
       html += '</div>';
     }
@@ -245,9 +245,9 @@ const GoalsView = {
 
     for (const entry of analysis.entries) {
       if (entry.type === 'bodyPhoto') continue;
-      const icon = entry.type === 'workout' ? '\u{1F3CB}\uFE0F' :
-                   entry.type === 'supplement' ? '\u{1F48A}' :
-                   entry.type === 'drink' ? '\u{1F964}' : '\u{1F372}';
+      const typeLabel = entry.type === 'workout' ? 'workout' :
+                       entry.type === 'supplement' ? 'supp' :
+                       entry.type === 'drink' ? 'drink' : 'food';
       const cal = entry.type === 'workout' ? `${entry.calories_burned || '?'} cal burned` :
                   `${entry.calories || 0} cal`;
       const protein = entry.type !== 'workout' && entry.protein ? ` \u00B7 ${entry.protein}g protein` : '';
@@ -255,7 +255,7 @@ const GoalsView = {
       html += `
         <div style="padding:var(--space-xs) 0; border-bottom:1px solid var(--border-color);">
           <div style="display:flex; justify-content:space-between; align-items:baseline;">
-            <span style="font-size:var(--text-sm);">${icon} ${UI.escapeHtml(entry.description || entry.notes || entry.type)}</span>
+            <span style="font-size:var(--text-sm);">${UI.escapeHtml(entry.description || entry.notes || entry.type)}</span>
           </div>
           <div style="font-size:var(--text-xs); color:var(--text-muted);">${cal}${protein}${entry.confidence ? ' \u00B7 ' + entry.confidence + ' confidence' : ''}</div>
         </div>
@@ -279,7 +279,7 @@ const GoalsView = {
     if (analysis.highlights?.length) {
       html += '<div class="card" style="margin-top: var(--space-sm);">';
       for (const h of analysis.highlights) {
-        html += `<div style="font-size:var(--text-sm); color:var(--accent-green); margin-bottom:4px;">\u2713 ${UI.escapeHtml(h)}</div>`;
+        html += `<div style="font-size:var(--text-sm); color:var(--accent-green); margin-bottom:4px;">${UI.escapeHtml(h)}</div>`;
       }
       html += '</div>';
     }
