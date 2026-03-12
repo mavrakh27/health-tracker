@@ -397,8 +397,10 @@ const App = {
     window.addEventListener('hashchange', () => App.handleRoute());
 
     // Initialize DB, then load the initial route
-    DB.openDB().then(() => {
+    DB.openDB().then(async () => {
       console.log('DB ready');
+      // Run goal migrations on every init (fixes water_oz 96→64, adds hardcore)
+      await App.ensureDefaultGoals();
       // Initialize auto-sync (runs backup if needed)
       AutoSync.init().catch(err => console.warn('AutoSync init failed:', err));
       // Check for cloud relay results
@@ -612,11 +614,17 @@ const App = {
         calories: 1400, protein: 105, water_oz: 64,
         hardcore: { calories: 1200, protein: 120, water_oz: 64 },
       });
-    } else if (!existing.hardcore) {
-      // Migrate existing goals to include hardcore targets
-      existing.hardcore = { calories: 1200, protein: 120, water_oz: 64 };
-      if (existing.water_oz === 96) existing.water_oz = 64;
-      await DB.setProfile('goals', existing);
+    } else {
+      let changed = false;
+      if (!existing.hardcore) {
+        existing.hardcore = { calories: 1200, protein: 120, water_oz: 64 };
+        changed = true;
+      }
+      if (existing.water_oz === 96) {
+        existing.water_oz = 64;
+        changed = true;
+      }
+      if (changed) await DB.setProfile('goals', existing);
     }
   },
 
