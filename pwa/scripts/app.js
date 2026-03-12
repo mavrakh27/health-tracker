@@ -195,7 +195,7 @@ const QuickLog = {
     const summary = await DB.getDailySummary(today);
     const currentOz = summary.water_oz || 0;
     const goals = await DB.getProfile('goals') || {};
-    const waterGoal = goals.water_oz || 96;
+    const waterGoal = goals.water_oz || 64;
 
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
@@ -550,12 +550,24 @@ const App = {
     const summary = await DB.getDailySummary(date);
     App.renderDayStats(summary, entries);
 
-    // Coach suggestions
+    // Day Score (above coach)
+    const scoreEl = document.getElementById('today-score');
+    if (scoreEl) {
+      try {
+        const scoreResult = await DayScore.calculate(date);
+        scoreEl.innerHTML = DayScore.render(scoreResult);
+      } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
+    }
+
+    // Coach suggestions + chat
     const coachEl = document.getElementById('today-coach');
     if (coachEl) {
       try {
         const tips = await Coach.getSuggestions(date);
-        coachEl.innerHTML = Coach.render(tips);
+        let coachHtml = Coach.render(tips);
+        coachHtml += await CoachChat.render(date);
+        coachEl.innerHTML = coachHtml;
+        CoachChat.bindEvents(date);
       } catch (e) { console.warn('Coach error:', e); coachEl.innerHTML = ''; }
     }
 
@@ -596,7 +608,15 @@ const App = {
   async ensureDefaultGoals() {
     const existing = await DB.getProfile('goals');
     if (!existing) {
-      await DB.setProfile('goals', { calories: 1350, protein: 105, water_oz: 96 });
+      await DB.setProfile('goals', {
+        calories: 1400, protein: 105, water_oz: 64,
+        hardcore: { calories: 1200, protein: 120, water_oz: 64 },
+      });
+    } else if (!existing.hardcore) {
+      // Migrate existing goals to include hardcore targets
+      existing.hardcore = { calories: 1200, protein: 120, water_oz: 64 };
+      if (existing.water_oz === 96) existing.water_oz = 64;
+      await DB.setProfile('goals', existing);
     }
   },
 
@@ -607,22 +627,34 @@ const App = {
     const goals = await DB.getProfile('goals') || {};
 
     const sheet = UI.createElement('div', 'modal-sheet');
+    const hc = goals.hardcore || {};
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Set Your Goals</span>
         <button class="modal-close" id="gs-close">&times;</button>
       </div>
-      <div class="form-group">
-        <label class="form-label">Daily Calories</label>
-        <input type="number" class="form-input" id="gs-calories" value="${UI.escapeHtml(String(goals.calories || ''))}" placeholder="1800" inputmode="numeric">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Protein Goal (grams)</label>
-        <input type="number" class="form-input" id="gs-protein" value="${UI.escapeHtml(String(goals.protein || ''))}" placeholder="130" inputmode="numeric">
+      <div style="font-size:var(--text-xs); color:var(--text-muted); margin-bottom:var(--space-md);">Moderate = active plan. Hardcore = stretch target shown for reference.</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm);">
+        <div class="form-group">
+          <label class="form-label">Calories (moderate)</label>
+          <input type="number" class="form-input" id="gs-calories" value="${goals.calories || ''}" placeholder="1400" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Calories (hardcore)</label>
+          <input type="number" class="form-input" id="gs-hc-calories" value="${hc.calories || ''}" placeholder="1200" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Protein (moderate)</label>
+          <input type="number" class="form-input" id="gs-protein" value="${goals.protein || ''}" placeholder="105" inputmode="numeric">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Protein (hardcore)</label>
+          <input type="number" class="form-input" id="gs-hc-protein" value="${hc.protein || ''}" placeholder="120" inputmode="numeric">
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Water Goal (oz)</label>
-        <input type="number" class="form-input" id="gs-water" value="${UI.escapeHtml(String(goals.water_oz || ''))}" placeholder="96" inputmode="numeric">
+        <input type="number" class="form-input" id="gs-water" value="${goals.water_oz || ''}" placeholder="64" inputmode="numeric">
       </div>
       <button class="btn btn-primary btn-block btn-lg" id="gs-save">Save Goals</button>
     `;
@@ -638,8 +670,13 @@ const App = {
       const calories = parseInt(document.getElementById('gs-calories')?.value) || null;
       const protein = parseInt(document.getElementById('gs-protein')?.value) || null;
       const water_oz = parseInt(document.getElementById('gs-water')?.value) || null;
+      const hcCalories = parseInt(document.getElementById('gs-hc-calories')?.value) || null;
+      const hcProtein = parseInt(document.getElementById('gs-hc-protein')?.value) || null;
 
-      const newGoals = { calories, protein, water_oz };
+      const newGoals = {
+        calories, protein, water_oz,
+        hardcore: { calories: hcCalories, protein: hcProtein, water_oz },
+      };
       await DB.setProfile('goals', newGoals);
       UI.toast('Goals saved');
       overlay.remove();

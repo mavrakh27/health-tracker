@@ -74,6 +74,7 @@ const UI = {
       water: '\u{1F4A7}',
       weight: '\u{2696}\uFE0F',
       bodyPhoto: '\u{1F4F7}',
+      vice: '\u{1F37A}',
       sleep: '\u{1F634}',
     };
     const icon = icons[type];
@@ -89,7 +90,7 @@ const UI = {
     const labels = {
       meal: 'Food', snack: 'Food', drink: 'Food',
       workout: 'Workout', water: 'Water', weight: 'Weight',
-      bodyPhoto: 'Body Photo', sleep: 'Sleep',
+      bodyPhoto: 'Body Photo', vice: 'Alcohol', sleep: 'Sleep',
     };
     return labels[type] || type;
   },

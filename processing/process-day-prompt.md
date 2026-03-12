@@ -5,11 +5,11 @@ You are analyzing today's health data exported from the Health Tracker PWA. The 
 ## Input Structure
 
 After ZIP extraction, the data is at `{ICLOUD_DIR}/incoming/{DATE}/`:
-- `daily/{DATE}/log.json` — today's entries (meals, drinks, snacks, workouts, body photos, water, weight)
+- `daily/{DATE}/log.json` — today's entries (meals, drinks, snacks, workouts, body photos, vices/alcohol, water, weight)
 - `daily/{DATE}/photos/` — meal/snack/drink/workout photos (JPEG)
-- `progress/{DATE}/` — body progress photos (face.jpg, body.jpg) — **do NOT describe these, they are private**
-- `{ICLOUD_DIR}/profile/goals.json` — calorie and macro targets
-- `{ICLOUD_DIR}/profile/regimen.json` — workout plan
+- `progress/{DATE}/` — body progress photos (face.jpg, face_2.jpg, body.jpg, body_2.jpg, etc.) — **do NOT describe these, they are private**
+- `{ICLOUD_DIR}/profile/goals.json` — dual plan targets (moderate = active, hardcore = stretch goal)
+- `{ICLOUD_DIR}/profile/regimen.json` — workout plans (moderate + hardcore schedules)
 - `{ICLOUD_DIR}/profile/preferences.json` — dietary preferences
 
 ## Instructions
@@ -29,14 +29,21 @@ After ZIP extraction, the data is at `{ICLOUD_DIR}/incoming/{DATE}/`:
    - Compare to the workout regimen — does today match the plan?
    - Note any deviations or progressions
 
-4. **Calculate daily totals:**
-   - Sum calories and macros from all meals
-   - Compare to goals from `goals.json`
-   - Calculate remaining budget for the day
+4. **Handle alcohol/vice entries:**
+   - Vice entries have `type: 'vice'`, `subtype` (beer/wine/cocktail/shot/etc.), `quantity`, and `calories_est`
+   - Include in calorie totals
+   - Note impact on daily score and goals (alcohol calories are "empty" — no protein/useful macros)
 
-5. **Generate highlights and concerns:**
+5. **Calculate daily totals:**
+   - Sum calories and macros from all meals AND vice entries
+   - Compare to BOTH moderate and hardcore goals from `goals.json`
+   - Calculate remaining budget for the day
+   - Generate a `dayScore` (0-100) with breakdown — see output schema
+
+6. **Generate highlights and concerns:**
    - What went well (good choices, balanced meals)
    - What to watch (macro deficits, missing nutrients, high sugar)
+   - Frame as forward-looking tips, not warnings (see rule #10 below)
 
 6. **Generate a rolling 3-day meal plan:**
    - **Read `preferences.json` first** — it defines meal structure (meals per day, office vs home day split, OMAD rules, snack policy). Follow it exactly.
@@ -86,6 +93,10 @@ Write a **single JSON file** to `{ICLOUD_DIR}/analysis/{DATE}.json` containing e
   },
   "highlights": ["..."],
   "concerns": ["..."],
+  "dayScore": {
+    "moderate": { "score": 0, "breakdown": { "calories": 0, "protein": 0, "workout": 0, "water": 0, "logging": 0, "vices": 0 } },
+    "hardcore": { "score": 0, "breakdown": { "calories": 0, "protein": 0, "workout": 0, "water": 0, "logging": 0, "vices": 0 } }
+  },
   "streaks": { "tracking": 0, "calorie_goal": 0, "protein_goal": 0 },
 
   "mealPlan": {
@@ -109,9 +120,33 @@ Write a **single JSON file** to `{ICLOUD_DIR}/analysis/{DATE}.json` containing e
       { "day": "tuesday", "type": "...", "description": "..." }
     ],
     "weeklyReview": "Optional note on how this week's workouts went vs plan"
-  }
+  },
+
+  "coachResponses": [
+    { "replyTo": "coach_msgid", "text": "Response to user's question", "timestamp": 0 }
+  ]
 }
 ```
+
+9. **Coach Chat — respond to user messages:**
+   - Check `log.json` for a `coachChat` array. If present, it contains messages from the user to their coach.
+   - Generate responses for each unanswered user message. Be helpful, specific to their data, and encouraging.
+   - Add a `coachResponses` array to the output JSON:
+   ```json
+   "coachResponses": [
+     { "replyTo": "coach_msgid", "text": "Your response here", "timestamp": 1234567890 }
+   ]
+   ```
+   - `replyTo` must match the user message's `id` field so the app can pair question and answer.
+   - Keep responses concise (2-4 sentences). Reference their actual data when relevant.
+   - Tone: supportive coach, not lecturer. Encourage without being preachy.
+
+10. **Concerns should be forward-looking, not alarming:**
+    - The analysis may be generated mid-day while the user is still eating/drinking/exercising.
+    - Frame concerns as tips for the rest of the day, not warnings about what's missing.
+    - Good: "Dinner should target ~50g protein to close the gap"
+    - Bad: "Protein at 50g is dangerously low — you've only hit half your target"
+    - Don't treat a mid-day snapshot as a final report.
 
 ## Important
 

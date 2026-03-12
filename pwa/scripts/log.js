@@ -29,6 +29,7 @@ const Log = {
       { type: 'meal', icon: '\u{1F37D}\uFE0F', label: 'Food', color: 'var(--color-meal)' },
       { type: 'workout', icon: '\u{1F4AA}', label: 'Workout', color: 'var(--color-workout)' },
       { type: 'water', icon: '\u{1F4A7}', label: 'Water', color: 'var(--color-water)' },
+      { type: 'vice', icon: '\u{1F37A}', label: 'Alcohol', color: 'var(--accent-red)' },
       { type: 'weight', icon: '\u{2696}\uFE0F', label: 'Weight', color: 'var(--color-weight)' },
       { type: 'bodyPhoto', icon: '\u{1F4F7}', label: 'Body Photo', color: 'var(--color-body-photo)' },
     ];
@@ -53,8 +54,10 @@ const Log = {
     Log.selectedSubtype = null;
     Log.clearPendingPhoto();
     // Also clear body photo previews
-    if (Log._pendingFacePhoto) { Camera.revokeURL(Log._pendingFacePhoto.url); Log._pendingFacePhoto = null; }
-    if (Log._pendingBodyPhoto) { Camera.revokeURL(Log._pendingBodyPhoto.url); Log._pendingBodyPhoto = null; }
+    for (const p of Log._pendingFacePhotos) Camera.revokeURL(p.url);
+    for (const p of Log._pendingBodyPhotos) Camera.revokeURL(p.url);
+    Log._pendingFacePhotos = [];
+    Log._pendingBodyPhotos = [];
 
     // Highlight selected
     document.querySelectorAll('.type-btn').forEach(btn => {
@@ -88,6 +91,9 @@ const Log = {
         break;
       case 'bodyPhoto':
         formContent.appendChild(Log.buildBodyPhotoForm());
+        break;
+      case 'vice':
+        formContent.appendChild(Log.buildViceForm());
         break;
     }
   },
@@ -203,35 +209,35 @@ const Log = {
     return frag;
   },
 
-  // --- Body Photo Form ---
+  // --- Body Photo Form (supports multiple face + body photos) ---
   buildBodyPhotoForm() {
     const frag = document.createDocumentFragment();
 
-    const info = UI.createElement('p', '', 'Take a face photo and a body photo for your progress timeline.');
+    const info = UI.createElement('p', '', 'Take face and body photos for your progress timeline. You can take multiple of each.');
     info.style.cssText = 'font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-md);';
     frag.appendChild(info);
 
-    // Face photo
+    // Face photos
     const faceGroup = UI.createElement('div', 'form-group');
     faceGroup.innerHTML = `
-      <label class="form-label">Face Photo</label>
+      <label class="form-label">Face Photos</label>
       <div class="photo-actions">
-        <button class="btn btn-secondary" id="log-face-capture">\u{1F4F7} Take Photo</button>
-        <button class="btn btn-ghost" id="log-face-pick">\u{1F5BC}\uFE0F Library</button>
+        <button class="btn btn-secondary" id="log-face-capture">Take Photo</button>
+        <button class="btn btn-ghost" id="log-face-pick">Library</button>
       </div>
-      <div id="log-face-preview-area"></div>
+      <div id="log-face-preview-area" class="body-photo-grid"></div>
     `;
     frag.appendChild(faceGroup);
 
-    // Body photo
+    // Body photos
     const bodyGroup = UI.createElement('div', 'form-group');
     bodyGroup.innerHTML = `
-      <label class="form-label">Body Photo</label>
+      <label class="form-label">Body Photos</label>
       <div class="photo-actions">
-        <button class="btn btn-secondary" id="log-body-capture">\u{1F4F7} Take Photo</button>
-        <button class="btn btn-ghost" id="log-body-pick">\u{1F5BC}\uFE0F Library</button>
+        <button class="btn btn-secondary" id="log-body-capture">Take Photo</button>
+        <button class="btn btn-ghost" id="log-body-pick">Library</button>
       </div>
-      <div id="log-body-preview-area"></div>
+      <div id="log-body-preview-area" class="body-photo-grid"></div>
     `;
     frag.appendChild(bodyGroup);
 
@@ -251,44 +257,41 @@ const Log = {
     requestAnimationFrame(() => {
       document.getElementById('log-face-capture')?.addEventListener('click', async () => {
         const result = await Camera.capture('body');
-        if (result) Log.setBodyPhotoPreview('face', result);
+        if (result) Log.addBodyPhoto('face', result);
       });
       document.getElementById('log-face-pick')?.addEventListener('click', async () => {
         const result = await Camera.pick('body');
-        if (result) Log.setBodyPhotoPreview('face', result);
+        if (result) Log.addBodyPhoto('face', result);
       });
       document.getElementById('log-body-capture')?.addEventListener('click', async () => {
         const result = await Camera.capture('body');
-        if (result) Log.setBodyPhotoPreview('body', result);
+        if (result) Log.addBodyPhoto('body', result);
       });
       document.getElementById('log-body-pick')?.addEventListener('click', async () => {
         const result = await Camera.pick('body');
-        if (result) Log.setBodyPhotoPreview('body', result);
+        if (result) Log.addBodyPhoto('body', result);
       });
     });
 
     return frag;
   },
 
-  _pendingFacePhoto: null,
-  _pendingBodyPhoto: null,
+  _pendingFacePhotos: [],
+  _pendingBodyPhotos: [],
 
-  setBodyPhotoPreview(which, photo) {
+  addBodyPhoto(which, photo) {
+    const list = which === 'face' ? Log._pendingFacePhotos : Log._pendingBodyPhotos;
     const areaId = which === 'face' ? 'log-face-preview-area' : 'log-body-preview-area';
     const area = document.getElementById(areaId);
     if (!area) return;
-    UI.clearChildren(area);
 
-    // Clean up old
-    if (which === 'face' && Log._pendingFacePhoto) Camera.revokeURL(Log._pendingFacePhoto.url);
-    if (which === 'body' && Log._pendingBodyPhoto) Camera.revokeURL(Log._pendingBodyPhoto.url);
-
-    if (which === 'face') Log._pendingFacePhoto = photo;
-    else Log._pendingBodyPhoto = photo;
+    const idx = list.length;
+    list.push(photo);
 
     const preview = Camera.createPreview(photo.url, () => {
-      if (which === 'face') { Camera.revokeURL(Log._pendingFacePhoto?.url); Log._pendingFacePhoto = null; }
-      else { Camera.revokeURL(Log._pendingBodyPhoto?.url); Log._pendingBodyPhoto = null; }
+      // Remove this photo from the list
+      const i = list.indexOf(photo);
+      if (i >= 0) { Camera.revokeURL(photo.url); list.splice(i, 1); }
     });
     area.appendChild(preview);
   },
@@ -309,7 +312,7 @@ const Log = {
 
     Promise.all([DB.getDailySummary(App.selectedDate), DB.getProfile('goals')]).then(([summary, goals]) => {
       const currentOz = summary.water_oz || 0;
-      const waterGoal = goals?.water_oz || 96;
+      const waterGoal = goals?.water_oz || 64;
 
       const status = UI.createElement('div');
       status.style.cssText = 'text-align: center; margin-bottom: var(--space-md); font-size: var(--text-sm);';
@@ -388,6 +391,116 @@ const Log = {
     });
 
     return wrapper;
+  },
+
+  // --- Vice/Alcohol Form ---
+  buildViceForm() {
+    const wrapper = UI.createElement('div');
+
+    const drinks = [
+      { label: 'Beer', cal: 150, oz: 12 },
+      { label: 'Wine', cal: 125, oz: 5 },
+      { label: 'Cocktail', cal: 200, oz: 6 },
+      { label: 'Shot', cal: 100, oz: 1.5 },
+      { label: 'Hard seltzer', cal: 100, oz: 12 },
+      { label: 'Other', cal: 150, oz: 0 },
+    ];
+
+    let html = '<div class="supplement-grid">';
+    for (const d of drinks) {
+      html += `<button class="supplement-pick" data-drink="${d.label}" data-cal="${d.cal}">${d.label}<br><span style="font-size:var(--text-xs);color:var(--text-muted)">~${d.cal} cal</span></button>`;
+    }
+    html += '</div>';
+
+    const group = UI.createElement('div', 'form-group');
+    group.innerHTML = html;
+    wrapper.appendChild(group);
+
+    // Quantity
+    const qtyGroup = UI.createElement('div', 'form-group');
+    qtyGroup.innerHTML = `
+      <label class="form-label">How many?</label>
+      <div class="number-input" style="justify-content:center;">
+        <button class="btn btn-secondary" id="vice-minus">\u2212</button>
+        <input type="number" class="form-input" id="vice-qty" value="1" min="1" max="10" inputmode="numeric" style="text-align:center; max-width:80px;">
+        <button class="btn btn-secondary" id="vice-plus">+</button>
+      </div>
+    `;
+    wrapper.appendChild(qtyGroup);
+
+    // Notes
+    wrapper.appendChild(Log.buildNotesField('Any notes?'));
+
+    // Save
+    const saveArea = UI.createElement('div', 'form-group');
+    saveArea.style.marginTop = 'var(--space-md)';
+    const saveBtn = UI.createElement('button', 'btn btn-primary btn-block btn-lg');
+    saveBtn.textContent = 'Log Drink';
+    saveBtn.addEventListener('click', () => Log.saveVice());
+    saveArea.appendChild(saveBtn);
+    wrapper.appendChild(saveArea);
+
+    // Wire up buttons
+    requestAnimationFrame(() => {
+      let selectedDrink = null;
+      wrapper.querySelectorAll('.supplement-pick').forEach(btn => {
+        btn.addEventListener('click', () => {
+          wrapper.querySelectorAll('.supplement-pick').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          selectedDrink = { label: btn.dataset.drink, cal: parseInt(btn.dataset.cal) };
+          Log._pendingVice = selectedDrink;
+        });
+      });
+
+      const qtyInput = document.getElementById('vice-qty');
+      document.getElementById('vice-minus')?.addEventListener('click', () => {
+        qtyInput.value = Math.max(1, parseInt(qtyInput.value || 1) - 1);
+      });
+      document.getElementById('vice-plus')?.addEventListener('click', () => {
+        qtyInput.value = Math.min(10, parseInt(qtyInput.value || 1) + 1);
+      });
+    });
+
+    return wrapper;
+  },
+
+  _pendingVice: null,
+
+  async saveVice() {
+    const vice = Log._pendingVice;
+    if (!vice) {
+      UI.toast('Select a drink type', 'error');
+      return;
+    }
+
+    const qty = parseInt(document.getElementById('vice-qty')?.value) || 1;
+    const notes = document.getElementById('log-notes')?.value?.trim() || '';
+    const date = App.selectedDate;
+
+    const entry = {
+      id: UI.generateId('vice'),
+      type: 'vice',
+      subtype: vice.label.toLowerCase(),
+      date,
+      timestamp: new Date().toISOString(),
+      notes: notes || `${qty}x ${vice.label}`,
+      quantity: qty,
+      calories_est: vice.cal * qty,
+      photo: false,
+      duration_minutes: null,
+    };
+
+    try {
+      await DB.addEntry(entry);
+      UI.toast(`${qty}x ${vice.label} logged (~${vice.cal * qty} cal)`);
+      CloudRelay.queueUpload(date);
+      Log._pendingVice = null;
+      Log.init();
+      window.location.hash = '';
+    } catch (err) {
+      console.error('Save vice failed:', err);
+      UI.toast('Failed to save', 'error');
+    }
   },
 
   // --- Shared Form Pieces ---
@@ -478,54 +591,56 @@ const Log = {
   },
 
   async saveBodyPhotos() {
-    const facePhoto = Log._pendingFacePhoto;
-    const bodyPhoto = Log._pendingBodyPhoto;
+    const facePhotos = Log._pendingFacePhotos;
+    const bodyPhotos = Log._pendingBodyPhotos;
 
-    if (!facePhoto && !bodyPhoto) {
+    if (facePhotos.length === 0 && bodyPhotos.length === 0) {
       UI.toast('Take at least one photo', 'error');
       return;
     }
 
     const notes = document.getElementById('log-notes')?.value?.trim() || '';
     const date = App.selectedDate;
-    const candidateTs = facePhoto?.takenAt || bodyPhoto?.takenAt;
-    const timestamp = (candidateTs && candidateTs.startsWith(App.selectedDate)) ? candidateTs : new Date().toISOString();
+    const timestamp = new Date().toISOString();
+    let count = 0;
 
     try {
-      // Save face photo as its own entry
-      if (facePhoto) {
-        const faceEntry = {
+      // Save all face photos
+      for (const photo of facePhotos) {
+        const entry = {
           id: UI.generateId('bodyPhoto_face'),
           type: 'bodyPhoto',
           subtype: 'face',
           date,
           timestamp,
-          notes,
+          notes: count === 0 ? notes : '',
           photo: true,
           duration_minutes: null,
         };
-        await DB.addEntry(faceEntry, facePhoto.blob);
+        await DB.addEntry(entry, photo.blob);
+        count++;
       }
 
-      // Save body photo as its own entry
-      if (bodyPhoto) {
-        const bodyEntry = {
+      // Save all body photos
+      for (const photo of bodyPhotos) {
+        const entry = {
           id: UI.generateId('bodyPhoto_body'),
           type: 'bodyPhoto',
           subtype: 'body',
           date,
           timestamp,
-          notes: facePhoto ? '' : notes, // Only put notes on one entry
+          notes: count === 0 ? notes : '',
           photo: true,
           duration_minutes: null,
         };
-        await DB.addEntry(bodyEntry, bodyPhoto.blob);
+        await DB.addEntry(entry, photo.blob);
+        count++;
       }
 
-      UI.toast('Progress photos saved');
+      UI.toast(`${count} progress photo${count > 1 ? 's' : ''} saved`);
       CloudRelay.queueUpload(date);
-      Log._pendingFacePhoto = null;
-      Log._pendingBodyPhoto = null;
+      Log._pendingFacePhotos = [];
+      Log._pendingBodyPhotos = [];
       Log.init();
       window.location.hash = '';
     } catch (err) {

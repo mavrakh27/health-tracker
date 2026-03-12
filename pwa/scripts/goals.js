@@ -151,11 +151,11 @@ const GoalsView = {
 
     html += '</div>';
 
-    // Highlights/concerns as forward-looking tips
+    // Forward-looking tips for rest of the day
     if (analysis.concerns?.length) {
-      html += '<div class="card" style="margin-top: var(--space-sm);">';
+      html += '<h2 class="section-header">Rest of Your Day</h2><div class="card">';
       for (const c of analysis.concerns) {
-        html += `<div style="font-size:var(--text-sm); color:var(--accent-orange); margin-bottom:4px;">${UI.escapeHtml(c)}</div>`;
+        html += `<div style="font-size:var(--text-sm); color:var(--text-secondary); margin-bottom:6px;">${UI.escapeHtml(c)}</div>`;
       }
       html += '</div>';
     }

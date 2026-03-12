@@ -433,12 +433,16 @@ async function exportDay(dateStr) {
     }
   }
 
-  // Body photos — stored under progress/ path
+  // Body photos — stored under progress/ path, numbered for multiple per day
   const bodyPhotos = await getBodyPhotos(dateStr);
+  let faceIdx = 0, bodyIdx = 0;
   for (const bp of bodyPhotos) {
     if (bp.blob) {
+      const isFace = bp.entryId?.includes('face') || bp.id?.includes('face');
+      const idx = isFace ? ++faceIdx : ++bodyIdx;
+      const suffix = idx > 1 ? `_${idx}` : '';
       photoFiles.push({
-        name: bp.entryId?.includes('face') || bp.id?.includes('face') ? 'body/face.jpg' : 'body/body.jpg',
+        name: isFace ? `body/face${suffix}.jpg` : `body/body${suffix}.jpg`,
         blob: bp.blob,
       });
     }
@@ -451,6 +455,7 @@ async function exportDay(dateStr) {
     weight: summary.weight || null,
     water_oz: summary.water_oz || null,
     notes: summary.notes || null,
+    coachChat: summary.coachChat || null,
   };
 
   return { log, photoFiles };
