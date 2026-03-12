@@ -80,6 +80,7 @@ const DayScore = {
       // Rest day — full marks for resting
       score += 25;
       breakdown.workout = 25;
+      breakdown._isRest = true;
     }
 
     // Water (10 pts)

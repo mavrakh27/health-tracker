@@ -111,9 +111,11 @@ const CoachChat = {
         UI.toast('Failed to send message', 'error');
       }
 
-      input.disabled = false;
-      sendBtn.disabled = false;
-      input.focus();
+      // Re-target fresh DOM elements (old ones may be detached after re-render)
+      const freshInput = document.getElementById('coach-input');
+      const freshBtn = document.getElementById('coach-send');
+      if (freshInput) { freshInput.disabled = false; freshInput.focus(); }
+      if (freshBtn) freshBtn.disabled = false;
     };
 
     sendBtn.addEventListener('click', send);

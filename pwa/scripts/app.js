@@ -637,24 +637,24 @@ const App = {
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm);">
         <div class="form-group">
           <label class="form-label">Calories (moderate)</label>
-          <input type="number" class="form-input" id="gs-calories" value="${goals.calories || ''}" placeholder="1400" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-calories" value="${Number(goals.calories) || ''}" placeholder="1400" inputmode="numeric">
         </div>
         <div class="form-group">
           <label class="form-label">Calories (hardcore)</label>
-          <input type="number" class="form-input" id="gs-hc-calories" value="${hc.calories || ''}" placeholder="1200" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-hc-calories" value="${Number(hc.calories) || ''}" placeholder="1200" inputmode="numeric">
         </div>
         <div class="form-group">
           <label class="form-label">Protein (moderate)</label>
-          <input type="number" class="form-input" id="gs-protein" value="${goals.protein || ''}" placeholder="105" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-protein" value="${Number(goals.protein) || ''}" placeholder="105" inputmode="numeric">
         </div>
         <div class="form-group">
           <label class="form-label">Protein (hardcore)</label>
-          <input type="number" class="form-input" id="gs-hc-protein" value="${hc.protein || ''}" placeholder="120" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-hc-protein" value="${Number(hc.protein) || ''}" placeholder="120" inputmode="numeric">
         </div>
       </div>
       <div class="form-group">
         <label class="form-label">Water Goal (oz)</label>
-        <input type="number" class="form-input" id="gs-water" value="${goals.water_oz || ''}" placeholder="64" inputmode="numeric">
+        <input type="number" class="form-input" id="gs-water" value="${Number(goals.water_oz) || ''}" placeholder="64" inputmode="numeric">
       </div>
       <button class="btn btn-primary btn-block btn-lg" id="gs-save">Save Goals</button>
     `;
