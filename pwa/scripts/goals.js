@@ -245,9 +245,6 @@ const GoalsView = {
 
     for (const entry of analysis.entries) {
       if (entry.type === 'bodyPhoto') continue;
-      const typeLabel = entry.type === 'workout' ? 'workout' :
-                       entry.type === 'supplement' ? 'supp' :
-                       entry.type === 'drink' ? 'drink' : 'food';
       const cal = entry.type === 'workout' ? `${entry.calories_burned || '?'} cal burned` :
                   `${entry.calories || 0} cal`;
       const protein = entry.type !== 'workout' && entry.protein ? ` \u00B7 ${entry.protein}g protein` : '';
