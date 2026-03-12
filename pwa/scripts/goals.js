@@ -33,6 +33,7 @@ const GoalsView = {
         <div class="segment-control">
           <button class="segment-btn${activeTab === 'diet' ? ' active' : ''}" data-tab="diet">Diet</button>
           <button class="segment-btn${activeTab === 'fitness' ? ' active' : ''}" data-tab="fitness">Fitness</button>
+          <button class="segment-btn${activeTab === 'journey' ? ' active' : ''}" data-tab="journey">Journey</button>
         </div>
       `;
 
@@ -56,13 +57,15 @@ const GoalsView = {
         if (analysis && analysis.streaks) {
           html += GoalsView.renderStreaks(analysis.streaks);
         }
-      } else {
+      } else if (activeTab === 'fitness') {
         // Fitness tab — interactive workout checklist
         if (regimen) {
           html += await Fitness.render(regimen, date);
         } else {
           html += '<div class="card" style="text-align:center; padding:var(--space-lg);"><p style="color:var(--text-muted);">No workout plan yet. Sync to get your regimen.</p></div>';
         }
+      } else if (activeTab === 'journey') {
+        html += await GoalsView.renderJourney();
       }
     } else {
       // --- PAST DAYS: Summary log view ---
@@ -433,6 +436,171 @@ const GoalsView = {
       `;
     }
     html += '</div>';
+    return html;
+  },
+
+  async renderJourney() {
+    const goals = await DB.getProfile('goals') || {};
+    const activePlan = goals.activePlan || 'moderate';
+
+    // Timeline dates from goals profile
+    const timeline = goals.timeline || {};
+    const startDate = timeline.start || '2026-03-10';
+    const endDate = activePlan === 'hardcore' ? (timeline.hardcore_end || '2026-05-15') : (timeline.moderate_end || '2026-06-30');
+    const today = UI.today();
+
+    // Load all analyses from start to today
+    const analyses = await DB.getAnalysisRange(startDate, today);
+
+    // Calculate timeline progress
+    const startMs = new Date(startDate + 'T12:00:00').getTime();
+    const endMs = new Date(endDate + 'T12:00:00').getTime();
+    const todayMs = new Date(today + 'T12:00:00').getTime();
+    const totalDays = Math.round((endMs - startMs) / 86400000);
+    const elapsedDays = Math.round((todayMs - startMs) / 86400000);
+    const pctComplete = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
+
+    let html = '';
+
+    // --- Timeline bar ---
+    html += `<h2 class="section-header">Your Journey</h2>`;
+    html += `<div class="card">`;
+    html += `<div style="display:flex; justify-content:space-between; font-size:var(--text-xs); color:var(--text-muted); margin-bottom:var(--space-xs);">
+      <span>${UI.formatDate(startDate)}</span>
+      <span style="color:var(--accent-green);">Day ${elapsedDays} of ${totalDays}</span>
+      <span>${UI.formatDate(endDate)}</span>
+    </div>`;
+    html += `<div class="progress-bar" style="height:8px; position:relative;">
+      <div class="progress-fill" style="width:${pctComplete}%; background: linear-gradient(90deg, var(--accent-blue), var(--accent-green));"></div>
+    </div>`;
+    html += `<div style="font-size:var(--text-xs); color:var(--text-muted); margin-top:var(--space-xs); text-align:center;">
+      ${timeline.goal || 'Visible abs'} — ${activePlan} plan — ${timeline.phase || ''}
+    </div>`;
+    html += `</div>`;
+
+    // --- Score sparkline (last 14 days or all available) ---
+    if (analyses.length > 0) {
+      html += `<h2 class="section-header">Daily Scores</h2>`;
+      html += `<div class="card">`;
+
+      // Build day-by-day data from start to today
+      const dayData = [];
+      const analysisMap = {};
+      for (const a of analyses) analysisMap[a.date] = a;
+
+      const cursor = new Date(startDate + 'T12:00:00');
+      const todayDate = new Date(today + 'T12:00:00');
+      while (cursor <= todayDate) {
+        const ds = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        const a = analysisMap[ds];
+        const score = a?.dayScore?.[activePlan]?.score ?? null;
+        dayData.push({ date: ds, score, hasData: !!a });
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      // SVG sparkline bars
+      const barWidth = Math.max(8, Math.min(28, Math.floor(280 / dayData.length)));
+      const gap = 3;
+      const svgWidth = dayData.length * (barWidth + gap);
+      const svgHeight = 80;
+
+      html += `<div style="overflow-x:auto; -webkit-overflow-scrolling:touch;">`;
+      html += `<svg viewBox="0 0 ${svgWidth} ${svgHeight + 20}" width="${svgWidth}" height="${svgHeight + 20}" style="display:block;">`;
+
+      for (let i = 0; i < dayData.length; i++) {
+        const d = dayData[i];
+        const x = i * (barWidth + gap);
+        const barH = d.score != null ? (d.score / 100) * svgHeight : 0;
+        const y = svgHeight - barH;
+        const color = d.score == null ? '#2a2a2a' :
+                      d.score >= 75 ? '#3ecf6e' :
+                      d.score >= 50 ? '#e09347' : '#e5534b';
+
+        // Bar
+        html += `<rect x="${x}" y="${d.score != null ? y : svgHeight - 4}" width="${barWidth}" height="${d.score != null ? barH : 4}" rx="3" fill="${color}" opacity="${d.score != null ? 0.85 : 0.3}"/>`;
+
+        // Score text above bar
+        if (d.score != null) {
+          html += `<text x="${x + barWidth / 2}" y="${y - 3}" text-anchor="middle" fill="#ececec" font-size="9" font-family="var(--font-sans)">${d.score}</text>`;
+        }
+
+        // Day label below
+        const dayLabel = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' });
+        html += `<text x="${x + barWidth / 2}" y="${svgHeight + 14}" text-anchor="middle" fill="#5a5a5d" font-size="9" font-family="var(--font-sans)">${dayLabel}</text>`;
+      }
+
+      html += `</svg></div>`;
+
+      // Average score
+      const scored = dayData.filter(d => d.score != null);
+      if (scored.length > 0) {
+        const avg = Math.round(scored.reduce((s, d) => s + d.score, 0) / scored.length);
+        html += `<div style="display:flex; justify-content:center; gap:var(--space-lg); margin-top:var(--space-sm); font-size:var(--text-sm);">
+          <span>Avg: <strong style="color:${avg >= 75 ? 'var(--accent-green)' : avg >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${avg}</strong></span>
+          <span style="color:var(--text-muted);">${scored.length} day${scored.length > 1 ? 's' : ''} tracked</span>
+        </div>`;
+      }
+
+      html += `</div>`;
+
+      // --- Weekly averages ---
+      const avgCal = Math.round(analyses.reduce((s, a) => s + (a.totals?.calories || 0), 0) / analyses.length);
+      const avgPro = Math.round(analyses.reduce((s, a) => s + (a.totals?.protein || 0), 0) / analyses.length);
+      const workoutDays = analyses.filter(a => a.fitness?.completed?.length > 0 || a.dayScore?.[activePlan]?.breakdown?.workout >= 20).length;
+      const waterHit = analyses.filter(a => a.goals?.water?.status === 'met').length;
+
+      html += `<h2 class="section-header">Averages</h2>`;
+      html += `<div class="stats-row">`;
+      html += `<div class="stat-card">
+        <div class="stat-value" style="color:${avgCal <= 1400 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${avgCal}</div>
+        <div class="stat-label">Avg Cal</div>
+      </div>`;
+      html += `<div class="stat-card">
+        <div class="stat-value" style="color:${avgPro >= 105 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${avgPro}g</div>
+        <div class="stat-label">Avg Protein</div>
+      </div>`;
+      html += `<div class="stat-card">
+        <div class="stat-value" style="color:var(--accent-blue);">${workoutDays}/${analyses.length}</div>
+        <div class="stat-label">Workouts</div>
+      </div>`;
+      html += `<div class="stat-card">
+        <div class="stat-value" style="color:var(--accent-cyan);">${waterHit}/${analyses.length}</div>
+        <div class="stat-label">Water Goal</div>
+      </div>`;
+      html += `</div>`;
+    } else {
+      html += `<div class="card" style="text-align:center; padding:var(--space-lg);">
+        <p style="color:var(--text-muted);">Track a few days and your progress will show here.</p>
+      </div>`;
+    }
+
+    // --- Daily rhythm visual ---
+    html += `<h2 class="section-header">Your Day</h2>`;
+    html += `<div class="card">`;
+
+    const rhythmItems = [
+      { time: 'Morning', icon: '\u2615', label: 'Collagen + fiber', detail: '70 cal, 18g protein', color: 'var(--accent-purple)' },
+      { time: 'Midday', icon: '\u{1F372}', label: 'Office: cafeteria / WFH: sipping broth', detail: 'Protein + greens, skip carbs', color: 'var(--accent-blue)' },
+      { time: 'Afternoon', icon: '\u{1F4AA}', label: 'Workout (if scheduled)', detail: 'Strength or cardio', color: 'var(--accent-orange)' },
+      { time: 'Evening', icon: '\u{1F363}', label: 'Dinner: ribeye / sashimi / pho / bun bowl', detail: 'No carbs, high protein', color: 'var(--accent-green)' },
+      { time: 'Anytime', icon: '\u{1F95C}', label: 'Snack buffer: ~150-200 cal', detail: 'Almonds, edamame, coconut water', color: 'var(--text-muted)' },
+    ];
+
+    for (let i = 0; i < rhythmItems.length; i++) {
+      const r = rhythmItems[i];
+      const isLast = i === rhythmItems.length - 1;
+      html += `<div style="display:flex; gap:var(--space-sm); ${!isLast ? 'margin-bottom:var(--space-sm); padding-bottom:var(--space-sm); border-bottom:1px solid var(--border-color);' : ''}">
+        <div style="font-size:var(--text-lg); width:28px; text-align:center;">${r.icon}</div>
+        <div style="flex:1;">
+          <div style="font-size:var(--text-xs); color:${r.color}; text-transform:uppercase; font-weight:600;">${r.time}</div>
+          <div style="font-size:var(--text-sm);">${r.label}</div>
+          <div style="font-size:var(--text-xs); color:var(--text-muted);">${r.detail}</div>
+        </div>
+      </div>`;
+    }
+
+    html += `</div>`;
+
     return html;
   },
 
