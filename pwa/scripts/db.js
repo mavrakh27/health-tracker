@@ -456,6 +456,8 @@ async function exportDay(dateStr) {
     water_oz: summary.water_oz || null,
     notes: summary.notes || null,
     coachChat: summary.coachChat || null,
+    fitness_checked: summary.fitness_checked || null,
+    fitness_notes: summary.fitness_notes || null,
   };
 
   return { log, photoFiles };
