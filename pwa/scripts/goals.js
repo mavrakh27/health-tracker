@@ -581,8 +581,9 @@ const GoalsView = {
     const rhythmItems = [
       { time: 'Morning', icon: '\u2615', label: 'Collagen + fiber', detail: '70 cal, 18g protein', color: 'var(--accent-purple)' },
       { time: 'Midday', icon: '\u{1F372}', label: 'Office: cafeteria / WFH: sipping broth', detail: 'Protein + greens, skip carbs', color: 'var(--accent-blue)' },
-      { time: 'Afternoon', icon: '\u{1F4AA}', label: 'Workout (if scheduled)', detail: 'Strength or cardio', color: 'var(--accent-orange)' },
-      { time: 'Evening', icon: '\u{1F363}', label: 'Dinner: ribeye / sashimi / pho / bun bowl', detail: 'No carbs, high protein', color: 'var(--accent-green)' },
+      { time: 'Afternoon', icon: '\u{1F4AA}', label: 'Workout (if scheduled)', detail: 'Strength, cardio, or dance class', color: 'var(--accent-orange)' },
+      { time: 'Evening', icon: '\u{1F363}', label: 'Dinner: ribeye / sashimi / pho / bun bowl', detail: 'No carbs, high protein, low sodium', color: 'var(--accent-green)' },
+      { time: 'Daily', icon: '\u{1F9D8}', label: 'Splits stretching (15-20 min)', detail: 'Best after workout when warm. Front + middle splits progression.', color: 'var(--accent-cyan)' },
       { time: 'Anytime', icon: '\u{1F95C}', label: 'Snack buffer: ~150-200 cal', detail: 'Almonds, edamame, coconut water', color: 'var(--text-muted)' },
     ];
 
