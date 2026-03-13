@@ -5,10 +5,24 @@ const Log = {
   selectedSubtype: null,
   pendingPhoto: null, // { blob, url } from Camera
 
-  init() {
+  // Container IDs (can be overridden for inline mode)
+  _gridId: 'log-type-grid',
+  _formId: 'log-form',
+  _formContentId: 'log-form-content',
+
+  init(gridId, formContentId) {
     Log.selectedType = null;
     Log.selectedSubtype = null;
     Log.clearPendingPhoto();
+    if (gridId) {
+      Log._gridId = gridId;
+      Log._formId = null; // inline mode has no wrapper
+      Log._formContentId = formContentId || gridId;
+    } else {
+      Log._gridId = 'log-type-grid';
+      Log._formId = 'log-form';
+      Log._formContentId = 'log-form-content';
+    }
     Log.renderTypeSelector();
     Log.hideForm();
   },
@@ -22,16 +36,16 @@ const Log = {
 
   // --- Type Selection ---
   renderTypeSelector() {
-    const grid = document.getElementById('log-type-grid');
+    const grid = document.getElementById(Log._gridId);
     if (!grid) return;
 
     const types = [
-      { type: 'meal', icon: '\u{1F37D}\uFE0F', label: 'Food', color: 'var(--color-meal)' },
-      { type: 'workout', icon: '\u{1F4AA}', label: 'Workout', color: 'var(--color-workout)' },
-      { type: 'water', icon: '\u{1F4A7}', label: 'Water', color: 'var(--color-water)' },
-      { type: 'vice', icon: '\u{1F37A}', label: 'Alcohol', color: 'var(--accent-red)' },
-      { type: 'weight', icon: '\u{2696}\uFE0F', label: 'Weight', color: 'var(--color-weight)' },
-      { type: 'bodyPhoto', icon: '\u{1F4F7}', label: 'Body Photo', color: 'var(--color-body-photo)' },
+      { type: 'meal', icon: UI.svg.meal, label: 'Food', color: 'var(--color-meal)' },
+      { type: 'workout', icon: UI.svg.workout, label: 'Workout', color: 'var(--color-workout)' },
+      { type: 'water', icon: UI.svg.water, label: 'Water', color: 'var(--color-water)' },
+      { type: 'vice', icon: UI.svg.vice, label: 'Alcohol', color: 'var(--accent-red)' },
+      { type: 'weight', icon: UI.svg.weight, label: 'Weight', color: 'var(--color-weight)' },
+      { type: 'bodyPhoto', icon: UI.svg.bodyPhoto, label: 'Body Photo', color: 'var(--color-body-photo)' },
     ];
 
     grid.innerHTML = types.map(t => `
@@ -69,11 +83,19 @@ const Log = {
 
   // --- Form Rendering ---
   showForm(type) {
-    const form = document.getElementById('log-form');
-    if (!form) return;
-    form.style.display = 'block';
+    // In inline mode (_formId is null), show the form content container directly
+    if (Log._formId) {
+      const form = document.getElementById(Log._formId);
+      if (!form) return;
+      form.style.display = 'block';
+    } else {
+      // Inline mode: show the inline form wrapper
+      const inlineForm = document.getElementById('log-form-inline');
+      if (inlineForm) inlineForm.style.display = 'block';
+    }
 
-    const formContent = document.getElementById('log-form-content');
+    const formContent = document.getElementById(Log._formContentId);
+    if (!formContent) return;
     UI.clearChildren(formContent);
 
     switch (type) {
@@ -99,8 +121,29 @@ const Log = {
   },
 
   hideForm() {
-    const form = document.getElementById('log-form');
-    if (form) form.style.display = 'none';
+    if (Log._formId) {
+      const form = document.getElementById(Log._formId);
+      if (form) form.style.display = 'none';
+    } else {
+      const inlineForm = document.getElementById('log-form-inline');
+      if (inlineForm) inlineForm.style.display = 'none';
+    }
+  },
+
+  // After saving in inline mode, refresh the day view instead of navigating
+  _afterSave() {
+    if (!Log._formId) {
+      // Inline mode — refresh day view, collapse the form
+      const logGrid = document.getElementById(Log._gridId);
+      if (logGrid) logGrid.style.display = 'none';
+      Log.hideForm();
+      const toggleBtn = document.getElementById('toggle-log-types');
+      if (toggleBtn) toggleBtn.textContent = '+ Add';
+      App.loadDayView();
+    } else {
+      Log.init();
+      window.location.hash = '';
+    }
   },
 
   // --- Photo Button (shared by meal/snack/drink/workout forms) ---
@@ -108,8 +151,8 @@ const Log = {
     const group = UI.createElement('div', 'form-group');
     group.innerHTML = `
       <div class="photo-actions">
-        <button class="btn btn-secondary" id="log-photo-capture">\u{1F4F7} Take Photo</button>
-        <button class="btn btn-ghost" id="log-photo-pick">\u{1F5BC}\uFE0F Choose from Library</button>
+        <button class="btn btn-secondary" id="log-photo-capture"><span class="btn-icon">${UI.svg.camera}</span> Take Photo</button>
+        <button class="btn btn-ghost" id="log-photo-pick"><span class="btn-icon">${UI.svg.gallery}</span> Choose from Library</button>
       </div>
       <div id="log-photo-preview-area"></div>
     `;
@@ -301,13 +344,13 @@ const Log = {
     const wrapper = UI.createElement('div');
 
     const containers = [
-      { label: 'Small cup', oz: 6, icon: '\u{1F964}', desc: 'Coffee cup, juice glass' },
-      { label: 'Glass', oz: 10, icon: '\u{1FAD7}', desc: 'Standard drinking glass' },
-      { label: 'Can / small bottle', oz: 12, icon: '\u{1F96B}', desc: 'Soda can, La Croix' },
-      { label: 'Tall glass', oz: 16, icon: '\u{1F95B}', desc: 'Pint glass, tall tumbler' },
-      { label: 'Water bottle', oz: 24, icon: '\u{1FAD9}', desc: 'Standard reusable bottle' },
-      { label: 'Large bottle', oz: 32, icon: '\u{1F4A7}', desc: 'Nalgene, large tumbler' },
-      { label: 'Big jug', oz: 40, icon: '\u{1FAD9}', desc: '40oz Stanley, Hydroflask' },
+      { label: 'Small cup', oz: 6, desc: 'Coffee cup, juice glass' },
+      { label: 'Glass', oz: 10, desc: 'Standard drinking glass' },
+      { label: 'Can / small bottle', oz: 12, desc: 'Soda can, La Croix' },
+      { label: 'Tall glass', oz: 16, desc: 'Pint glass, tall tumbler' },
+      { label: 'Water bottle', oz: 24, desc: 'Standard reusable bottle' },
+      { label: 'Large bottle', oz: 32, desc: 'Nalgene, large tumbler' },
+      { label: 'Big jug', oz: 40, desc: '40oz Stanley, Hydroflask' },
     ];
 
     Promise.all([DB.getDailySummary(App.selectedDate), DB.getProfile('goals')]).then(([summary, goals]) => {
@@ -324,7 +367,6 @@ const Log = {
         const btn = UI.createElement('button', 'water-pick');
         btn.dataset.oz = c.oz;
         btn.innerHTML = `
-          <div class="water-pick-icon">${c.icon}</div>
           <div class="water-pick-oz">${c.oz} oz</div>
           <div class="water-pick-label">${c.label}</div>
         `;
@@ -495,8 +537,7 @@ const Log = {
       UI.toast(`${qty}x ${vice.label} logged (~${vice.cal * qty} cal)`);
       CloudRelay.queueUpload(date);
       Log._pendingVice = null;
-      Log.init();
-      window.location.hash = '';
+      Log._afterSave();
     } catch (err) {
       console.error('Save vice failed:', err);
       UI.toast('Failed to save', 'error');
@@ -576,11 +617,10 @@ const Log = {
       if (stayOnLog) {
         // Reset form but stay on log screen with same type selected
         const prevType = Log.selectedType;
-        Log.init();
+        Log.init(Log._formId ? null : Log._gridId, Log._formId ? null : Log._formContentId);
         Log.selectType(prevType);
       } else {
-        Log.init();
-        window.location.hash = '';
+        Log._afterSave();
       }
     } catch (err) {
       console.error('Save failed:', err);
@@ -641,8 +681,7 @@ const Log = {
       CloudRelay.queueUpload(date);
       Log._pendingFacePhotos = [];
       Log._pendingBodyPhotos = [];
-      Log.init();
-      window.location.hash = '';
+      Log._afterSave();
     } catch (err) {
       console.error('Save body photos failed:', err);
       UI.toast('Failed to save', 'error');
@@ -668,7 +707,7 @@ const Log = {
       });
       UI.toast(`Weight: ${value} lbs saved`);
       CloudRelay.queueUpload(App.selectedDate);
-      window.location.hash = '';
+      Log._afterSave();
     } catch (err) {
       console.error('Save weight failed:', err);
       UI.toast('Failed to save', 'error');

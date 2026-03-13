@@ -440,6 +440,10 @@ const CloudRelay = {
 
   async saveConfig(config) {
     await DB.setProfile('cloudRelay', config);
+    // Backup to localStorage — survives app reinstall on some platforms
+    try {
+      localStorage.setItem('cloudRelay_backup', JSON.stringify(config));
+    } catch (e) { /* localStorage may be unavailable */ }
   },
 
   async isConfigured() {

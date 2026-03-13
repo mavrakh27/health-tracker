@@ -399,6 +399,18 @@ const App = {
     // Initialize DB, then load the initial route
     DB.openDB().then(async () => {
       console.log('DB ready');
+
+      // Check for fresh install (empty DB) and attempt restore from cloud
+      const hasData = await DB.hasAnyEntries();
+      const hasProfile = await DB.getProfile('goals');
+      if (!hasData && !hasProfile) {
+        const restored = await App.attemptRestore();
+        if (restored) {
+          App.handleRoute();
+          return;
+        }
+      }
+
       // Run goal migrations on every init (fixes water_oz 96→64, adds hardcore)
       await App.ensureDefaultGoals();
       // Initialize auto-sync (runs backup if needed)
@@ -416,10 +428,14 @@ const App = {
   routes: {
     '': 'today',
     '#today': 'today',
-    '#log': 'log',
-    '#calendar': 'calendar',
-    '#goals': 'goals',
-    '#settings': 'settings',
+    '#plan': 'plan',
+    '#progress': 'progress',
+    '#profile': 'profile',
+    // Legacy routes redirect to new tabs
+    '#log': 'today',
+    '#calendar': 'progress',
+    '#goals': 'plan',
+    '#settings': 'profile',
   },
 
   handleRoute() {
@@ -446,10 +462,10 @@ const App = {
 
     // Screen-specific init
     if (screenId === 'today') App.loadDayView();
-    if (screenId === 'log') Log.init();
-    if (screenId === 'calendar') Calendar.init();
-    if (screenId === 'goals') GoalsView.init();
-    if (screenId === 'settings') {
+    if (screenId === 'plan') PlanView.init();
+    if (screenId === 'progress') ProgressView.init();
+    if (screenId === 'profile') {
+      ProfileView.init();
       Settings.loadGoalsSummary();
       Settings.loadStorageInfo();
       Settings.loadCloudSyncStatus();
@@ -495,6 +511,14 @@ const App = {
     App.selectedDate = newDate;
     App.updateHeaderDate();
     if (App.currentScreen === 'today') App.loadDayView();
+    if (App.currentScreen === 'plan') PlanView.init();
+  },
+
+  goToDate(dateStr) {
+    App.selectedDate = dateStr;
+    App.updateHeaderDate();
+    window.location.hash = '';
+    App.showScreen('today');
   },
 
   // --- Header ---
@@ -535,7 +559,7 @@ const App = {
         const hint = isToday ? 'Use the buttons above to start logging.' : '';
         entryList.innerHTML = `
           <div class="empty-state">
-            <div class="empty-icon"></div>
+            <div class="empty-icon">${UI.svg.clipboard}</div>
             <p>No entries ${dateLabel}.${hint ? '<br>' + hint : ''}</p>
           </div>
         `;
@@ -571,6 +595,18 @@ const App = {
         coachEl.innerHTML = coachHtml;
         CoachChat.bindEvents(date);
       } catch (e) { console.warn('Coach error:', e); coachEl.innerHTML = ''; }
+    }
+
+    // Inline log toggle
+    const toggleBtn = document.getElementById('toggle-log-types');
+    const logGrid = document.getElementById('log-type-grid-inline');
+    if (toggleBtn && logGrid) {
+      toggleBtn.addEventListener('click', () => {
+        const showing = logGrid.style.display !== 'none';
+        logGrid.style.display = showing ? 'none' : 'grid';
+        toggleBtn.textContent = showing ? '+ Add' : 'Cancel';
+        if (!showing) Log.init('log-type-grid-inline', 'log-form-content-inline');
+      });
     }
 
     // Load analysis if available
@@ -625,6 +661,68 @@ const App = {
         changed = true;
       }
       if (changed) await DB.setProfile('goals', existing);
+    }
+  },
+
+  // Attempt to restore data on fresh install using localStorage relay config backup
+  async attemptRestore() {
+    try {
+      const backup = localStorage.getItem('cloudRelay_backup');
+      if (!backup) return false;
+
+      const config = JSON.parse(backup);
+      if (!config.workerUrl || !config.syncKey) return false;
+
+      console.log('AutoRestore: found relay config backup, restoring...');
+      UI.toast('Restoring your data...');
+
+      await DB.setProfile('cloudRelay', config);
+
+      let resultCount = 0;
+
+      // Pull pending analysis results
+      try {
+        const resp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/new`);
+        if (resp.ok) {
+          const { newResults } = await resp.json();
+          for (const date of (newResults || [])) {
+            try {
+              const r = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}`);
+              if (r.ok) {
+                const analysis = JSON.parse(await r.text());
+                await DB.importAnalysis(date, analysis);
+                await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}/ack`, { method: 'POST' });
+                resultCount++;
+              }
+            } catch (e) { console.warn(`AutoRestore: result ${date}:`, e); }
+          }
+        }
+      } catch (e) { console.warn('AutoRestore: results check failed:', e); }
+
+      // Download pending day ZIPs
+      try {
+        const resp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/pending`);
+        if (resp.ok) {
+          const { pending } = await resp.json();
+          for (const date of (pending || [])) {
+            try {
+              const r = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/day/${date}`);
+              if (r.ok) {
+                await Sync.restoreFromZipData(new Uint8Array(await r.arrayBuffer()));
+                resultCount++;
+              }
+            } catch (e) { console.warn(`AutoRestore: day ${date}:`, e); }
+          }
+        }
+      } catch (e) { console.warn('AutoRestore: pending check failed:', e); }
+
+      await App.ensureDefaultGoals();
+      AutoSync.init().catch(err => console.warn('AutoSync init failed:', err));
+      UI.toast(resultCount > 0 ? 'Data restored!' : 'Sync reconnected');
+      return true;
+    } catch (e) {
+      console.warn('AutoRestore: failed:', e);
+      return false;
     }
   },
 

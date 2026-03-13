@@ -26,11 +26,9 @@
       </div>
     </header>
 
-    <!-- Screen: Today (Day View) -->
+    <!-- Screen: Today (Day View + Logging) -->
     <main id="screen-today" class="screen active">
-      <div class="stats-row" id="today-stats">
-        <!-- Populated by app.js -->
-      </div>
+      <div class="stats-row" id="today-stats"></div>
 
       <div class="quick-actions" id="quick-actions">
         <button class="quick-action quick-action-primary" id="quick-photo-btn">Snap food</button>
@@ -42,11 +40,24 @@
       <div id="today-score"></div>
       <div id="today-coach"></div>
 
-      <h2 class="section-header" style="margin-top: var(--space-lg)">Today's Log</h2>
+      <!-- Inline entry creation (merged from Log) -->
+      <div id="today-log-section">
+        <h2 class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <span>Log</span>
+          <button class="btn btn-ghost" id="toggle-log-types" style="font-size:var(--text-sm); padding:4px 8px;">+ Add</button>
+        </h2>
+
+        <div id="log-type-grid-inline" class="type-grid" style="display:none;">
+          <!-- Populated by log.js -->
+        </div>
+        <div id="log-form-inline" style="display:none;">
+          <div id="log-form-content-inline"></div>
+        </div>
+      </div>
 
       <div class="entry-list" id="today-entries">
         <div class="empty-state">
-          <div class="empty-icon">&#x1F4CB;</div>
+          <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></div>
           <p>No entries yet today.<br>Tap + to start logging.</p>
         </div>
       </div>
@@ -60,42 +71,36 @@
       <div id="today-analysis"></div>
     </main>
 
-    <!-- Screen: Log (Add Entry) -->
-    <main id="screen-log" class="screen">
-      <h2 class="section-header">What are you logging?</h2>
-      <div class="type-grid" id="log-type-grid">
-        <!-- Populated by log.js -->
-      </div>
-
-      <div id="log-form" style="display:none; margin-top: var(--space-lg);">
-        <div id="log-form-content">
-          <!-- Dynamic form content -->
-        </div>
-      </div>
+    <!-- Screen: Plan (Meals + Workout + Stretching) -->
+    <main id="screen-plan" class="screen">
+      <div id="plan-container"></div>
     </main>
 
-    <!-- Screen: Calendar -->
-    <main id="screen-calendar" class="screen">
-      <div id="calendar-container"></div>
+    <!-- Screen: Progress (Journey + Calendar + Streaks) -->
+    <main id="screen-progress" class="screen">
+      <div id="progress-container"></div>
     </main>
 
-    <!-- Screen: Goals -->
-    <main id="screen-goals" class="screen">
-      <div id="goals-container"></div>
-    </main>
+    <!-- Screen: Profile (Coach + Goals + Settings) -->
+    <main id="screen-profile" class="screen">
+      <!-- Coach Chat -->
+      <div id="profile-coach"></div>
 
-    <!-- Screen: Settings -->
-    <main id="screen-settings" class="screen">
+      <!-- Fitness Goals -->
+      <div id="profile-goals"></div>
+
+      <!-- Daily Goals Editor -->
       <div class="s-card s-card--accent">
         <div class="s-card-row">
           <div class="s-card-body">
-            <h3 class="s-title">Daily Goals</h3>
+            <h3 class="s-title">Daily Targets</h3>
             <p class="s-subtitle" id="goals-summary">Loading...</p>
           </div>
           <button class="s-action-btn" onclick="App.showGoalSetup()">Edit</button>
         </div>
       </div>
 
+      <!-- Cloud Sync -->
       <div class="s-card">
         <div class="s-card-row">
           <div class="s-card-body">
@@ -106,6 +111,7 @@
         </div>
       </div>
 
+      <!-- Backup -->
       <div class="s-card">
         <div class="s-card-row">
           <div class="s-card-body">
@@ -126,6 +132,7 @@
         </div>
       </div>
 
+      <!-- Storage -->
       <div class="s-card">
         <div class="s-card-row">
           <div class="s-card-body">
@@ -142,50 +149,41 @@
       </div>
     </main>
 
-    <!-- Bottom Navigation -->
+    <!-- Bottom Navigation (4 tabs) -->
     <nav class="bottom-nav">
       <button class="nav-item active" data-screen="today">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-          <polyline points="9 22 9 12 15 12 15 22"/>
+          <circle cx="12" cy="12" r="9"/>
+          <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
         </svg>
         <span>Today</span>
       </button>
 
-      <button class="nav-item" data-screen="log">
+      <button class="nav-item" data-screen="plan">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <line x1="12" y1="8" x2="12" y2="16"/>
+          <rect x="4" y="3" width="16" height="18" rx="2"/>
+          <line x1="8" y1="8" x2="16" y2="8"/>
           <line x1="8" y1="12" x2="16" y2="12"/>
+          <line x1="8" y1="16" x2="12" y2="16"/>
         </svg>
-        <span>Log</span>
+        <span>Plan</span>
       </button>
 
-      <button class="nav-item" data-screen="calendar">
+      <button class="nav-item" data-screen="progress">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
+          <polyline points="4 18 8 12 12 14 16 8 20 4"/>
+          <line x1="20" y1="4" x2="20" y2="8"/>
+          <line x1="20" y1="4" x2="16" y2="4"/>
         </svg>
-        <span>Calendar</span>
+        <span>Progress</span>
       </button>
 
-      <button class="nav-item" data-screen="goals">
+      <button class="nav-item" data-screen="profile">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="10"/>
-          <circle cx="12" cy="12" r="6"/>
-          <circle cx="12" cy="12" r="2"/>
+          <circle cx="12" cy="8" r="4"/>
+          <path d="M4 21v-1a6 6 0 0112 0v1"/>
         </svg>
-        <span>Goals</span>
-      </button>
-
-      <button class="nav-item" data-screen="settings">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
-        </svg>
-        <span>Settings</span>
+        <span>Profile</span>
       </button>
     </nav>
   </div>
@@ -199,7 +197,10 @@
   <script src="scripts/calendar.js"></script>
   <script src="scripts/fitness.js"></script>
   <script src="scripts/goals.js"></script>
+  <script src="scripts/plan.js"></script>
+  <script src="scripts/progress.js"></script>
   <script src="scripts/coach.js"></script>
+  <script src="scripts/profile.js"></script>
   <script src="scripts/score.js"></script>
   <script src="scripts/app.js"></script>
 

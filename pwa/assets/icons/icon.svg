@@ -1,29 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Warm dark background -->
-  <rect width="512" height="512" fill="#1a1614"/>
+  <!-- iOS-style rounded background -->
+  <rect width="512" height="512" rx="112" fill="#111111"/>
 
-  <!-- Pulse line (ECG wave) — gold accent -->
-  <g stroke="#d4a843" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Left flat section -->
-    <line x1="40" y1="256" x2="120" y2="256"/>
-    <!-- First rise -->
-    <polyline points="120,256 150,220 160,240 170,200 180,256"/>
-    <!-- Middle sections -->
-    <line x1="180" y1="256" x2="240" y2="256"/>
-    <polyline points="240,256 260,235 275,256 290,235 305,256"/>
-    <!-- Right flat section -->
-    <line x1="305" y1="256" x2="472" y2="256"/>
+  <!-- Subtle grid dots to suggest tracking/measurement -->
+  <g fill="#1e1e1e">
+    <circle cx="156" cy="156" r="3"/>
+    <circle cx="256" cy="156" r="3"/>
+    <circle cx="356" cy="156" r="3"/>
+    <circle cx="156" cy="256" r="3"/>
+    <circle cx="256" cy="256" r="3"/>
+    <circle cx="356" cy="256" r="3"/>
+    <circle cx="156" cy="356" r="3"/>
+    <circle cx="256" cy="356" r="3"/>
+    <circle cx="356" cy="356" r="3"/>
   </g>
 
-  <!-- Heart shape (centered, warm gold) -->
-  <g fill="#d4a843">
-    <!-- Heart path: two rounded top lobes meeting at a point -->
-    <path d="M 256 380
-             C 200 340, 160 310, 160 260
-             C 160 220, 190 190, 220 190
-             C 240 190, 256 205, 256 205
-             C 256 205, 272 190, 292 190
-             C 322 190, 352 220, 352 260
-             C 352 310, 312 340, 256 380 Z"/>
-  </g>
+  <!-- Upward trend line — the core mark -->
+  <polyline
+    points="120,360 200,310 270,330 390,150"
+    fill="none"
+    stroke="#3ecf6e"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Arrow tip on the trend line -->
+  <polyline
+    points="340,165 390,150 375,200"
+    fill="none"
+    stroke="#3ecf6e"
+    stroke-width="22"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
 </svg>

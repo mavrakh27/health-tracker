@@ -293,6 +293,19 @@
   width: 100%;
 }
 
+.btn-icon {
+  display: inline-flex;
+  vertical-align: middle;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+}
+
+.btn-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
 .btn-lg {
   padding: var(--space-md) var(--space-lg);
   font-size: var(--text-base);
@@ -337,8 +350,16 @@
 }
 
 .type-btn .type-icon {
-  font-size: var(--text-2xl);
-  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.type-btn .type-icon svg {
+  width: 28px;
+  height: 28px;
 }
 
 .type-btn .type-label {
@@ -455,11 +476,17 @@ input[type="range"]::-webkit-slider-thumb {
 .entry-item[data-type="sleep"] { --entry-color: var(--color-sleep); }
 
 .entry-icon {
-  font-size: var(--text-xl);
-  line-height: 1;
   flex-shrink: 0;
-  width: 32px;
-  text-align: center;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.entry-icon svg {
+  width: 24px;
+  height: 24px;
 }
 
 .entry-body {
@@ -526,9 +553,14 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: center;
   background: var(--bg-input);
   border: 1px solid var(--border-color);
-  font-size: var(--text-base);
   cursor: pointer;
   transition: all var(--transition-fast);
+  color: var(--text-muted);
+}
+
+.entry-photo-locked svg {
+  width: 20px;
+  height: 20px;
 }
 
 .entry-photo-locked.revealed {
@@ -648,9 +680,10 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .empty-state .empty-icon {
-  font-size: 48px;
   margin-bottom: var(--space-md);
   opacity: 0.5;
+  display: flex;
+  justify-content: center;
 }
 
 .empty-state p {
@@ -739,10 +772,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-color: var(--color-water);
 }
 
-.water-pick-icon {
-  font-size: 28px;
-  line-height: 1;
-}
+/* water-pick-icon removed — water picker uses text labels only */
 
 .water-pick-oz {
   font-size: var(--text-base);
