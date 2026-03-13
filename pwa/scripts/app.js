@@ -605,7 +605,10 @@ const App = {
         const showing = logGrid.style.display !== 'none';
         logGrid.style.display = showing ? 'none' : 'grid';
         toggleBtn.textContent = showing ? '+ Add' : 'Cancel';
-        if (!showing) Log.init('log-type-grid-inline', 'log-form-content-inline');
+        if (!showing) {
+          Log.init('log-type-grid-inline', 'log-form-content-inline');
+          logGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
       };
     }
 

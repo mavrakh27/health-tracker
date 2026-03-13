@@ -118,6 +118,9 @@ const Log = {
         formContent.appendChild(Log.buildViceForm());
         break;
     }
+
+    // Auto-scroll form into view (especially important in inline mode)
+    requestAnimationFrame(() => formContent.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
   },
 
   hideForm() {
