@@ -149,7 +149,8 @@ const GoalsView = {
   },
 
   renderAnalysisSummary(a) {
-    let html = '<h2 class="section-header">Daily Summary</h2>';
+    const dateLabel = a.date ? UI.formatDate(a.date) : 'Daily Summary';
+    let html = `<h2 class="section-header">${UI.escapeHtml(dateLabel)} Analysis</h2>`;
     const n = GoalsView._normalizeAnalysis(a);
 
     // Calorie bar
@@ -203,6 +204,34 @@ const GoalsView = {
           <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${color}"></div></div>
         </div>
       `;
+    }
+
+    // Entry breakdown (per-item calories)
+    if (a.entries?.length) {
+      html += '<div class="card" style="margin-top: var(--space-sm);">';
+      html += '<div style="font-weight:600; margin-bottom:var(--space-xs);">Breakdown</div>';
+      for (const entry of a.entries) {
+        if (entry.type === 'bodyPhoto') continue;
+        const isWorkout = entry.type === 'workout';
+        const calText = isWorkout ? `${entry.calories_burned || '?'} burned` : `${entry.calories || 0} cal`;
+        const proteinText = !isWorkout && entry.protein ? ` \u00B7 ${entry.protein}g P` : '';
+        const icon = isWorkout ? '\u{1F3CB}' : (entry.type === 'drink' ? '\u{1F375}' : '\u{1F374}');
+        // Truncate long descriptions
+        const desc = entry.description || entry.notes || entry.type;
+        const shortDesc = desc.length > 60 ? desc.slice(0, 57) + '...' : desc;
+        html += `
+          <div style="display:flex; justify-content:space-between; align-items:baseline; padding:3px 0; border-bottom:1px solid var(--border-color);">
+            <span style="font-size:var(--text-xs); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${icon} ${UI.escapeHtml(shortDesc)}</span>
+            <span style="font-size:var(--text-xs); color:var(--text-muted); white-space:nowrap; margin-left:var(--space-sm);">${calText}${proteinText}</span>
+          </div>
+        `;
+      }
+      if (a.totals) {
+        html += `<div style="display:flex; justify-content:space-between; padding-top:var(--space-xs); font-weight:600; font-size:var(--text-xs);">
+          <span>Total</span><span>${a.totals.calories} cal \u00B7 ${a.totals.protein}g P</span>
+        </div>`;
+      }
+      html += '</div>';
     }
 
     // Highlights & Concerns
