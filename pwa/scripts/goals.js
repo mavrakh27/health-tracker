@@ -216,13 +216,13 @@ const GoalsView = {
         const calText = isWorkout ? `${entry.calories_burned || '?'} burned` : `${entry.calories || 0} cal`;
         const proteinText = !isWorkout && entry.protein ? ` \u00B7 ${entry.protein}g P` : '';
         const icon = isWorkout ? '\u{1F3CB}' : (entry.type === 'drink' ? '\u{1F375}' : '\u{1F374}');
-        // Truncate long descriptions
         const desc = entry.description || entry.notes || entry.type;
-        const shortDesc = desc.length > 60 ? desc.slice(0, 57) + '...' : desc;
         html += `
-          <div style="display:flex; justify-content:space-between; align-items:baseline; padding:3px 0; border-bottom:1px solid var(--border-color);">
-            <span style="font-size:var(--text-xs); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${icon} ${UI.escapeHtml(shortDesc)}</span>
-            <span style="font-size:var(--text-xs); color:var(--text-muted); white-space:nowrap; margin-left:var(--space-sm);">${calText}${proteinText}</span>
+          <div style="padding:6px 0; border-bottom:1px solid var(--border-color);">
+            <div style="display:flex; justify-content:space-between; align-items:baseline;">
+              <span style="font-size:var(--text-sm); font-weight:500;">${icon} ${calText}${proteinText}</span>
+            </div>
+            <div style="font-size:var(--text-xs); color:var(--text-muted); margin-top:2px;">${UI.escapeHtml(desc)}</div>
           </div>
         `;
       }
