@@ -413,6 +413,7 @@ const Sync = {
 // Zero-tap sync via Cloudflare Worker + R2
 const CloudRelay = {
   _uploadTimer: null,
+  _pollTimer: null,
   _pendingDate: null,
   _log: [], // Recent sync events visible in settings
 
@@ -449,6 +450,33 @@ const CloudRelay = {
   async isConfigured() {
     const config = await this.getConfig();
     return !!(config && config.workerUrl && config.syncKey);
+  },
+
+  // Start polling for results every 5 minutes (stops after 1 hour or when results arrive)
+  _gotResults: false,
+  startPolling() {
+    if (this._pollTimer || this._gotResults) return;
+    let checks = 0;
+    const maxChecks = 12; // 12 x 5min = 1 hour
+    this._pollTimer = setInterval(async () => {
+      checks++;
+      if (checks > maxChecks) {
+        this.stopPolling();
+        return;
+      }
+      try {
+        await this.checkForResults();
+      } catch (e) { /* silent */ }
+    }, 5 * 60 * 1000);
+    this.log('Started polling for results (every 5 min)');
+  },
+
+  stopPolling() {
+    if (this._pollTimer) {
+      clearInterval(this._pollTimer);
+      this._pollTimer = null;
+      this.log('Stopped polling');
+    }
   },
 
   // Queue a day for upload (debounced — batches saves within 3s)
@@ -508,8 +536,13 @@ const CloudRelay = {
         await Sync.markPhotosSynced(date);
         CloudRelay.setSyncStatus('synced');
         this.log(`Uploaded ${date} successfully`, 'ok');
-        // Check for results from previously processed days
-        this.checkForResults().catch(() => {});
+        // Check for results — if none found, start polling for future results
+        this._gotResults = false;
+        this.checkForResults().then(() => {
+          this.startPolling(); // No-op if _gotResults was set by checkForResults
+        }).catch(() => {
+          this.startPolling();
+        });
       } else {
         const body = await resp.text().catch(() => '');
         this.log(`Upload failed: HTTP ${resp.status} ${body}`, 'error');
@@ -545,6 +578,8 @@ const CloudRelay = {
       }
 
       this.log(`Found ${newResults.length} result(s): ${newResults.join(', ')}`);
+      this._gotResults = true;
+      this.stopPolling();
 
       for (const date of newResults) {
         try {
