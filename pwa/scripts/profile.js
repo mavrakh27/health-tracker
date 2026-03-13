@@ -11,7 +11,7 @@ const ProfileView = {
     const activeTab = ProfileView._tab || 'coach';
     const date = UI.today();
 
-    // Sub-tab control
+    // Build segment control HTML
     let html = `
       <div class="segment-control" style="margin-bottom:var(--space-md);">
         <button class="segment-btn${activeTab === 'coach' ? ' active' : ''}" data-ptab="coach">Coach</button>
@@ -19,8 +19,20 @@ const ProfileView = {
       </div>
     `;
 
-    if (coachEl) {
+    if (activeTab === 'coach' && coachEl) {
+      // Build full HTML (segment + coach) in one pass to avoid innerHTML += destroying listeners
+      const tips = await Coach.getSuggestions(date);
+      html += Coach.render(tips);
+      html += await CoachChat.render(date);
       coachEl.innerHTML = html;
+      CoachChat.bindEvents(date);
+      if (goalsEl) goalsEl.style.display = 'none';
+    } else if (coachEl) {
+      coachEl.innerHTML = html;
+    }
+
+    // Bind segment tabs after innerHTML is set
+    if (coachEl) {
       coachEl.querySelectorAll('.segment-btn').forEach(btn => {
         btn.addEventListener('click', () => {
           ProfileView._tab = btn.dataset.ptab;
@@ -29,17 +41,8 @@ const ProfileView = {
       });
     }
 
-    if (activeTab === 'coach') {
-      if (coachEl) {
-        // Render coach chat in profile context
-        const tips = await Coach.getSuggestions(date);
-        let chatHtml = Coach.render(tips);
-        chatHtml += await CoachChat.render(date);
-        coachEl.innerHTML += chatHtml;
-        CoachChat.bindEvents(date);
-      }
-      if (goalsEl) goalsEl.style.display = 'none';
-    } else {
+    if (activeTab === 'goals') {
+      if (coachEl) coachEl.querySelector('.segment-control')?.scrollIntoView();
       if (goalsEl) {
         goalsEl.style.display = 'block';
         await ProfileView.renderGoals(goalsEl);

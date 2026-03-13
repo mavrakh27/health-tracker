@@ -597,16 +597,16 @@ const App = {
       } catch (e) { console.warn('Coach error:', e); coachEl.innerHTML = ''; }
     }
 
-    // Inline log toggle
+    // Inline log toggle (use onclick to avoid listener accumulation on re-render)
     const toggleBtn = document.getElementById('toggle-log-types');
     const logGrid = document.getElementById('log-type-grid-inline');
     if (toggleBtn && logGrid) {
-      toggleBtn.addEventListener('click', () => {
+      toggleBtn.onclick = () => {
         const showing = logGrid.style.display !== 'none';
         logGrid.style.display = showing ? 'none' : 'grid';
         toggleBtn.textContent = showing ? '+ Add' : 'Cancel';
         if (!showing) Log.init('log-type-grid-inline', 'log-form-content-inline');
-      });
+      };
     }
 
     // Load analysis if available
@@ -679,13 +679,14 @@ const App = {
       await DB.setProfile('cloudRelay', config);
 
       let resultCount = 0;
+      const isValidDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d);
 
       // Pull pending analysis results
       try {
         const resp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/new`);
         if (resp.ok) {
           const { newResults } = await resp.json();
-          for (const date of (newResults || [])) {
+          for (const date of (newResults || []).filter(isValidDate)) {
             try {
               const r = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}`);
               if (r.ok) {
@@ -704,7 +705,7 @@ const App = {
         const resp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/pending`);
         if (resp.ok) {
           const { pending } = await resp.json();
-          for (const date of (pending || [])) {
+          for (const date of (pending || []).filter(isValidDate)) {
             try {
               const r = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/day/${date}`);
               if (r.ok) {
