@@ -140,6 +140,10 @@ async function getState(env, key) {
   return JSON.parse(await obj.text());
 }
 
+// TODO: read-modify-write without locking — concurrent requests (e.g. uploading
+// results for two dates simultaneously) can cause the second write to overwrite
+// the first's state change. Low risk for single-user, but fix if sync frequency
+// increases. Options: R2 conditional put (onlyIf etag), or serialize via DO.
 async function updateState(env, key, mutator) {
   const state = await getState(env, key);
   mutator(state);
