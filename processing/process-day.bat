@@ -1,10 +1,10 @@
 @echo off
 REM Health Tracker - Periodic Processing via Task Scheduler
 REM Runs Claude Code to analyze health data.
-REM Downloads pending ZIPs from cloud relay (Cloudflare Worker + R2).
+REM Downloads pending ZIPs from cloud relay.
 REM
-REM IMPORTANT: Never deletes raw data (ZIPs, photos). Archives instead.
-REM IMPORTANT: Never re-processes dates that already have analysis - corrections only.
+REM IMPORTANT: Never deletes raw data. Archives instead.
+REM IMPORTANT: Never re-processes dates that already have analysis.
 
 setlocal enabledelayedexpansion
 
@@ -13,7 +13,7 @@ set REPO_DIR=%USERPROFILE%\projects\health-tracker
 set BACKUP_DIR=%USERPROFILE%\health-data-backup
 set LOCK_FILE=%DATA_DIR%\processing.lock
 
-REM --- Get today's date (YYYY-MM-DD) using locale-independent method ---
+REM --- Get today's date using locale-independent method ---
 for /f "usebackq" %%d in (`powershell -NoProfile -Command "Get-Date -Format yyyy-MM-dd"`) do set TODAY=%%d
 if "%TODAY%"=="" (
     echo [ERROR] Failed to determine today's date. Aborting.
@@ -22,7 +22,7 @@ if "%TODAY%"=="" (
 
 REM --- Lock file to prevent concurrent processing ---
 if exist "%LOCK_FILE%" (
-    echo [%TODAY%] Another processing run is in progress (lock file exists). Aborting.
+    echo [%TODAY%] Another processing run is in progress - lock file exists. Aborting.
     exit /b 0
 )
 echo %TODAY% %TIME% > "%LOCK_FILE%"
@@ -81,7 +81,7 @@ if not "!RELAY_DATES!"=="" (
                 copy "%EXTRACT_DIR%\health-%%d.zip" "%BACKUP_DIR%\raw\" >nul 2>&1
                 REM Extract the downloaded ZIP
                 powershell -NoProfile -Command "try { Expand-Archive -LiteralPath '%EXTRACT_DIR%\health-%%d.zip' -DestinationPath '%EXTRACT_DIR%' -Force } catch { Write-Error $_.Exception.Message; exit 1 }"
-                REM Also backup extracted data (photos, log.json) by date
+                REM Also backup extracted data by date
                 mkdir "%BACKUP_DIR%\raw\%%d" 2>nul
                 xcopy "%EXTRACT_DIR%\*" "%BACKUP_DIR%\raw\%%d\" /E /Y /Q >nul 2>&1
                 REM Archive ZIP
@@ -102,7 +102,7 @@ if !ZIP_COUNT! equ 0 (
     exit /b 0
 )
 
-echo [%TODAY%] Processing !ZIP_COUNT! day(s) of new data...
+echo [%TODAY%] Processing !ZIP_COUNT! new days of data...
 
 REM --- Run Claude Code to process extracted data ---
 echo [%TODAY%] Running Claude Code analysis...
@@ -131,11 +131,11 @@ for %%d in (!NEW_DATES!) do (
             echo [%TODAY%] WARNING: Failed to upload results for %%d
         )
     ) else (
-        echo [%TODAY%] WARNING: No analysis produced for %%d - NOT marking as done. Data preserved in relay.
+        echo [%TODAY%] WARNING: No analysis produced for %%d - NOT marking as done.
     )
 )
 
-REM --- Clean up extracted data (originals are backed up) ---
+REM --- Clean up extracted data ---
 rmdir /s /q "%EXTRACT_DIR%" 2>nul
 
 REM --- Remove lock file ---
