@@ -234,9 +234,9 @@ async function testTodayScreen(page, fixtures) {
   const chips = await page.$$('.score-chip');
   assert(chips.length >= 3, `Score breakdown chips render (got ${chips.length})`);
 
-  // Coach input exists
-  const coachInput = await page.$('textarea.coach-input');
-  assert(!!coachInput, 'Coach input textarea exists');
+  // Coach input moved to Profile tab — verify it's NOT on Today
+  const coachInput = await page.$('#screen-today textarea.coach-input');
+  assert(!coachInput, 'Coach input not on Today (moved to Profile)');
 
   // + Add Entry button exists (dynamic ID: toggle-log-types)
   const addBtn = await page.$('#toggle-log-types');
@@ -432,8 +432,8 @@ async function testScoring(page, fixtures) {
 
     const scoreEl = await page.$('.score-number');
     if (scoreEl) {
-      const score = await scoreEl.textContent();
-      const num = parseInt(score.trim());
+      const score = (await scoreEl.textContent()).trim();
+      const num = score === '--' ? 0 : parseInt(score);
       assert(!isNaN(num) && num >= 0 && num <= 100, `Day ${i+1} (${date}) score is valid: ${num}`);
     } else {
       // Might be an analysis-only day with no score ring
@@ -447,10 +447,12 @@ async function testScoring(page, fixtures) {
   await page.waitForTimeout(600);
   const day1Score = await page.$eval('.score-number', el => parseInt(el.textContent.trim())).catch(() => 0);
 
-  // Day 4 should score lowest (minimal logging)
+  // Day 4 should score lowest (minimal logging) — may show empty state "--"
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[3]);
   await page.waitForTimeout(600);
-  const day4Score = await page.$eval('.score-number', el => parseInt(el.textContent.trim())).catch(() => 0);
+  const day4ScoreText = await page.$eval('.score-number', el => el.textContent.trim()).catch(() => '--');
+  const day4Score = day4ScoreText === '--' ? 0 : parseInt(day4ScoreText);
+  assert(!isNaN(day4Score), `Day 4 (${fixtures.dates[3]}) score is valid: ${day4Score} (text: "${day4ScoreText}")`);
 
   assert(day1Score > day4Score, `Full day (${day1Score}) scores higher than minimal day (${day4Score})`);
 

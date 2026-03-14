@@ -54,13 +54,14 @@ const QuickLog = {
     const sheet = UI.createElement('div', 'modal-sheet');
 
     const containers = [
-      { label: 'Small cup', oz: 6, desc: 'Coffee cup, juice glass' },
-      { label: 'Glass', oz: 10, desc: 'Standard drinking glass' },
-      { label: 'Can / small bottle', oz: 12, desc: 'Soda can, La Croix' },
-      { label: 'Tall glass', oz: 16, desc: 'Pint glass, tall tumbler' },
-      { label: 'Water bottle', oz: 24, desc: 'Standard reusable bottle' },
-      { label: 'Large bottle', oz: 32, desc: 'Nalgene, large tumbler' },
-      { label: 'Big jug', oz: 40, desc: '40oz Stanley, Hydroflask' },
+      { label: 'Small cup', oz: 6 },
+      { label: 'Glass', oz: 10 },
+      { label: 'Can', oz: 12 },
+      { label: 'Tall glass', oz: 16 },
+      { label: 'Bottle', oz: 24 },
+      { label: 'Large bottle', oz: 32 },
+      { label: 'Big jug', oz: 40 },
+      { label: 'XL jug', oz: 64 },
     ];
 
     sheet.innerHTML = `
@@ -439,14 +440,9 @@ const App = {
       } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
     }
 
-    // Coach chat
+    // Coach chat — only on Profile tab, not duplicated on Today
     const coachEl = document.getElementById('today-coach');
-    if (coachEl) {
-      try {
-        coachEl.innerHTML = await CoachChat.render(date);
-        CoachChat.bindEvents(date);
-      } catch (e) { console.warn('Coach error:', e); coachEl.innerHTML = ''; }
-    }
+    if (coachEl) coachEl.innerHTML = '';
 
     // Add Entry button — insert at top of entry list
     const logGrid = document.getElementById('log-type-grid-inline');
@@ -722,10 +718,13 @@ const Settings = {
     if (info.synced > 0) parts.push(`${info.synced} synced`);
     if (info.processed > 0) parts.push(`${info.processed} processed`);
 
+    const clearBtn = document.getElementById('clear-photos-btn');
     if (parts.length === 0) {
       el.textContent = 'No photos stored.';
+      if (clearBtn) clearBtn.style.display = 'none';
     } else {
       el.textContent = `${parts.join(', ')} — ${info.totalSizeMB} MB total`;
+      if (clearBtn) clearBtn.style.display = '';
     }
   },
 
@@ -747,9 +746,9 @@ const Settings = {
     if (!el) return;
     try {
       const keys = await caches.keys();
-      const current = keys.find(k => k.startsWith('health-tracker-v'));
-      el.textContent = current ? current.replace('health-tracker-', '') : 'unknown';
-    } catch { el.textContent = 'unknown'; }
+      const current = keys.find(k => k.startsWith('coach-v'));
+      el.textContent = current ? current.replace('coach-', '') : 'v73';
+    } catch { el.textContent = 'v73'; }
   },
 
   _updateBound: false,

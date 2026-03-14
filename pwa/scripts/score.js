@@ -110,6 +110,25 @@ const DayScore = {
     const { moderate, hardcore, goals } = result;
     const ms = moderate.score;
     const hs = hardcore.score;
+    const bd = moderate.breakdown;
+
+    // If no meaningful activity logged (no calories data, no water, no meals), show muted empty state
+    const hasActivity = bd.calories != null || bd.water > 0 || bd.logging > 0;
+    if (!hasActivity && ms <= 25) {
+      return `
+        <div class="day-score" style="opacity: 0.5;">
+          <div class="day-score-gauge">
+            <svg viewBox="0 0 100 100" class="score-ring">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border-color)" stroke-width="6"/>
+            </svg>
+            <div class="score-number" style="color:var(--text-muted)">--</div>
+          </div>
+          <div class="day-score-labels">
+            <div class="score-label-main" style="color:var(--text-muted)">Log food & water to see your score</div>
+          </div>
+        </div>
+      `;
+    }
 
     const color = ms >= 75 ? 'var(--accent-green)' : ms >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
     const hcColor = hs >= 75 ? 'var(--accent-green)' : hs >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
@@ -139,7 +158,6 @@ const DayScore = {
     `;
 
     // Breakdown chips
-    const bd = moderate.breakdown;
     const chips = [];
     if (bd.calories != null) chips.push({ label: 'Cal', pts: bd.calories, max: 25 });
     if (bd.protein != null) chips.push({ label: 'Protein', pts: bd.protein, max: 25 });

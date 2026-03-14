@@ -51,16 +51,16 @@ const PlanView = {
 
     if (!html) {
       html = `<div class="card" style="text-align:center; padding:var(--space-xl);">
-        <div style="margin-bottom:var(--space-md); opacity:0.5; display:flex; justify-content:center;">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <div style="margin-bottom:var(--space-md); opacity:0.4; display:flex; justify-content:center;">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <rect x="4" y="3" width="16" height="18" rx="2"/>
             <line x1="8" y1="8" x2="16" y2="8"/>
             <line x1="8" y1="12" x2="16" y2="12"/>
             <line x1="8" y1="16" x2="12" y2="16"/>
           </svg>
         </div>
-        <p style="color:var(--text-muted); margin-bottom:var(--space-md);">No plan yet. Sync to get your meal plan and workout regimen.</p>
-        <button class="btn btn-secondary" onclick="App.showScreen('profile')">Go to Profile → Sync</button>
+        <p style="color:var(--text-secondary); font-size:var(--text-sm); margin-bottom:var(--space-lg); line-height:1.5;">No plan yet.<br>Set up Cloud Sync and your coach will generate meal plans and workouts.</p>
+        <button class="btn btn-primary btn-block btn-lg" onclick="App.showScreen('profile')">Set Up Sync</button>
       </div>`;
     }
 
