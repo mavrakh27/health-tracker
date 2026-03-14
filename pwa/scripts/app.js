@@ -89,8 +89,11 @@ const QuickLog = {
     document.getElementById('wp-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
 
+    let waterSaving = false;
     sheet.querySelectorAll('.water-pick').forEach(btn => {
       btn.addEventListener('click', async () => {
+        if (waterSaving) return;
+        waterSaving = true;
         const oz = parseInt(btn.dataset.oz);
         btn.classList.add('water-pick-saved');
         try {
@@ -402,7 +405,7 @@ const App = {
       const hasAnyEntries = isToday ? await DB.hasAnyEntries() : true;
       if (isToday && !hasAnyEntries) {
         // Pre-populate goals for new users
-        App.ensureDefaultGoals();
+        await App.ensureDefaultGoals();
         entryList.innerHTML = App.renderWelcomeCard();
       } else {
         // Try to show entries from analysis data (recovery after reinstall)
@@ -493,7 +496,7 @@ const App = {
   _getGreeting() {
     const h = new Date().getHours();
     if (h < 6) return { text: 'Burning the midnight oil', sub: 'Log a late snack or get some rest.' };
-    if (h < 10) return { text: 'Good morning', sub: 'Start your day right — snap your breakfast.' };
+    if (h < 12) return { text: 'Good morning', sub: 'Start your day right — snap your breakfast.' };
     if (h < 14) return { text: 'Afternoon check-in', sub: 'How\'s the day going? Log your lunch.' };
     if (h < 18) return { text: 'Keep it going', sub: 'You\'re doing great. Stay on track.' };
     if (h < 22) return { text: 'Evening wind-down', sub: 'Log dinner and wrap up your day.' };
@@ -794,7 +797,7 @@ const Settings = {
     try {
       const keys = await caches.keys();
       const current = keys.find(k => k.startsWith('coach-v'));
-      el.textContent = current ? current.replace('coach-', '') : 'v73';
+      el.textContent = current ? current.replace('coach-', '') : 'v74';
     } catch { el.textContent = 'v74'; }
   },
 
