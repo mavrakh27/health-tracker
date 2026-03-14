@@ -131,8 +131,8 @@ const DayScore = {
           <div class="score-number" style="color:${color}">${ms}</div>
         </div>
         <div class="day-score-labels">
-          <div class="score-label-main">Moderate: ${ms}</div>
-          <div class="score-label-hc" style="color:${hcColor}">Hardcore: ${hs}</div>
+          <div class="score-label-main">Great: ${ms}</div>
+          <div class="score-label-hc" style="color:${hcColor}">Crush It: ${hs}</div>
         </div>
       </div>
     `;

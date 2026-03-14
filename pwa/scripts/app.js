@@ -601,22 +601,22 @@ const App = {
         <span class="modal-title">Set Your Goals</span>
         <button class="modal-close" id="gs-close">&times;</button>
       </div>
-      <div style="font-size:var(--text-xs); color:var(--text-muted); margin-bottom:var(--space-md);">Moderate = active plan. Hardcore = stretch target shown for reference.</div>
+      <div style="font-size:var(--text-xs); color:var(--text-muted); margin-bottom:var(--space-md);">Great = active plan. Crush It = stretch target shown for reference.</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm);">
         <div class="form-group">
-          <label class="form-label">Calories (moderate)</label>
+          <label class="form-label">Calories (great)</label>
           <input type="number" class="form-input" id="gs-calories" value="${Number(goals.calories) || ''}" placeholder="1200" inputmode="numeric">
         </div>
         <div class="form-group">
-          <label class="form-label">Calories (hardcore)</label>
+          <label class="form-label">Calories (crush it)</label>
           <input type="number" class="form-input" id="gs-hc-calories" value="${Number(hc.calories) || ''}" placeholder="1000" inputmode="numeric">
         </div>
         <div class="form-group">
-          <label class="form-label">Protein (moderate)</label>
+          <label class="form-label">Protein (great)</label>
           <input type="number" class="form-input" id="gs-protein" value="${Number(goals.protein) || ''}" placeholder="105" inputmode="numeric">
         </div>
         <div class="form-group">
-          <label class="form-label">Protein (hardcore)</label>
+          <label class="form-label">Protein (crush it)</label>
           <input type="number" class="form-input" id="gs-hc-protein" value="${Number(hc.protein) || ''}" placeholder="120" inputmode="numeric">
         </div>
       </div>

@@ -179,7 +179,7 @@ const ProgressView = {
       cursor.setDate(cursor.getDate() + 1);
     }
 
-    // SVG sparkline — dual bars (moderate filled, hardcore outline)
+    // SVG sparkline — dual bars (great filled, crush it outline)
     const barWidth = Math.max(10, Math.min(32, Math.floor(300 / dayData.length)));
     const gap = 4;
     const svgWidth = dayData.length * (barWidth + gap);
@@ -222,8 +222,8 @@ const ProgressView = {
 
     // Legend
     html += `<div style="display:flex; justify-content:center; gap:var(--space-md); margin-top:var(--space-sm); font-size:var(--text-xs); color:var(--text-muted);">
-      <span>&#9632; Moderate</span>
-      <span style="color:var(--accent-primary);">--- Hardcore</span>
+      <span>&#9632; Great</span>
+      <span style="color:var(--accent-primary);">--- Crush It</span>
     </div>`;
 
     // Average
