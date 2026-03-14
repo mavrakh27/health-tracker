@@ -110,6 +110,7 @@ const UI = {
       meal: 'Food', snack: 'Food', drink: 'Food',
       workout: 'Workout', water: 'Water', weight: 'Weight',
       bodyPhoto: 'Body Photo', vice: 'Alcohol', sleep: 'Sleep',
+      supplement: 'Supplement',
     };
     return labels[type] || type;
   },
@@ -233,6 +234,41 @@ const UI = {
         div.appendChild(thumb);
       }
     }
+
+    return div;
+  },
+
+  // Render an entry from analysis data (read-only, used when IndexedDB entries are missing)
+  renderAnalysisEntry(ae) {
+    const div = UI.createElement('div', 'entry-item');
+    div.dataset.type = ae.type;
+
+    const icon = UI.createElement('div', 'entry-icon');
+    icon.innerHTML = UI.entryIcon(ae.type, ae.subtype);
+
+    const body = UI.createElement('div', 'entry-body');
+
+    const typeLabel = UI.createElement('div', 'entry-type');
+    const cal = ae.type === 'workout' ? (ae.calories_burned ? `${ae.calories_burned} cal burned` : '') : (ae.calories ? `${ae.calories} cal` : '');
+    typeLabel.textContent = UI.entryLabel(ae.type, ae.subtype) + (cal ? ` · ${cal}` : '');
+
+    body.appendChild(typeLabel);
+
+    if (ae.description) {
+      const desc = UI.createElement('div', 'entry-notes');
+      desc.textContent = ae.description;
+      body.appendChild(desc);
+    }
+
+    if (ae.type === 'workout' && ae.duration_minutes) {
+      const dur = UI.createElement('div', 'entry-notes');
+      dur.textContent = `${ae.duration_minutes} min`;
+      dur.style.color = 'var(--text-muted)';
+      body.appendChild(dur);
+    }
+
+    div.appendChild(icon);
+    div.appendChild(body);
 
     return div;
   },

@@ -157,8 +157,8 @@ const ProgressView = {
     };
 
     return {
-      moderate: calc({ calories: goals.moderate?.calories?.daily || 1400, protein: goals.moderate?.protein?.grams || 105, water: goals.moderate?.water?.daily_oz || 64 }),
-      hardcore: calc({ calories: goals.hardcore?.calories?.daily || 1200, protein: goals.hardcore?.protein?.grams || 120, water: goals.hardcore?.water?.daily_oz || 64 }),
+      moderate: calc({ calories: goals.calories || 1200, protein: goals.protein || 105, water: goals.water_oz || 64 }),
+      hardcore: calc({ calories: goals.hardcore?.calories || 1000, protein: goals.hardcore?.protein || 120, water: goals.hardcore?.water_oz || 64 }),
     };
   },
 
@@ -244,9 +244,9 @@ const ProgressView = {
   },
 
   renderAverages(analyses, goals) {
-    const calTarget = goals.moderate?.calories?.daily || 1400;
-    const proTarget = goals.moderate?.protein?.grams || 105;
-    const waterTarget = goals.moderate?.water?.daily_oz || 64;
+    const calTarget = goals.calories || 1200;
+    const proTarget = goals.protein || 105;
+    const waterTarget = goals.water_oz || 64;
 
     const avgCal = Math.round(analyses.reduce((s, a) => s + (a.totals?.calories || 0), 0) / analyses.length);
     const avgPro = Math.round(analyses.reduce((s, a) => s + (a.totals?.protein || 0), 0) / analyses.length);

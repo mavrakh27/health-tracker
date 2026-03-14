@@ -33,7 +33,7 @@
       <div class="quick-actions" id="quick-actions">
         <button class="quick-action quick-action-primary" id="quick-photo-btn">Snap food</button>
         <button class="quick-action quick-action-water" id="quick-water-btn">Water</button>
-        <button class="quick-action" id="quick-weight-btn">Weight</button>
+        <button class="quick-action quick-action-weight" id="quick-weight-btn">Weight</button>
         <button class="quick-action quick-action-supplement" id="quick-supplement-btn">Supps</button>
       </div>
 
@@ -55,12 +55,6 @@
           <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><rect x="5" y="3" width="14" height="18" rx="2"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="12" y2="16"/></svg></div>
           <p>No entries yet today.<br>Tap + to start logging.</p>
         </div>
-      </div>
-
-      <div id="today-export" style="margin-top: var(--space-lg); display: none;">
-        <button class="btn btn-secondary btn-block" id="today-export-btn" onclick="Sync.exportDay()">
-          Export This Day
-        </button>
       </div>
 
       <div id="today-analysis"></div>
@@ -116,17 +110,10 @@
         <div class="s-card-row">
           <div class="s-card-body">
             <h3 class="s-title">Backup</h3>
-            <div class="s-toggle-row">
-              <span class="s-toggle-label">Auto-backup daily</span>
-              <label class="s-toggle">
-                <input type="checkbox" id="autosync-toggle">
-                <span class="s-toggle-track"></span>
-              </label>
-            </div>
+            <p class="s-subtitle">Import analysis or restore from ZIP</p>
           </div>
         </div>
         <div class="s-btn-row">
-          <button class="btn btn-secondary" onclick="Sync.exportDay()">Export</button>
           <button class="btn btn-secondary" onclick="Sync.importAll()">Import</button>
           <button class="btn btn-secondary" onclick="Sync.restoreFromZip()">Restore</button>
         </div>
@@ -140,10 +127,10 @@
           </div>
         </div>
         <div class="s-btn-row">
-          <button class="btn btn-secondary" id="clear-photos-btn" onclick="Settings.clearPhotos()">Clear Photos</button>
+          <button class="btn btn-danger" id="clear-photos-btn" onclick="Settings.clearPhotos()">Clear Photos</button>
           <button class="btn btn-secondary" id="update-app-btn">Update App</button>
         </div>
-        <div style="text-align:center; margin-top:var(--space-sm);">
+        <div style="text-align:center; padding:var(--space-md); margin-top:var(--space-xs);">
           <span style="font-size:var(--text-xs); color:var(--text-muted);">Coach <span id="app-version" class="s-version-badge"></span></span>
         </div>
       </div>

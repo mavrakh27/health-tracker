@@ -4,7 +4,7 @@ You are analyzing today's health data exported from the Health Tracker PWA. The 
 
 ## No Re-Processing Rule (CRITICAL)
 
-**Never re-analyze raw data for dates that already have an analysis file.** If `{ICLOUD_DIR}/analysis/{DATE}.json` already exists, the raw data (photos, log.json) has already been synthesized. Only apply corrections to the existing analysis — do NOT re-process photos or re-estimate calories from scratch.
+**Never re-analyze raw data for dates that already have an analysis file.** If `{DATA_DIR}/analysis/{DATE}.json` already exists, the raw data (photos, log.json) has already been synthesized. Only apply corrections to the existing analysis — do NOT re-process photos or re-estimate calories from scratch.
 
 - **New date (no analysis exists):** Full processing — analyze photos, estimate calories, generate analysis.
 - **Existing date (analysis exists):** Read the existing analysis, apply any corrections from `corrections/{DATE}.json`, update totals/goals/scores, and write back. Do NOT re-analyze photos.
@@ -19,13 +19,13 @@ After ZIP extraction, the data is at `{EXTRACT_DIR}/`:
 The `{EXTRACT_DIR}` path will be provided in the processing prompt. ZIP extraction may nest paths (e.g. `{EXTRACT_DIR}/daily/{DATE}/daily/{DATE}/log.json`). Use Glob to find the actual `log.json` location.
 
 Profile files (always at fixed paths):
-- `{ICLOUD_DIR}/profile/goals.json` — dual plan targets (moderate = active, hardcore = stretch goal)
-- `{ICLOUD_DIR}/profile/regimen.json` — workout plans (moderate + hardcore schedules)
-- `{ICLOUD_DIR}/profile/preferences.json` — dietary preferences
+- `{DATA_DIR}/profile/goals.json` — dual plan targets (moderate = active, hardcore = stretch goal)
+- `{DATA_DIR}/profile/regimen.json` — workout plans (moderate + hardcore schedules)
+- `{DATA_DIR}/profile/preferences.json` — dietary preferences
 
 ## Corrections System (CRITICAL)
 
-Before generating analysis for any date, check for `{ICLOUD_DIR}/corrections/{DATE}.json`. These files contain **user-verified overrides** that represent ground truth — they MUST be applied.
+Before generating analysis for any date, check for `{DATA_DIR}/corrections/{DATE}.json`. These files contain **user-verified overrides** that represent ground truth — they MUST be applied.
 
 **File format:**
 ```json
@@ -54,7 +54,7 @@ Before generating analysis for any date, check for `{ICLOUD_DIR}/corrections/{DA
 
 ## Coach TODOs
 
-Check for `{ICLOUD_DIR}/coach-todos.json`. If it exists and has pending items (status: "pending"), apply them during processing and mark as "done" with a timestamp.
+Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (status: "pending"), apply them during processing and mark as "done" with a timestamp.
 
 ## Instructions
 
@@ -110,7 +110,7 @@ Check for `{ICLOUD_DIR}/coach-todos.json`. If it exists and has pending items (s
 
 ## Output
 
-Write a **single JSON file** to `{ICLOUD_DIR}/analysis/{DATE}.json` containing everything — analysis, meal plan, and workout regimen. This file gets synced back to the phone automatically.
+Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing everything — analysis, meal plan, and workout regimen. This file gets synced back to the phone automatically.
 
 ```json
 {

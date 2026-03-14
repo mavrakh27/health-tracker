@@ -1,7 +1,7 @@
-// sync.js — ZIP export + JSON import
+// sync.js — Cloud relay sync + ZIP import/restore
 
 const Sync = {
-  // --- Build ZIP file list for a day (shared by export, cloud upload, auto-backup) ---
+  // --- Build ZIP file list for a day (used by cloud upload) ---
   async buildDayZipFiles(date) {
     const data = await DB.exportDay(date);
     if (!data.log.entries.length && !data.log.water_oz && !data.log.weight) {
@@ -22,50 +22,6 @@ const Sync = {
     }
 
     return files;
-  },
-
-  // --- Export Day as ZIP ---
-  async exportDay(dateStr) {
-    const date = dateStr || App.selectedDate;
-
-    const files = await Sync.buildDayZipFiles(date);
-    if (!files) {
-      UI.toast('Nothing to export for this day', 'error');
-      return;
-    }
-
-    UI.toast('Building export...');
-
-    // Build ZIP
-    const zipBlob = Sync.buildZip(files);
-    const fileName = `health-${date}.zip`;
-
-    // Try Web Share API first (for iOS "Save to Files")
-    if (navigator.canShare && navigator.canShare({ files: [new File([zipBlob], fileName)] })) {
-      try {
-        await navigator.share({
-          files: [new File([zipBlob], fileName, { type: 'application/zip' })],
-        });
-        UI.toast('Exported! Save to iCloud Drive.');
-        await Sync.markPhotosSynced(date);
-        Settings?.loadStorageInfo?.();
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return; // User cancelled
-        console.warn('Share failed, falling back to download:', err);
-      }
-    }
-
-    // Fallback: download link
-    const url = URL.createObjectURL(zipBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
-    UI.toast('Downloaded! Move to iCloud Drive.');
-    await Sync.markPhotosSynced(date);
-    Settings?.loadStorageInfo?.();
   },
 
   async markPhotosSynced(dateStr) {
@@ -766,87 +722,3 @@ const CloudRelay = {
   },
 };
 
-// --- Auto-Sync Module ---
-// Automatic periodic backups without user intervention
-const AutoSync = {
-  // Settings stored in IndexedDB profile
-  SETTING_KEY: 'autoSync_enabled',
-  LAST_BACKUP_KEY: 'autoSync_lastBackupDate',
-  BACKUP_DAYS: 30, // Keep last 30 days of backups
-
-  // Initialize auto-sync on app startup
-  async init() {
-    const enabled = await DB.getProfileSetting(this.SETTING_KEY);
-    if (enabled === false) {
-      console.log('AutoSync: disabled by user');
-      return;
-    }
-
-    // Enable by default for new users
-    if (enabled == null) {
-      await DB.setProfileSetting(this.SETTING_KEY, true);
-    }
-
-    // Check if we've already backed up today
-    const today = UI.today();
-    const lastBackup = await DB.getProfileSetting(this.LAST_BACKUP_KEY);
-
-    if (lastBackup === today) {
-      console.log('AutoSync: already backed up today');
-      return;
-    }
-
-    // Perform backup
-    console.log('AutoSync: starting backup for', today);
-    await this.backupDay(today);
-  },
-
-  // Create and download a backup for a specific day
-  async backupDay(dateStr) {
-    try {
-      const files = await Sync.buildDayZipFiles(dateStr);
-      if (!files) {
-        console.log(`AutoSync: no data for ${dateStr}, skipping`);
-        return;
-      }
-
-      // Build and download ZIP
-      const zipBlob = Sync.buildZip(files);
-      const fileName = `health-${dateStr}.zip`;
-
-      // Trigger download (headless, no user UI)
-      const url = URL.createObjectURL(zipBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      // Mark as backed up
-      await DB.setProfileSetting(this.LAST_BACKUP_KEY, dateStr);
-
-      console.log(`AutoSync: backup completed for ${dateStr} → ${fileName}`);
-    } catch (err) {
-      console.error('AutoSync: backup failed', err);
-    }
-  },
-
-  // Toggle auto-sync setting
-  async toggle(enabled) {
-    await DB.setProfileSetting(this.SETTING_KEY, enabled);
-    console.log(`AutoSync: ${enabled ? 'enabled' : 'disabled'}`);
-  },
-
-  // Get current status
-  async getStatus() {
-    const enabled = await DB.getProfileSetting(this.SETTING_KEY);
-    const lastBackup = await DB.getProfileSetting(this.LAST_BACKUP_KEY);
-    return {
-      enabled: enabled !== false,
-      lastBackupDate: lastBackup || null,
-    };
-  },
-};

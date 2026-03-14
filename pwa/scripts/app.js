@@ -266,8 +266,6 @@ const App = {
 
       // Run goal migrations on every init (fixes water_oz 96→64, adds hardcore)
       await App.ensureDefaultGoals();
-      // Initialize auto-sync (runs backup if needed)
-      AutoSync.init().catch(err => console.warn('AutoSync init failed:', err));
       // Check for cloud relay results
       CloudRelay.checkForResults().catch(err => console.warn('CloudRelay check failed:', err));
       App.handleRoute();
@@ -322,7 +320,6 @@ const App = {
       Settings.loadGoalsSummary();
       Settings.loadStorageInfo();
       Settings.loadCloudSyncStatus();
-      Settings.initAutoSyncToggle();
       Settings.initUpdateButton();
       Settings.loadVersion();
     }
@@ -395,10 +392,6 @@ const App = {
 
     UI.clearChildren(entryList);
 
-    // Show/hide export button based on entries
-    const exportDiv = document.getElementById('today-export');
-    if (exportDiv) exportDiv.style.display = entries.length > 0 ? 'block' : 'none';
-
     if (entries.length === 0) {
       const isToday = date === UI.today();
       // Check if this is a brand new user (no entries anywhere)
@@ -408,14 +401,22 @@ const App = {
         App.ensureDefaultGoals();
         entryList.innerHTML = App.renderWelcomeCard();
       } else {
-        const dateLabel = isToday ? 'today' : `for ${UI.formatDate(date)}`;
-        const hint = isToday ? 'Use the buttons above to start logging.' : '';
-        entryList.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">${UI.svg.clipboard}</div>
-            <p>No entries ${dateLabel}.${hint ? '<br>' + hint : ''}</p>
-          </div>
-        `;
+        // Try to show entries from analysis data (recovery after reinstall)
+        const analysis = await DB.getAnalysis(date);
+        if (analysis && analysis.entries && analysis.entries.length > 0) {
+          analysis.entries.forEach(ae => {
+            entryList.appendChild(UI.renderAnalysisEntry(ae));
+          });
+        } else {
+          const dateLabel = isToday ? 'today' : `for ${UI.formatDate(date)}`;
+          const hint = isToday ? 'Use the buttons above to start logging.' : '';
+          entryList.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-icon">${UI.svg.clipboard}</div>
+              <p>No entries ${dateLabel}.${hint ? '<br>' + hint : ''}</p>
+            </div>
+          `;
+        }
       }
     } else {
       // Sort by timestamp
@@ -508,13 +509,13 @@ const App = {
     const existing = await DB.getProfile('goals');
     if (!existing) {
       await DB.setProfile('goals', {
-        calories: 1400, protein: 105, water_oz: 64,
-        hardcore: { calories: 1200, protein: 120, water_oz: 64 },
+        calories: 1200, protein: 105, water_oz: 64,
+        hardcore: { calories: 1000, protein: 120, water_oz: 64 },
       });
     } else {
       let changed = false;
       if (!existing.hardcore) {
-        existing.hardcore = { calories: 1200, protein: 120, water_oz: 64 };
+        existing.hardcore = { calories: 1000, protein: 120, water_oz: 64 };
         changed = true;
       }
       if (existing.water_oz === 96) {
@@ -579,7 +580,6 @@ const App = {
       } catch (e) { console.warn('AutoRestore: pending check failed:', e); }
 
       await App.ensureDefaultGoals();
-      AutoSync.init().catch(err => console.warn('AutoSync init failed:', err));
       UI.toast(resultCount > 0 ? 'Data restored!' : 'Sync reconnected');
       return true;
     } catch (e) {
@@ -605,11 +605,11 @@ const App = {
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm);">
         <div class="form-group">
           <label class="form-label">Calories (moderate)</label>
-          <input type="number" class="form-input" id="gs-calories" value="${Number(goals.calories) || ''}" placeholder="1400" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-calories" value="${Number(goals.calories) || ''}" placeholder="1200" inputmode="numeric">
         </div>
         <div class="form-group">
           <label class="form-label">Calories (hardcore)</label>
-          <input type="number" class="form-input" id="gs-hc-calories" value="${Number(hc.calories) || ''}" placeholder="1200" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-hc-calories" value="${Number(hc.calories) || ''}" placeholder="1000" inputmode="numeric">
         </div>
         <div class="form-group">
           <label class="form-label">Protein (moderate)</label>
@@ -740,22 +740,6 @@ const Settings = {
     if (!el) return;
     const configured = await CloudRelay.isConfigured();
     el.textContent = configured ? 'Connected — syncing automatically' : 'Not configured';
-  },
-
-  _autoSyncBound: false,
-  async initAutoSyncToggle() {
-    const toggle = document.getElementById('autosync-toggle');
-    if (!toggle) return;
-
-    const status = await AutoSync.getStatus();
-    toggle.checked = status.enabled;
-    if (!Settings._autoSyncBound) {
-      Settings._autoSyncBound = true;
-      toggle.addEventListener('change', async () => {
-        await AutoSync.toggle(toggle.checked);
-        UI.toast(toggle.checked ? 'Auto-backup enabled' : 'Auto-backup disabled');
-      });
-    }
   },
 
   async loadVersion() {
