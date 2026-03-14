@@ -505,6 +505,23 @@ const CloudRelay = {
       return;
     }
 
+    // Skip upload if analysis already exists and no entries were added after import
+    try {
+      const analysis = await DB.getAnalysis(date);
+      if (analysis && analysis.importedAt) {
+        const entries = await DB.getEntriesByDate(date);
+        const newestEntry = entries.reduce((max, e) => Math.max(max, e.timestamp ? new Date(e.timestamp).getTime() : 0), 0);
+        if (newestEntry <= analysis.importedAt) {
+          this.log(`Skipping upload for ${date} — analysis already imported and no new entries`);
+          return;
+        }
+        this.log(`Re-uploading ${date} — new entries after analysis import`);
+      }
+    } catch (err) {
+      // If check fails, proceed with upload anyway
+      this.log(`Analysis check failed: ${err.message}, uploading anyway`);
+    }
+
     try {
       CloudRelay.setSyncStatus('uploading');
       this.log(`Building ZIP for ${date}...`);

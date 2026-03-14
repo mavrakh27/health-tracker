@@ -307,7 +307,7 @@ async function importAnalysis(dateStr, data) {
 
   // Store analysis without the bundled plan/regimen (keep it lean)
   const { mealPlan, regimen, ...analysisData } = data;
-  tx.objectStore('analysis').put({ ...analysisData, date: dateStr });
+  tx.objectStore('analysis').put({ ...analysisData, date: dateStr, importedAt: Date.now() });
 
   // Mark meal photos for this date as processed
   const photoIndex = tx.objectStore('photos').index('date');
