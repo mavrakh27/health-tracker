@@ -1,10 +1,10 @@
 @echo off
-REM Health Tracker — Periodic Processing via Task Scheduler
+REM Health Tracker - Periodic Processing via Task Scheduler
 REM Runs Claude Code to analyze health data.
 REM Downloads pending ZIPs from cloud relay (Cloudflare Worker + R2).
 REM
 REM IMPORTANT: Never deletes raw data (ZIPs, photos). Archives instead.
-REM IMPORTANT: Never re-processes dates that already have analysis — corrections only.
+REM IMPORTANT: Never re-processes dates that already have analysis - corrections only.
 
 setlocal enabledelayedexpansion
 
@@ -65,10 +65,10 @@ for /f "usebackq delims=" %%d in (`powershell -NoProfile -Command "try { ($env:P
 if not "!RELAY_DATES!"=="" (
     echo [%TODAY%] Cloud relay has pending dates: !RELAY_DATES!
 
-    REM Download each pending day — skip dates that already have analysis
+    REM Download each pending day - skip dates that already have analysis
     for %%d in (!RELAY_DATES!) do (
         if exist "%DATA_DIR%\analysis\%%d.json" (
-            echo [%TODAY%] %%d already has analysis — uploading result and marking done
+            echo [%TODAY%] %%d already has analysis - uploading result and marking done
             curl -s -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%DATA_DIR%\analysis\%%d.json" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/%%d/done"
             echo.
         ) else (
@@ -106,7 +106,7 @@ echo [%TODAY%] Processing !ZIP_COUNT! day(s) of new data...
 
 REM --- Run Claude Code to process extracted data ---
 echo [%TODAY%] Running Claude Code analysis...
-claude -p "Process the health data that has been extracted to %EXTRACT_DIR%. Today is %TODAY%. The data root is %DATA_DIR%. Follow the instructions in %REPO_DIR%\processing\process-day-prompt.md. There may be data from multiple days — process each day found." --allowedTools "Read,Write,Glob,Grep,Bash" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
+claude -p "Process the health data that has been extracted to %EXTRACT_DIR%. Today is %TODAY%. The data root is %DATA_DIR%. Follow the instructions in %REPO_DIR%\processing\process-day-prompt.md. There may be data from multiple days - process each day found." --allowedTools "Read,Write,Glob,Grep,Bash" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
 
 if errorlevel 1 (
     echo [%TODAY%] WARNING: Claude Code exited with an error. Check log: %DATA_DIR%\logs\%TODAY%.log
@@ -131,7 +131,7 @@ for %%d in (!NEW_DATES!) do (
             echo [%TODAY%] WARNING: Failed to upload results for %%d
         )
     ) else (
-        echo [%TODAY%] WARNING: No analysis produced for %%d — NOT marking as done. Data preserved in relay.
+        echo [%TODAY%] WARNING: No analysis produced for %%d - NOT marking as done. Data preserved in relay.
     )
 )
 

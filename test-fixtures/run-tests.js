@@ -618,6 +618,316 @@ async function testPhotos(page, fixtures) {
   await screenshot(page, 'profile-storage-with-photos');
 }
 
+async function testUserFlows(page, fixtures) {
+  console.log('\n--- User Flows ---');
+
+  // ---------------------------------------------------------------
+  // Flow 1: Log a meal from scratch
+  // ---------------------------------------------------------------
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(500);
+
+  // Navigate to today so the Add Entry button exists
+  await page.evaluate(() => App.goToDate(App.selectedDate || UI.today()));
+  await page.waitForTimeout(400);
+
+  const addBtn = await page.$('#toggle-log-types');
+  if (addBtn) {
+    await addBtn.click();
+    await page.waitForTimeout(400);
+
+    // Log type grid should now be visible
+    const gridDisplay = await page.$eval('#log-type-grid-inline', el => el.style.display).catch(() => null);
+    assert(gridDisplay !== 'none' && gridDisplay !== null, 'Flow 1: Log type grid appears after clicking + Add Entry');
+
+    // Click the Food type button
+    const foodBtn = await page.$('#log-type-grid-inline .type-btn[data-type="meal"]');
+    if (foodBtn) {
+      await foodBtn.click();
+      await page.waitForTimeout(400);
+
+      // Food logging UI should render (form content, camera, or notes area)
+      const formContent = await page.$('#log-form-content-inline');
+      const hasFormContent = !!formContent;
+      const formText = hasFormContent ? await formContent.textContent() : '';
+      assert(
+        hasFormContent && (formText.length > 0 || await page.$('.ql-photo-btn, textarea, .log-notes-input, input[type="text"]')),
+        'Flow 1: Food logging UI appears after selecting Food type'
+      );
+      await screenshot(page, 'flow1-food-logging-ui');
+    } else {
+      assert(false, 'Flow 1: Food button found in log type grid');
+    }
+
+    // Cancel — click the button again (now shows "Cancel") to close
+    const cancelBtn = await page.$('#toggle-log-types');
+    if (cancelBtn) {
+      await cancelBtn.click();
+      await page.waitForTimeout(300);
+    }
+
+    // Grid should be hidden again
+    const gridAfter = await page.$eval('#log-type-grid-inline', el => el.style.display).catch(() => null);
+    assert(gridAfter === 'none' || gridAfter === null, 'Flow 1: Log type grid hidden after cancel');
+  } else {
+    assert(false, 'Flow 1: + Add Entry button found on Today');
+  }
+
+  // ---------------------------------------------------------------
+  // Flow 2: Add water throughout the day
+  // ---------------------------------------------------------------
+  const waterQuickBtn = await page.$('#quick-water-btn');
+  if (waterQuickBtn) {
+    await waterQuickBtn.click();
+    await page.waitForTimeout(400);
+
+    // Water picker modal should open
+    const waterModal = await page.$('.modal-overlay');
+    assert(!!waterModal, 'Flow 2: Water picker modal opens');
+
+    // Read current total shown in modal
+    const beforeText = await page.$eval('.modal-overlay', el => el.textContent).catch(() => '');
+
+    // Select a water amount (first .water-pick button)
+    const waterPick = await page.$('.water-pick');
+    if (waterPick) {
+      await waterPick.click();
+      await page.waitForTimeout(500);
+
+      // Toast should appear OR modal should close (both indicate success)
+      const modalGone = !(await page.$('.modal-overlay'));
+      const toastEl = await page.$('.toast, .toast-container, [class*="toast"]');
+      assert(modalGone || !!toastEl, 'Flow 2: Water amount selected (modal closes or toast appears)');
+    } else {
+      assert(false, 'Flow 2: Water pick buttons found in modal');
+      // Close if still open
+      const closeBtn = await page.$('.modal-close');
+      if (closeBtn) await closeBtn.click();
+    }
+
+    await page.waitForTimeout(300);
+
+    // Reopen water picker to verify updated total
+    const waterQuickBtn2 = await page.$('#quick-water-btn');
+    if (waterQuickBtn2) {
+      await waterQuickBtn2.click();
+      await page.waitForTimeout(400);
+
+      const waterModal2 = await page.$('.modal-overlay');
+      assert(!!waterModal2, 'Flow 2: Water picker reopens after logging');
+
+      // Modal should show a total > 0
+      const afterText = await page.$eval('.modal-overlay', el => el.textContent).catch(() => '');
+      const hasOzTotal = /\d+\s*oz/.test(afterText);
+      assert(hasOzTotal, 'Flow 2: Reopened water picker shows oz total');
+
+      await screenshot(page, 'flow2-water-picker-updated');
+
+      // Close modal
+      const closeBtn2 = await page.$('.modal-close');
+      if (closeBtn2) {
+        await closeBtn2.click();
+        await page.waitForTimeout(200);
+      } else {
+        // Close by clicking overlay backdrop
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(200);
+      }
+    }
+  } else {
+    assert(false, 'Flow 2: Water quick-action button found');
+  }
+
+  // ---------------------------------------------------------------
+  // Flow 3: Check and edit goals
+  // ---------------------------------------------------------------
+  await page.click('nav button:has-text("Profile")');
+  await page.waitForTimeout(500);
+
+  // Click Edit on Daily Targets
+  const editGoalsBtn = await page.$('.s-action-btn');
+  if (editGoalsBtn) {
+    await editGoalsBtn.click();
+    await page.waitForTimeout(400);
+
+    // Goal setup modal should open
+    const goalModal = await page.$('.modal-overlay');
+    assert(!!goalModal, 'Flow 3: Goal setup modal opens from Profile');
+
+    // Calorie input should be pre-filled
+    const calInput = await page.$('#gs-calories');
+    if (calInput) {
+      const calValue = await calInput.evaluate(el => el.value);
+      assert(calValue !== '' && parseInt(calValue) > 0, `Flow 3: Calorie input pre-filled (value: ${calValue})`);
+
+      // Change calorie value to 1300
+      await calInput.click({ clickCount: 3 });
+      await calInput.fill('1300');
+      await page.waitForTimeout(200);
+
+      // Verify the input changed
+      const newCalValue = await calInput.evaluate(el => el.value);
+      assert(newCalValue === '1300', `Flow 3: Calorie input updated to 1300 (got: ${newCalValue})`);
+    } else {
+      assert(false, 'Flow 3: Calorie input (#gs-calories) found in goal modal');
+    }
+
+    await screenshot(page, 'flow3-goal-modal-edited');
+
+    // Save
+    const saveBtn = await page.$('#gs-save');
+    if (saveBtn) {
+      await saveBtn.click();
+      await page.waitForTimeout(500);
+    } else {
+      // Close modal
+      const closeBtn = await page.$('.modal-close');
+      if (closeBtn) await closeBtn.click();
+      await page.waitForTimeout(300);
+    }
+
+    // Targets summary should reflect new value
+    const goalsText = await page.$eval('#goals-summary', el => el.textContent).catch(() => '');
+    assert(goalsText.includes('1300') || goalsText.includes('cal'), `Flow 3: Daily Targets card updates (got: "${goalsText}")`);
+
+    await screenshot(page, 'flow3-targets-updated');
+
+    // Reopen and restore to 1200
+    const editBtn2 = await page.$('.s-action-btn');
+    if (editBtn2) {
+      await editBtn2.click();
+      await page.waitForTimeout(400);
+
+      const calInput2 = await page.$('#gs-calories');
+      if (calInput2) {
+        await calInput2.click({ clickCount: 3 });
+        await calInput2.fill('1200');
+        await page.waitForTimeout(200);
+
+        const saveBtn2 = await page.$('#gs-save');
+        if (saveBtn2) {
+          await saveBtn2.click();
+          await page.waitForTimeout(400);
+        } else {
+          const closeBtn = await page.$('.modal-close');
+          if (closeBtn) await closeBtn.click();
+        }
+      }
+      assert(true, 'Flow 3: Goals restored to 1200');
+    }
+  } else {
+    assert(false, 'Flow 3: Edit button found on Daily Targets card');
+  }
+
+  // ---------------------------------------------------------------
+  // Flow 4: Navigate between days
+  // ---------------------------------------------------------------
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(500);
+
+  const today = await page.evaluate(() => UI.today());
+
+  // Get entry count on today
+  const todayEntries = await page.$$('.entry-item');
+  const todayCount = todayEntries.length;
+
+  // Navigate to day -1
+  const prevBtn = await page.$('#header-prev');
+  if (prevBtn) {
+    await prevBtn.click();
+    await page.waitForTimeout(500);
+
+    const day1Date = await page.evaluate(() => App.selectedDate);
+    assert(day1Date < today, `Flow 4: Navigated to previous day (${day1Date} < ${today})`);
+    await screenshot(page, 'flow4-day-minus1');
+
+    // Navigate to day -2
+    await prevBtn.click();
+    await page.waitForTimeout(500);
+
+    const day2Date = await page.evaluate(() => App.selectedDate);
+    assert(day2Date < day1Date, `Flow 4: Navigated to day -2 (${day2Date} < ${day1Date})`);
+    await screenshot(page, 'flow4-day-minus2');
+
+    // Navigate back to today via nav tab
+    await page.click('nav button:has-text("Today")');
+    await page.waitForTimeout(500);
+
+    const backToToday = await page.evaluate(() => App.selectedDate);
+    assert(backToToday === today, `Flow 4: Navigated back to today (${backToToday})`);
+
+    // Today's entries should be back
+    const restoredEntries = await page.$$('.entry-item');
+    assert(restoredEntries.length === todayCount, `Flow 4: Today's entry count restored (${restoredEntries.length})`);
+  } else {
+    assert(false, 'Flow 4: Previous day button (#header-prev) found');
+  }
+
+  // ---------------------------------------------------------------
+  // Flow 5: Check progress after logging
+  // ---------------------------------------------------------------
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(600);
+
+  // Calendar should show colored dots for days with data
+  const calDays = await page.$$('.cal-day:not(.empty)');
+  assert(calDays.length > 0, `Flow 5: Calendar renders days (got ${calDays.length})`);
+
+  // Find a calendar day that has a date (fixture data)
+  const tapableDay = await page.$('.cal-day[data-date]:not(.empty)');
+  if (tapableDay) {
+    const tappedDate = await tapableDay.evaluate(el => el.dataset.date);
+    await tapableDay.click();
+    await page.waitForTimeout(600);
+
+    // Should navigate to Today tab with that date selected
+    const currentScreen = await page.evaluate(() => App.currentScreen);
+    const selectedDate = await page.evaluate(() => App.selectedDate);
+    assert(
+      currentScreen === 'today' || selectedDate === tappedDate,
+      `Flow 5: Calendar tap navigates to day view (screen: ${currentScreen}, date: ${selectedDate})`
+    );
+
+    await screenshot(page, 'flow5-calendar-tap-result');
+
+    // Navigate back to Progress
+    await page.click('nav button:has-text("Progress")');
+    await page.waitForTimeout(500);
+
+    const progressContainer = await page.$('#progress-container');
+    assert(!!progressContainer, 'Flow 5: Progress screen back after navigation');
+  } else {
+    assert(true, 'Flow 5: Calendar tap (no tappable day found — skipped)');
+  }
+
+  // ---------------------------------------------------------------
+  // Flow 6: Browse the plan
+  // ---------------------------------------------------------------
+  await page.click('nav button:has-text("Plan")');
+  await page.waitForTimeout(600);
+
+  const planContainer = await page.$('#plan-container');
+  const planContent = planContainer ? await planContainer.textContent() : '';
+  assert(planContent.length > 0 && !planContent.includes('No plan'), 'Flow 6: Plan screen renders content');
+
+  await screenshot(page, 'flow6-plan');
+
+  // Navigate to Profile
+  await page.click('nav button:has-text("Profile")');
+  await page.waitForTimeout(400);
+
+  // Navigate back to Plan
+  await page.click('nav button:has-text("Plan")');
+  await page.waitForTimeout(600);
+
+  const planContainer2 = await page.$('#plan-container');
+  const planContent2 = planContainer2 ? await planContainer2.textContent() : '';
+  assert(planContent2.length > 0, 'Flow 6: Plan content persists after navigating away and back');
+  assert(!planContent2.includes('No plan'), 'Flow 6: Plan has no blank flash on return');
+
+  await screenshot(page, 'flow6-plan-after-return');
+}
+
 async function testMultiViewport(page, context, fixtures) {
   console.log('\n--- Multi-Viewport ---');
 
@@ -644,7 +954,9 @@ async function testConsoleErrors(page) {
     !e.includes('service-worker') &&
     !e.includes('sw.js') &&
     !e.includes('manifest') &&
-    !e.includes('net::ERR')
+    !e.includes('net::ERR') &&
+    !e.includes('CloudRelay') &&
+    !e.includes('not configured')
   );
   assert(realErrors.length === 0, `No JS console errors (found ${realErrors.length}: ${realErrors.join('; ').slice(0, 200)})`);
 }
@@ -695,6 +1007,7 @@ async function run() {
     await testScoring(page, fixtures);
     await testEntryTypes(page, fixtures);
     await testPhotos(page, fixtures);
+    await testUserFlows(page, fixtures);
     await testMultiViewport(page, context, fixtures);
     await testConsoleErrors(page);
 

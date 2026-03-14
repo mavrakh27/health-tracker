@@ -43,6 +43,7 @@ const DayScore = {
       moderate: scoreModerate,
       hardcore: scoreHardcore,
       breakdown: scoreModerate.breakdown,
+      goals: { moderate, hardcore },
     };
   },
 
@@ -106,7 +107,7 @@ const DayScore = {
 
   // Render the score gauge for the today screen
   render(result) {
-    const { moderate, hardcore } = result;
+    const { moderate, hardcore, goals } = result;
     const ms = moderate.score;
     const hs = hardcore.score;
 
@@ -156,6 +157,17 @@ const DayScore = {
       html += `<span class="score-chip" style="border-color:${chipColor}; color:${chipColor}">${chip.label} ${label}</span>`;
     }
     html += '</div>';
+
+    // Target comparison — only show when scores differ
+    if (goals && moderate.score !== hardcore.score) {
+      const mg = goals.moderate;
+      const hg = goals.hardcore;
+      html += `
+        <div class="score-target-compare">
+          <span>Great: ${mg.calories} cal · ${mg.protein}g protein</span>
+          <span>Crush It: ${hg.calories} cal · ${hg.protein}g protein</span>
+        </div>`;
+    }
 
     return html;
   },
