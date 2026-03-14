@@ -92,14 +92,17 @@ const QuickLog = {
     sheet.querySelectorAll('.water-pick').forEach(btn => {
       btn.addEventListener('click', async () => {
         const oz = parseInt(btn.dataset.oz);
+        btn.classList.add('water-pick-saved');
         try {
           const fresh = await DB.getDailySummary(today);
           const newTotal = (fresh.water_oz || 0) + oz;
           await DB.updateDailySummary(today, { water_oz: newTotal });
-          UI.toast(`Water: ${newTotal} oz (+${oz})`);
+          UI.toast(`+${oz} oz — ${newTotal} oz total`);
           CloudRelay.queueUpload(today);
-          closeModal();
-          if (App.selectedDate === today) App.loadDayView();
+          setTimeout(() => {
+            closeModal();
+            if (App.selectedDate === today) App.loadDayView();
+          }, 300);
         } catch (err) {
           console.error('Quick water failed:', err);
           UI.toast('Failed to save water', 'error');
@@ -409,14 +412,16 @@ const App = {
             entryList.appendChild(UI.renderAnalysisEntry(ae));
           });
         } else {
-          const dateLabel = isToday ? 'today' : `for ${UI.formatDate(date)}`;
-          const hint = isToday ? 'Use the buttons above to start logging.' : '';
-          entryList.innerHTML = `
-            <div class="empty-state">
-              <div class="empty-icon">${UI.svg.clipboard}</div>
-              <p>No entries ${dateLabel}.${hint ? '<br>' + hint : ''}</p>
-            </div>
-          `;
+          if (isToday) {
+            entryList.innerHTML = App.renderEmptyDay();
+          } else {
+            entryList.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-icon">${UI.svg.clipboard}</div>
+                <p>Nothing logged on ${UI.formatDate(date)}.</p>
+              </div>
+            `;
+          }
         }
       }
     } else {
@@ -444,13 +449,14 @@ const App = {
     const coachEl = document.getElementById('today-coach');
     if (coachEl) coachEl.innerHTML = '';
 
-    // Add Entry button — insert at top of entry list
+    // Add Entry button — skip if welcome card is showing (it has its own CTA)
     const logGrid = document.getElementById('log-type-grid-inline');
-    if (entryList && logGrid) {
+    const isWelcome = entryList?.querySelector?.('.welcome-card');
+    if (entryList && logGrid && !isWelcome) {
       const addBtn = document.createElement('button');
       addBtn.id = 'toggle-log-types';
-      addBtn.className = 'btn btn-primary btn-block';
-      addBtn.style.cssText = 'margin-bottom: var(--space-sm); border-radius: var(--radius-md); padding: var(--space-sm);';
+      addBtn.className = 'btn btn-secondary btn-block';
+      addBtn.style.cssText = 'margin-bottom: var(--space-sm); border-radius: var(--radius-md); padding: var(--space-sm); border-style: dashed;';
       addBtn.textContent = '+ Add Entry';
       entryList.insertBefore(addBtn, entryList.firstChild);
 
@@ -459,9 +465,11 @@ const App = {
         logGrid.style.display = showing ? 'none' : 'grid';
         addBtn.textContent = showing ? '+ Add Entry' : 'Cancel';
         if (showing) {
-          addBtn.className = 'btn btn-primary btn-block';
-        } else {
           addBtn.className = 'btn btn-secondary btn-block';
+          addBtn.style.borderStyle = 'dashed';
+        } else {
+          addBtn.className = 'btn btn-ghost btn-block';
+          addBtn.style.borderStyle = 'solid';
           Log.init('log-type-grid-inline', 'log-form-content-inline');
           logGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
@@ -482,23 +490,61 @@ const App = {
     }
   },
 
+  _getGreeting() {
+    const h = new Date().getHours();
+    if (h < 6) return { text: 'Burning the midnight oil', sub: 'Log a late snack or get some rest.' };
+    if (h < 10) return { text: 'Good morning', sub: 'Start your day right — snap your breakfast.' };
+    if (h < 14) return { text: 'Afternoon check-in', sub: 'How\'s the day going? Log your lunch.' };
+    if (h < 18) return { text: 'Keep it going', sub: 'You\'re doing great. Stay on track.' };
+    if (h < 22) return { text: 'Evening wind-down', sub: 'Log dinner and wrap up your day.' };
+    return { text: 'Almost bedtime', sub: 'Finish logging and rest up.' };
+  },
+
+  renderEmptyDay() {
+    const g = App._getGreeting();
+    return `
+      <div class="empty-state">
+        <div class="empty-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </div>
+        <p style="color: var(--text-secondary); font-weight: 500; font-size: var(--text-base); margin-bottom: 4px;">${g.text}</p>
+        <p>${g.sub}</p>
+      </div>
+    `;
+  },
+
   renderWelcomeCard() {
     return `
-      <div class="card" style="text-align:center; padding: var(--space-lg);">
-        <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-sm);">Welcome to Coach</h2>
+      <div class="card welcome-card" style="text-align:center; padding: var(--space-xl) var(--space-lg);">
+        <div style="margin-bottom: var(--space-md); display:flex; justify-content:center;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="1.5" fill="var(--accent-primary)"/>
+          </svg>
+        </div>
+        <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-xs);">Welcome to Coach</h2>
         <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-lg); line-height: 1.6;">
-          Log meals, water, workouts, and weight throughout the day.<br>
-          Snap photos of your food and Claude will analyze everything nightly.
+          Track meals, water, workouts, and weight.<br>
+          Snap a photo and your AI coach handles the rest.
         </p>
         <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
           <button class="btn btn-primary btn-block btn-lg" onclick="App.showGoalSetup()">Set Your Goals</button>
-          <button class="btn btn-secondary btn-block" onclick="document.getElementById('toggle-log-types').click()">Start Logging</button>
+          <button class="btn btn-secondary btn-block" onclick="App._openLogGrid()">Start Logging</button>
         </div>
-        <p style="color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-lg);">
-          Set up Cloud Sync in Settings for automatic nightly analysis.
-        </p>
       </div>
     `;
+  },
+
+  _openLogGrid() {
+    const logGrid = document.getElementById('log-type-grid-inline');
+    if (logGrid) {
+      logGrid.style.display = 'grid';
+      Log.init('log-type-grid-inline', 'log-form-content-inline');
+      logGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
   },
 
   async ensureDefaultGoals() {
@@ -670,21 +716,22 @@ const App = {
       }
     }
 
+    const zc = (val) => val === 0 || val === null ? ' stat-value--zero' : '';
     statsEl.innerHTML = `
       <div class="stat-card">
-        <div class="stat-value" style="color: var(--color-water)">${waterOz}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> oz</span></div>
+        <div class="stat-value${zc(waterOz)}" style="color: var(--color-water)">${waterOz}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> oz</span></div>
         <div class="stat-label">Water</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" style="color: var(--color-meal)">${foodCount}</div>
+        <div class="stat-value${zc(foodCount)}" style="color: var(--color-meal)">${foodCount}</div>
         <div class="stat-label">Food logged</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" style="color: var(--color-workout)">${workoutMin}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> min</span></div>
+        <div class="stat-value${zc(workoutMin)}" style="color: var(--color-workout)">${workoutMin}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> min</span></div>
         <div class="stat-label">Exercise</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" style="color: var(--color-weight)">${weightVal || '--'}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> ${weightVal ? weightUnit : ''}</span></div>
+        <div class="stat-value${zc(weightVal)}" style="color: var(--color-weight)">${weightVal || '--'}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> ${weightVal ? weightUnit : ''}</span></div>
         <div class="stat-label">Weight</div>
       </div>
     `;
@@ -748,7 +795,7 @@ const Settings = {
       const keys = await caches.keys();
       const current = keys.find(k => k.startsWith('coach-v'));
       el.textContent = current ? current.replace('coach-', '') : 'v73';
-    } catch { el.textContent = 'v73'; }
+    } catch { el.textContent = 'v74'; }
   },
 
   _updateBound: false,

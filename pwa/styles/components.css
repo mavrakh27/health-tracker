@@ -8,8 +8,10 @@
 
 .quick-action {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 3px;
   padding: 10px var(--space-xs);
   background: var(--bg-card);
   border: 1px solid var(--border-accent);
@@ -23,10 +25,29 @@
   -webkit-tap-highlight-color: transparent;
   transition: all var(--transition-fast);
   min-height: 44px;
+  animation: slideInUp 0.3s ease both;
+}
+
+.quick-action:nth-child(1) { animation-delay: 0.05s; }
+.quick-action:nth-child(2) { animation-delay: 0.1s; }
+.quick-action:nth-child(3) { animation-delay: 0.15s; }
+.quick-action:nth-child(4) { animation-delay: 0.2s; }
+
+.quick-action .qa-icon {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick-action .qa-icon svg {
+  width: 18px;
+  height: 18px;
 }
 
 .quick-action:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
   background: var(--bg-hover);
 }
 
@@ -81,6 +102,11 @@
   background: var(--accent-green);
   border-color: var(--accent-green);
   color: #0d1117;
+  transform: scale(0.93);
+}
+
+.supplement-pick {
+  transition: all var(--transition-fast);
 }
 
 /* Segment control (Nutrition / Fitness toggle) */
@@ -235,6 +261,7 @@
   padding: var(--space-md);
   border: 1px solid var(--border-color);
   box-shadow: none;
+  animation: fadeIn 0.3s ease both;
 }
 
 .card + .card {
@@ -328,6 +355,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-sm);
+  animation: slideInUp 0.25s ease both;
 }
 
 .type-grid .type-btn:last-child:nth-child(3n+1) {
@@ -351,8 +379,19 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.type-btn {
+  animation: scaleIn 0.2s ease both;
+}
+
+.type-btn:nth-child(1) { animation-delay: 0s; }
+.type-btn:nth-child(2) { animation-delay: 0.03s; }
+.type-btn:nth-child(3) { animation-delay: 0.06s; }
+.type-btn:nth-child(4) { animation-delay: 0.09s; }
+.type-btn:nth-child(5) { animation-delay: 0.12s; }
+.type-btn:nth-child(6) { animation-delay: 0.15s; }
+
 .type-btn:active {
-  transform: scale(0.95);
+  transform: scale(0.92);
 }
 
 .type-btn.selected {
@@ -478,6 +517,13 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   border-left: 3px solid var(--entry-color, var(--border-accent));
+  animation: slideInUp 0.25s ease both;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.entry-item:active {
+  transform: scale(0.98);
+  background: var(--bg-hover);
 }
 
 /* Entry type color accents */
@@ -596,11 +642,21 @@ input[type="range"]::-webkit-slider-thumb {
   border: 1px solid var(--border-color);
   text-align: center;
   box-shadow: none;
+  animation: scaleIn 0.3s ease both;
 }
+
+.stat-card:nth-child(1) { animation-delay: 0s; }
+.stat-card:nth-child(2) { animation-delay: 0.05s; }
+.stat-card:nth-child(3) { animation-delay: 0.1s; }
+.stat-card:nth-child(4) { animation-delay: 0.15s; }
 
 .stat-value {
   font-size: var(--text-lg);
   font-weight: 700;
+}
+
+.stat-value--zero {
+  opacity: 0.35;
 }
 
 .stat-label {
@@ -667,6 +723,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .toast.success {
   border-color: var(--accent-green);
+  border-left: 3px solid var(--accent-green);
 }
 
 .toast.error {
@@ -692,11 +749,12 @@ input[type="range"]::-webkit-slider-thumb {
   text-align: center;
   padding: var(--space-2xl) var(--space-md);
   color: var(--text-muted);
+  animation: fadeIn 0.4s ease both;
 }
 
 .empty-state .empty-icon {
   margin-bottom: var(--space-md);
-  opacity: 0.5;
+  opacity: 0.4;
   display: flex;
   justify-content: center;
 }
@@ -707,6 +765,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .empty-state p {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.empty-state .empty-cta {
+  display: inline-block;
+  margin-top: var(--space-md);
+  color: var(--accent-primary);
+  font-weight: 500;
   font-size: var(--text-sm);
 }
 
@@ -790,6 +857,22 @@ input[type="range"]::-webkit-slider-thumb {
 .water-pick:active {
   background: var(--color-water);
   border-color: var(--color-water);
+  transform: scale(0.93);
+}
+
+.water-pick {
+  transition: all var(--transition-fast);
+}
+
+.water-pick-saved {
+  animation: waterSaved 0.4s ease;
+}
+
+@keyframes waterSaved {
+  0% { transform: scale(1); }
+  30% { transform: scale(0.88); background: var(--color-water); border-color: var(--color-water); }
+  60% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 /* water-pick-icon removed — water picker uses text labels only */
@@ -1184,6 +1267,7 @@ input[type="range"]::-webkit-slider-thumb {
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-lg);
   margin-top: var(--space-md);
+  animation: scaleIn 0.35s ease both;
 }
 
 .day-score-gauge {
@@ -1198,6 +1282,14 @@ input[type="range"]::-webkit-slider-thumb {
   height: 100%;
 }
 
+.score-ring-fill {
+  animation: scoreRingFill 0.8s ease-out both;
+}
+
+@keyframes scoreRingFill {
+  from { stroke-dashoffset: 251.327; /* full circumference = 2*pi*40 */ }
+}
+
 .score-number {
   position: absolute;
   top: 50%;
@@ -1206,6 +1298,7 @@ input[type="range"]::-webkit-slider-thumb {
   font-size: 24px;
   font-weight: 700;
   line-height: 1;
+  animation: fadeIn 0.5s ease 0.3s both;
 }
 
 .day-score-labels {

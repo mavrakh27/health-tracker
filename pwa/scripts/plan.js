@@ -50,17 +50,18 @@ const PlanView = {
     }
 
     if (!html) {
-      html = `<div class="card" style="text-align:center; padding:var(--space-xl);">
-        <div style="margin-bottom:var(--space-md); opacity:0.4; display:flex; justify-content:center;">
-          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      html = `<div class="card" style="text-align:center; padding:var(--space-xl) var(--space-lg);">
+        <div style="margin-bottom:var(--space-md); display:flex; justify-content:center;">
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;">
             <rect x="4" y="3" width="16" height="18" rx="2"/>
-            <line x1="8" y1="8" x2="16" y2="8"/>
-            <line x1="8" y1="12" x2="16" y2="12"/>
-            <line x1="8" y1="16" x2="12" y2="16"/>
+            <polyline points="9 11 11 13 15 9"/>
+            <line x1="8" y1="17" x2="16" y2="17"/>
           </svg>
         </div>
-        <p style="color:var(--text-secondary); font-size:var(--text-sm); margin-bottom:var(--space-lg); line-height:1.5;">No plan yet.<br>Set up Cloud Sync and your coach will generate meal plans and workouts.</p>
-        <button class="btn btn-primary btn-block btn-lg" onclick="App.showScreen('profile')">Set Up Sync</button>
+        <p style="color:var(--text-secondary); font-weight:500; font-size:var(--text-base); margin-bottom:var(--space-xs);">Your plan is on the way</p>
+        <p style="color:var(--text-muted); font-size:var(--text-sm); margin-bottom:var(--space-lg); line-height:1.6;">Once Cloud Sync is connected, your coach will build personalized meal plans and workout routines based on your goals.</p>
+        <button class="btn btn-primary btn-block btn-lg" onclick="window.location.hash='profile'">Connect Cloud Sync</button>
+        <p style="color:var(--text-muted); font-size:var(--text-xs); margin-top:var(--space-md);">Plans refresh every 30 minutes automatically.</p>
       </div>`;
     }
 

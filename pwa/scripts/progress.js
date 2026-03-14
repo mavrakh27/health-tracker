@@ -43,8 +43,16 @@ const ProgressView = {
     }
 
     if (!html) {
-      html = `<div class="card" style="text-align:center; padding:var(--space-lg);">
-        <p style="color:var(--text-muted);">Start tracking to see your progress here.</p>
+      html = `<div class="card" style="text-align:center; padding:var(--space-xl) var(--space-lg);">
+        <div style="margin-bottom:var(--space-md); display:flex; justify-content:center;">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.6;">
+            <polyline points="4 18 8 12 12 14 16 8 20 4"/>
+            <line x1="20" y1="4" x2="20" y2="8"/>
+            <line x1="20" y1="4" x2="16" y2="4"/>
+          </svg>
+        </div>
+        <p style="color:var(--text-secondary); font-weight:500; font-size:var(--text-base); margin-bottom:var(--space-xs);">Your journey starts here</p>
+        <p style="color:var(--text-muted); font-size:var(--text-sm); line-height:1.6;">Log meals, water, and workouts on the Today tab. Your progress will build up over time.</p>
       </div>`;
     }
 

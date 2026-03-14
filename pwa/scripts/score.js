@@ -116,15 +116,16 @@ const DayScore = {
     const hasActivity = bd.calories != null || bd.water > 0 || bd.logging > 0;
     if (!hasActivity && ms <= 25) {
       return `
-        <div class="day-score" style="opacity: 0.5;">
+        <div class="day-score" style="opacity: 0.6;">
           <div class="day-score-gauge">
             <svg viewBox="0 0 100 100" class="score-ring">
-              <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border-color)" stroke-width="6"/>
+              <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border-color)" stroke-width="6" stroke-dasharray="4 8"/>
             </svg>
-            <div class="score-number" style="color:var(--text-muted)">--</div>
+            <div class="score-number" style="color:var(--text-muted); font-size:18px;">?</div>
           </div>
           <div class="day-score-labels">
-            <div class="score-label-main" style="color:var(--text-muted)">Log food & water to see your score</div>
+            <div class="score-label-main" style="color:var(--text-muted)">Your score builds as you log</div>
+            <div style="font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px;">Snap a meal photo to get started</div>
           </div>
         </div>
       `;
@@ -146,7 +147,7 @@ const DayScore = {
             <circle cx="50" cy="50" r="${radius}" fill="none" stroke="${color}" stroke-width="6"
               stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
               stroke-linecap="round" transform="rotate(-90 50 50)"
-              style="transition: stroke-dashoffset 0.5s ease"/>
+              class="score-ring-fill"/>
           </svg>
           <div class="score-number" style="color:${color}">${ms}</div>
         </div>
