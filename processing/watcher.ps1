@@ -42,6 +42,8 @@ try {
     Write-Output "[watcher] Pending dates: $($pending -join ', '). Launching processing..."
 
     $batPath = Join-Path $PSScriptRoot 'process-day.bat'
+    # Ensure nested Claude session check doesn't block processing
+    $env:CLAUDECODE = $null
     $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`"" -Wait -PassThru -NoNewWindow
     Write-Output "[watcher] Processing finished with exit code $($proc.ExitCode)."
 } catch {
