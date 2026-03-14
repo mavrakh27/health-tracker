@@ -96,15 +96,16 @@
       </div>
 
       <!-- Cloud Sync -->
-      <div class="s-card">
+      <div class="s-card s-card--accent">
         <div class="s-card-row">
+          <div class="s-icon">&#9729;</div>
           <div class="s-card-body">
             <h3 class="s-title">Cloud Sync</h3>
             <p class="s-subtitle" id="cloud-sync-status">Not configured</p>
           </div>
-          <button class="s-action-btn s-action-btn--primary" onclick="CloudRelay.showSetup()">Setup</button>
+          <button class="s-action-btn" onclick="CloudRelay.showSetup()">Setup</button>
         </div>
-        <div class="s-btn-row">
+        <div class="s-btn-row" style="margin-top: var(--space-sm);">
           <button class="btn btn-secondary" onclick="CloudRelay.checkForResults()">Check Results</button>
           <button class="btn btn-secondary" onclick="CloudRelay.resyncAll()">Re-sync All</button>
         </div>

@@ -427,7 +427,7 @@ const App = {
 
     // Load daily summary stats
     const summary = await DB.getDailySummary(date);
-    App.renderDayStats(summary, entries);
+    App.renderDayStats(summary, entries, date);
 
     // Day Score (above coach)
     const scoreEl = document.getElementById('today-score');
@@ -652,17 +652,31 @@ const App = {
     });
   },
 
-  renderDayStats(summary, entries) {
+  async renderDayStats(summary, entries, date) {
     const statsEl = document.getElementById('today-stats');
     if (!statsEl) return;
 
-    const foodCount = entries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
-    const workouts = entries.filter(e => e.type === 'workout');
-    const workoutMin = workouts.reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
+    let foodCount = entries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
+    let workoutMin = entries.filter(e => e.type === 'workout').reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
+    let waterOz = summary.water_oz || 0;
+    let weightVal = summary.weight ? summary.weight.value : null;
+    let weightUnit = summary.weight ? summary.weight.unit : '';
+
+    // Fall back to analysis data when entries are empty (e.g. after reinstall)
+    if (entries.length === 0 && date) {
+      const analysis = await DB.getAnalysis(date);
+      if (analysis) {
+        const aEntries = analysis.entries || [];
+        foodCount = aEntries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
+        workoutMin = aEntries.filter(e => e.type === 'workout').reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
+        waterOz = analysis.water_oz || waterOz;
+        if (analysis.weight) { weightVal = analysis.weight.value || analysis.weight; weightUnit = analysis.weight.unit || 'lbs'; }
+      }
+    }
 
     statsEl.innerHTML = `
       <div class="stat-card">
-        <div class="stat-value" style="color: var(--color-water)">${summary.water_oz || 0}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> oz</span></div>
+        <div class="stat-value" style="color: var(--color-water)">${waterOz}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> oz</span></div>
         <div class="stat-label">Water</div>
       </div>
       <div class="stat-card">
@@ -674,7 +688,7 @@ const App = {
         <div class="stat-label">Exercise</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value" style="color: var(--color-weight)">${summary.weight ? summary.weight.value : '--'}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> ${summary.weight ? summary.weight.unit : ''}</span></div>
+        <div class="stat-value" style="color: var(--color-weight)">${weightVal || '--'}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> ${weightVal ? weightUnit : ''}</span></div>
         <div class="stat-label">Weight</div>
       </div>
     `;
