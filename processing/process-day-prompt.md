@@ -1,16 +1,60 @@
 # Health Tracker — Daily Processing Prompt
 
-You are analyzing today's health data exported from the Health Tracker PWA. The data arrives as a ZIP file extracted into the incoming folder.
+You are analyzing today's health data exported from the Health Tracker PWA. The data arrives as a ZIP file extracted into the extracted folder.
+
+## No Re-Processing Rule (CRITICAL)
+
+**Never re-analyze raw data for dates that already have an analysis file.** If `{ICLOUD_DIR}/analysis/{DATE}.json` already exists, the raw data (photos, log.json) has already been synthesized. Only apply corrections to the existing analysis — do NOT re-process photos or re-estimate calories from scratch.
+
+- **New date (no analysis exists):** Full processing — analyze photos, estimate calories, generate analysis.
+- **Existing date (analysis exists):** Read the existing analysis, apply any corrections from `corrections/{DATE}.json`, update totals/goals/scores, and write back. Do NOT re-analyze photos.
 
 ## Input Structure
 
-After ZIP extraction, the data is at `{ICLOUD_DIR}/incoming/{DATE}/`:
+After ZIP extraction, the data is at `{EXTRACT_DIR}/`:
 - `daily/{DATE}/log.json` — today's entries (meals, drinks, snacks, workouts, body photos, vices/alcohol, water, weight)
 - `daily/{DATE}/photos/` — meal/snack/drink/workout photos (JPEG)
 - `progress/{DATE}/` — body progress photos (face.jpg, face_2.jpg, body.jpg, body_2.jpg, etc.) — **do NOT describe these, they are private**
+
+The `{EXTRACT_DIR}` path will be provided in the processing prompt. ZIP extraction may nest paths (e.g. `{EXTRACT_DIR}/daily/{DATE}/daily/{DATE}/log.json`). Use Glob to find the actual `log.json` location.
+
+Profile files (always at fixed paths):
 - `{ICLOUD_DIR}/profile/goals.json` — dual plan targets (moderate = active, hardcore = stretch goal)
 - `{ICLOUD_DIR}/profile/regimen.json` — workout plans (moderate + hardcore schedules)
 - `{ICLOUD_DIR}/profile/preferences.json` — dietary preferences
+
+## Corrections System (CRITICAL)
+
+Before generating analysis for any date, check for `{ICLOUD_DIR}/corrections/{DATE}.json`. These files contain **user-verified overrides** that represent ground truth — they MUST be applied.
+
+**File format:**
+```json
+{
+  "date": "YYYY-MM-DD",
+  "modifyEntries": {
+    "<entry_id>": {
+      "reason": "why this was corrected",
+      "override": { "description": "...", "calories": 575, "protein": 44, ... }
+    }
+  },
+  "addEntries": [
+    { "id": "...", "type": "workout", "description": "...", ... }
+  ],
+  "notes": ["processing instructions"]
+}
+```
+
+**Rules:**
+- `modifyEntries`: Replace the specified fields on the matching entry ID. Keep other fields from the base analysis.
+- `addEntries`: Add these entries to the analysis. They are real data the user confirmed.
+- `notes`: Read these for additional context when generating highlights/concerns/scores.
+- Never delete or ignore corrections files. They are permanent.
+- When corrections change calorie/macro values, recalculate totals and goal comparisons.
+- Add a `_correction` field to any modified entry noting what was changed.
+
+## Coach TODOs
+
+Check for `{ICLOUD_DIR}/coach-todos.json`. If it exists and has pending items (status: "pending"), apply them during processing and mark as "done" with a timestamp.
 
 ## Instructions
 
@@ -20,11 +64,13 @@ After ZIP extraction, the data is at `{ICLOUD_DIR}/incoming/{DATE}/`:
    - Look at the photo (if present) and read the text notes
    - Identify the food items and estimate portion sizes
    - Calculate calories, protein, carbs, and fat
+   - **Always round up / over-estimate** when uncertain — better to over-count than under-count. If a portion could be 300-400 cal, call it 400. If size is ambiguous, assume the larger portion.
    - Write a detailed text description (so the photo can be deleted later)
    - Rate your confidence: high/medium/low
    - Include a breakdown of individual items
 
 3. **Analyze workouts:**
+   - Check `log.json` for `fitness_checked` and `fitness_notes` fields — if present, a workout happened and MUST appear as a workout entry in the analysis. Do not say "no workout logged" when these fields exist.
    - Estimate calories burned based on type, duration, and intensity
    - Compare to the workout regimen — does today match the plan?
    - Note any deviations or progressions
@@ -38,7 +84,7 @@ After ZIP extraction, the data is at `{ICLOUD_DIR}/incoming/{DATE}/`:
    - Sum calories and macros from all meals AND vice entries
    - Compare to BOTH moderate and hardcore goals from `goals.json`
    - Calculate remaining budget for the day
-   - Generate a `dayScore` (0-100) with breakdown — see output schema
+   - Do NOT generate a `dayScore` — scoring is handled client-side by the PWA
 
 6. **Generate highlights and concerns:**
    - What went well (good choices, balanced meals)
@@ -93,10 +139,6 @@ Write a **single JSON file** to `{ICLOUD_DIR}/analysis/{DATE}.json` containing e
   },
   "highlights": ["..."],
   "concerns": ["..."],
-  "dayScore": {
-    "moderate": { "score": 0, "breakdown": { "calories": 0, "protein": 0, "workout": 0, "water": 0, "logging": 0, "vices": 0 } },
-    "hardcore": { "score": 0, "breakdown": { "calories": 0, "protein": 0, "workout": 0, "water": 0, "logging": 0, "vices": 0 } }
-  },
   "streaks": { "tracking": 0, "calorie_goal": 0, "protein_goal": 0 },
 
   "mealPlan": {

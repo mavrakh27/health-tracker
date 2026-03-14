@@ -1,46 +1,46 @@
-/* Health Tracker Design System
-   Theme: Minimal Dark — inspired by Linear, Arc browser.
-   Muted dark grays, soft white text, very subtle borders,
-   one quiet accent color (muted blue). Modern and understated. */
+/* Coach Design System
+   Theme: Warm Dark — cozy, inviting, wood-and-ember tones.
+   Warm dark browns, soft cream text, subtle warm borders,
+   amber/gold accent. Feels like a fireside companion. */
 
 :root {
-  /* Backgrounds — true dark, no warmth */
-  --bg-primary: #111111;
-  --bg-secondary: #191919;
-  --bg-card: #1a1a1a;
-  --bg-input: #222222;
-  --bg-hover: #2a2a2a;
+  /* Backgrounds — warm dark browns */
+  --bg-primary: #1a1614;
+  --bg-secondary: #211e1b;
+  --bg-card: #242019;
+  --bg-input: #2a2520;
+  --bg-hover: #332e28;
 
-  /* Text — soft, not pure white */
-  --text-primary: #ececec;
-  --text-secondary: #8b8b8e;
-  --text-muted: #5a5a5d;
+  /* Text — warm cream, not pure white */
+  --text-primary: #ede8e1;
+  --text-secondary: #9b9189;
+  --text-muted: #6b6058;
 
-  /* Accents — muted, understated */
-  --accent-green: #3ecf6e;
-  --accent-green-dim: #1a2e1f;
-  --accent-blue: #6b9fff;
-  --accent-blue-dim: #1a2640;
+  /* Accents — warm, earthy */
+  --accent-green: #5ebd6e;
+  --accent-green-dim: #1e2a1a;
+  --accent-blue: #7eaed4;
+  --accent-blue-dim: #1a2430;
   --accent-orange: #e09347;
   --accent-orange-dim: #302010;
-  --accent-red: #e5534b;
-  --accent-red-dim: #301414;
-  --accent-purple: #a78bfa;
-  --accent-purple-dim: #211a38;
-  --accent-yellow: #e5c65b;
-  --accent-cyan: #5cb8d4;
-  --accent-gold: #6b9fff;      /* Muted blue as primary */
-  --accent-gold-dim: #1a2640;
+  --accent-red: #d4605a;
+  --accent-red-dim: #2e1616;
+  --accent-purple: #a78bda;
+  --accent-purple-dim: #231c30;
+  --accent-yellow: #d4b455;
+  --accent-cyan: #5cb8b0;
+  --accent-gold: #c9953c;        /* Warm amber — primary accent */
+  --accent-gold-dim: #2a2010;
 
-  /* Entry type colors — desaturated */
-  --color-meal: #3ecf6e;
-  --color-snack: #e5c65b;
-  --color-drink: #5cb8d4;
+  /* Entry type colors — warm-shifted */
+  --color-meal: #5ebd6e;
+  --color-snack: #d4b455;
+  --color-drink: #5cb8b0;
   --color-workout: #e09347;
-  --color-water: #6b9fff;
-  --color-weight: #a78bfa;
-  --color-body-photo: #e07086;
-  --color-sleep: #7c7cf5;
+  --color-water: #7eaed4;
+  --color-weight: #a78bda;
+  --color-body-photo: #d47080;
+  --color-sleep: #7c7cd0;
 
   /* Spacing */
   --space-xs: 4px;
@@ -62,18 +62,18 @@
   --text-xl: 22px;
   --text-2xl: 28px;
 
-  /* Borders — barely visible */
+  /* Borders — warm, barely visible */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-full: 9999px;
-  --border-color: #2a2a2a;
-  --border-accent: #2a2a2a;
+  --border-color: #332e28;
+  --border-accent: #3d362e;
 
-  /* Shadows — subtle in dark mode */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.5);
+  /* Shadows — warm in dark mode */
+  --shadow-sm: 0 1px 2px rgba(10, 6, 2, 0.3);
+  --shadow-md: 0 2px 8px rgba(10, 6, 2, 0.4);
+  --shadow-lg: 0 4px 16px rgba(10, 6, 2, 0.5);
 
   /* Layout */
   --nav-height: 64px;

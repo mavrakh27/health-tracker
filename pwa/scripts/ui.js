@@ -120,6 +120,13 @@ const UI = {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   },
 
+  // --- Auto-resize textarea to fit content ---
+  autoResize(el) {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  },
+
   // --- DOM Helpers ---
   $(selector) {
     return document.querySelector(selector);
@@ -255,7 +262,7 @@ const UI = {
       </div>
       <div class="form-group">
         <label class="form-label">Notes</label>
-        <textarea class="form-input" id="edit-notes" placeholder="Add notes" rows="3">${UI.escapeHtml(entry.notes || '')}</textarea>
+        <textarea class="form-input" id="edit-notes" placeholder="Add notes" rows="1">${UI.escapeHtml(entry.notes || '')}</textarea>
       </div>
       ${entry.type === 'workout' ? `
         <div class="form-group">
@@ -277,6 +284,9 @@ const UI = {
 
     document.getElementById('edit-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    const editNotes = document.getElementById('edit-notes');
+    if (editNotes) { UI.autoResize(editNotes); editNotes.addEventListener('input', () => UI.autoResize(editNotes)); }
 
     // Save
     document.getElementById('edit-save').addEventListener('click', async () => {

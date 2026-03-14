@@ -15,6 +15,7 @@ const ProgressView = {
     const today = UI.today();
 
     const analyses = await DB.getAnalysisRange(startDate, today);
+    const regimen = await DB.getRegimen();
 
     let html = '';
 
@@ -28,8 +29,8 @@ const ProgressView = {
 
     // --- Score sparkline ---
     if (analyses.length > 0) {
-      html += ProgressView.renderScores(analyses, startDate, today, activePlan);
-      html += ProgressView.renderAverages(analyses, activePlan);
+      html += ProgressView.renderScores(analyses, startDate, today, activePlan, goals, regimen);
+      html += ProgressView.renderAverages(analyses, goals);
     }
 
     // --- Compact calendar heatmap ---
@@ -71,7 +72,7 @@ const ProgressView = {
           <div style="font-size:var(--text-sm); font-weight:500;">${UI.escapeHtml(g.name)}</div>
           <div style="font-size:var(--text-xs); color:var(--text-muted);">${daysLeft} days left</div>
         </div>
-        <span style="font-size:var(--text-xs); color:var(--accent-blue);">${UI.formatDate(g.target)}</span>
+        <span style="font-size:var(--text-xs); color:var(--accent-gold);">${UI.formatDate(g.target)}</span>
       </div>`;
     }
     html += '</div>';
@@ -93,7 +94,7 @@ const ProgressView = {
       <span>${UI.formatDate(endDate)}</span>
     </div>`;
     html += `<div class="progress-bar" style="height:8px;">
-      <div class="progress-fill" style="width:${pct}%; background:linear-gradient(90deg, var(--accent-blue), var(--accent-green));"></div>
+      <div class="progress-fill" style="width:${pct}%; background:linear-gradient(90deg, var(--accent-gold), var(--accent-green));"></div>
     </div>`;
 
     // Milestone markers
@@ -115,7 +116,53 @@ const ProgressView = {
     return html;
   },
 
-  renderScores(analyses, startDate, today, activePlan) {
+  // Compute a score from analysis data (mirrors DayScore._calc logic)
+  _scoreFromAnalysis(analysis, goals, regimen) {
+    if (!analysis) return { moderate: null, hardcore: null };
+    const totals = analysis.totals || {};
+    const cal = totals.calories || 0;
+    const pro = totals.protein || 0;
+    const water = analysis.goals?.water?.actual_oz || 0;
+    const hasWorkout = (analysis.entries || []).some(e => e.type === 'workout');
+    const hasMeals = (analysis.entries || []).some(e => e.type === 'meal' || e.type === 'drink' || e.type === 'snack');
+    const viceCount = (analysis.entries || []).filter(e => e.type === 'vice').reduce((s, e) => s + (e.quantity || 1), 0);
+
+    const dayName = new Date(analysis.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayPlan = regimen?.weeklySchedule?.find(d => d.day === dayName);
+    const isWorkoutDay = dayPlan && dayPlan.type !== 'rest';
+
+    const calc = (target) => {
+      let score = 0;
+      // Calories (25)
+      if (cal > 0) {
+        const diff = Math.abs(cal - target.calories);
+        if (diff <= 150) score += 25;
+        else if (diff <= 300) score += 15;
+        else if (cal > target.calories + 300) score += 0;
+        else score += 10;
+      }
+      // Protein (25)
+      if (pro > 0) score += Math.round(Math.min(1, pro / target.protein) * 25);
+      // Workout (25)
+      if (isWorkoutDay) { if (hasWorkout) score += 25; }
+      else score += 25;
+      // Water (10)
+      if (water >= target.water) score += 10;
+      else if (water >= target.water * 0.5) score += 5;
+      // Logging (15)
+      if (hasMeals) score += 15;
+      // Vices
+      if (viceCount > 0) score -= Math.min(30, viceCount * 10);
+      return Math.max(0, Math.min(100, score));
+    };
+
+    return {
+      moderate: calc({ calories: goals.moderate?.calories?.daily || 1400, protein: goals.moderate?.protein?.grams || 105, water: goals.moderate?.water?.daily_oz || 64 }),
+      hardcore: calc({ calories: goals.hardcore?.calories?.daily || 1200, protein: goals.hardcore?.protein?.grams || 120, water: goals.hardcore?.water?.daily_oz || 64 }),
+    };
+  },
+
+  renderScores(analyses, startDate, today, activePlan, goals, regimen) {
     let html = '<h2 class="section-header">Daily Scores</h2><div class="card">';
 
     const dayData = [];
@@ -127,14 +174,14 @@ const ProgressView = {
     while (cursor <= todayDate) {
       const ds = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
       const a = analysisMap[ds];
-      const score = a?.dayScore?.[activePlan]?.score ?? null;
-      dayData.push({ date: ds, score });
+      const scores = ProgressView._scoreFromAnalysis(a, goals, regimen);
+      dayData.push({ date: ds, moderate: scores.moderate, hardcore: scores.hardcore });
       cursor.setDate(cursor.getDate() + 1);
     }
 
-    // SVG sparkline
-    const barWidth = Math.max(8, Math.min(28, Math.floor(280 / dayData.length)));
-    const gap = 3;
+    // SVG sparkline — dual bars (moderate filled, hardcore outline)
+    const barWidth = Math.max(10, Math.min(32, Math.floor(300 / dayData.length)));
+    const gap = 4;
     const svgWidth = dayData.length * (barWidth + gap);
     const svgHeight = 80;
 
@@ -144,31 +191,51 @@ const ProgressView = {
     for (let i = 0; i < dayData.length; i++) {
       const d = dayData[i];
       const x = i * (barWidth + gap);
-      const barH = d.score != null ? (d.score / 100) * svgHeight : 0;
-      const y = svgHeight - barH;
-      const color = d.score == null ? '#2a2a2a' :
-                    d.score >= 75 ? '#3ecf6e' :
-                    d.score >= 50 ? '#e09347' : '#e5534b';
+      const ms = d.moderate;
+      const hs = d.hardcore;
 
-      html += `<rect x="${x}" y="${d.score != null ? y : svgHeight - 4}" width="${barWidth}" height="${d.score != null ? barH : 4}" rx="3" fill="${color}" opacity="${d.score != null ? 0.85 : 0.3}"/>`;
+      if (ms != null) {
+        // Moderate bar (filled)
+        const barH = (ms / 100) * svgHeight;
+        const y = svgHeight - barH;
+        const color = ms >= 75 ? 'var(--accent-green)' : ms >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+        html += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barH}" rx="3" fill="${color}" opacity="0.85"/>`;
 
-      if (d.score != null) {
-        html += `<text x="${x + barWidth / 2}" y="${y - 3}" text-anchor="middle" fill="#ececec" font-size="9" font-family="var(--font-sans)">${d.score}</text>`;
+        // Hardcore target line (thin marker showing where hardcore score lands)
+        if (hs != null) {
+          const hcY = svgHeight - (hs / 100) * svgHeight;
+          html += `<line x1="${x}" y1="${hcY}" x2="${x + barWidth}" y2="${hcY}" stroke="var(--accent-gold)" stroke-width="2" stroke-dasharray="3,2" opacity="0.7"/>`;
+        }
+
+        // Score label
+        html += `<text x="${x + barWidth / 2}" y="${y - 3}" text-anchor="middle" fill="var(--text-primary)" font-size="9" font-family="var(--font-sans)">${ms}</text>`;
+      } else {
+        // No data — dim placeholder
+        html += `<rect x="${x}" y="${svgHeight - 4}" width="${barWidth}" height="4" rx="2" fill="var(--border-color)" opacity="0.3"/>`;
       }
 
       const dayLabel = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' });
-      html += `<text x="${x + barWidth / 2}" y="${svgHeight + 14}" text-anchor="middle" fill="#5a5a5d" font-size="9" font-family="var(--font-sans)">${dayLabel}</text>`;
+      html += `<text x="${x + barWidth / 2}" y="${svgHeight + 14}" text-anchor="middle" fill="var(--text-muted)" font-size="9" font-family="var(--font-sans)">${dayLabel}</text>`;
     }
 
     html += `</svg></div>`;
 
+    // Legend
+    html += `<div style="display:flex; justify-content:center; gap:var(--space-md); margin-top:var(--space-sm); font-size:var(--text-xs); color:var(--text-muted);">
+      <span>&#9632; Moderate</span>
+      <span style="color:var(--accent-gold);">--- Hardcore</span>
+    </div>`;
+
     // Average
-    const scored = dayData.filter(d => d.score != null);
+    const scored = dayData.filter(d => d.moderate != null);
     if (scored.length > 0) {
-      const avg = Math.round(scored.reduce((s, d) => s + d.score, 0) / scored.length);
-      html += `<div style="display:flex; justify-content:center; gap:var(--space-lg); margin-top:var(--space-sm); font-size:var(--text-sm);">
-        <span>Avg: <strong style="color:${avg >= 75 ? 'var(--accent-green)' : avg >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${avg}</strong></span>
-        <span style="color:var(--text-muted);">${scored.length} day${scored.length > 1 ? 's' : ''} tracked</span>
+      const avgMod = Math.round(scored.reduce((s, d) => s + d.moderate, 0) / scored.length);
+      const hcScored = scored.filter(d => d.hardcore != null);
+      const avgHc = hcScored.length ? Math.round(hcScored.reduce((s, d) => s + d.hardcore, 0) / hcScored.length) : 0;
+      html += `<div style="display:flex; justify-content:center; gap:var(--space-lg); margin-top:var(--space-xs); font-size:var(--text-sm);">
+        <span>Avg: <strong style="color:${avgMod >= 75 ? 'var(--accent-green)' : avgMod >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${avgMod}</strong></span>
+        <span style="color:var(--accent-gold);">HC: <strong>${avgHc}</strong></span>
+        <span style="color:var(--text-muted);">${scored.length} day${scored.length > 1 ? 's' : ''}</span>
       </div>`;
     }
 
@@ -176,25 +243,32 @@ const ProgressView = {
     return html;
   },
 
-  renderAverages(analyses, activePlan) {
+  renderAverages(analyses, goals) {
+    const calTarget = goals.moderate?.calories?.daily || 1400;
+    const proTarget = goals.moderate?.protein?.grams || 105;
+    const waterTarget = goals.moderate?.water?.daily_oz || 64;
+
     const avgCal = Math.round(analyses.reduce((s, a) => s + (a.totals?.calories || 0), 0) / analyses.length);
     const avgPro = Math.round(analyses.reduce((s, a) => s + (a.totals?.protein || 0), 0) / analyses.length);
     const workoutDays = analyses.filter(a =>
-      a.fitness?.completed?.length > 0 || a.dayScore?.[activePlan]?.breakdown?.workout >= 20
+      (a.entries || []).some(e => e.type === 'workout')
     ).length;
-    const waterHit = analyses.filter(a => a.goals?.water?.status === 'met' || a.goals?.water?.status === 'on_track').length;
+    const waterHit = analyses.filter(a => {
+      const actual = a.goals?.water?.actual_oz || 0;
+      return actual >= waterTarget;
+    }).length;
 
     let html = '<h2 class="section-header">Averages</h2><div class="stats-row">';
     html += `<div class="stat-card">
-      <div class="stat-value" style="color:${avgCal <= 1400 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${avgCal}</div>
+      <div class="stat-value" style="color:${avgCal <= calTarget ? 'var(--accent-green)' : 'var(--accent-orange)'};">${avgCal}</div>
       <div class="stat-label">Avg Cal</div>
     </div>`;
     html += `<div class="stat-card">
-      <div class="stat-value" style="color:${avgPro >= 105 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${avgPro}g</div>
+      <div class="stat-value" style="color:${avgPro >= proTarget ? 'var(--accent-green)' : 'var(--accent-orange)'};">${avgPro}g</div>
       <div class="stat-label">Avg Protein</div>
     </div>`;
     html += `<div class="stat-card">
-      <div class="stat-value" style="color:var(--accent-blue);">${workoutDays}/${analyses.length}</div>
+      <div class="stat-value" style="color:var(--accent-gold);">${workoutDays}/${analyses.length}</div>
       <div class="stat-label">Workouts</div>
     </div>`;
     html += `<div class="stat-card">
@@ -244,6 +318,8 @@ const ProgressView = {
 
     const entries = await DB.getEntriesByDateRange(startDate, endDate);
     const analyses = await DB.getAnalysisRange(startDate, endDate);
+    const goals = await DB.getProfile('goals') || {};
+    const regimen = await DB.getRegimen();
 
     const entryDates = new Set();
     for (const e of entries) entryDates.add(e.date);
@@ -257,8 +333,8 @@ const ProgressView = {
 
       const analysis = analysisMap[dateStr];
       if (analysis) {
-        // Use day score for color
-        const score = analysis.dayScore?.moderate?.score ?? null;
+        const scores = ProgressView._scoreFromAnalysis(analysis, goals, regimen);
+        const score = scores.moderate;
         if (score != null) {
           dot.classList.add(score >= 75 ? 'green' : score >= 50 ? 'yellow' : 'red');
         } else {

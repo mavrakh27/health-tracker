@@ -87,8 +87,8 @@ async function handle(request, env, key, route) {
       if (!state.newResults.includes(date)) state.newResults.push(date);
     });
 
-    // Clean up the export ZIP after processing
-    await env.BUCKET.delete(`exports/${key}/${date}.zip`);
+    // Keep export ZIP — never delete raw user data
+    // ZIPs remain in R2 as permanent archive
 
     return json(200, { ok: true, date });
   }
@@ -123,8 +123,8 @@ async function handle(request, env, key, route) {
       state.newResults = (state.newResults || []).filter(d => d !== date);
     });
 
-    // Clean up acknowledged result
-    await env.BUCKET.delete(`results/${key}/${date}.json`);
+    // Keep results — never delete user data
+    // Results remain in R2 as permanent archive
 
     return json(200, { ok: true, date });
   }

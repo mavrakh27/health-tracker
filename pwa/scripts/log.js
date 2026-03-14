@@ -552,8 +552,10 @@ const Log = {
     const group = UI.createElement('div', 'form-group');
     group.innerHTML = `
       <label class="form-label">Notes</label>
-      <textarea class="form-input" id="log-notes" placeholder="${placeholder}" rows="3"></textarea>
+      <textarea class="form-input" id="log-notes" placeholder="${placeholder}" rows="1"></textarea>
     `;
+    const ta = group.querySelector('textarea');
+    ta.addEventListener('input', () => UI.autoResize(ta));
     return group;
   },
 

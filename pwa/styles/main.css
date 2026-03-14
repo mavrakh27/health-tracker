@@ -89,7 +89,7 @@ body {
 }
 
 .header-nav-btn:active {
-  color: var(--accent-blue);
+  color: var(--accent-gold);
 }
 
 .header-date {
@@ -105,7 +105,7 @@ body {
   transform: translateX(-50%);
   width: 100%;
   max-width: var(--max-width);
-  background: rgba(17, 17, 17, 0.85);
+  background: rgba(26, 22, 20, 0.88);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border-color);
@@ -134,7 +134,7 @@ body {
 }
 
 .nav-item.active {
-  color: var(--accent-blue);
+  color: var(--accent-gold);
 }
 
 .nav-item svg {

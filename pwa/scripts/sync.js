@@ -1,25 +1,17 @@
 // sync.js — ZIP export + JSON import
 
 const Sync = {
-  // --- Export Day as ZIP ---
-  async exportDay(dateStr) {
-    const date = dateStr || App.selectedDate;
-
+  // --- Build ZIP file list for a day (shared by export, cloud upload, auto-backup) ---
+  async buildDayZipFiles(date) {
     const data = await DB.exportDay(date);
     if (!data.log.entries.length && !data.log.water_oz && !data.log.weight) {
-      UI.toast('Nothing to export for this day', 'error');
-      return;
+      return null;
     }
 
-    UI.toast('Building export...');
-
     const files = [];
-
-    // Add log.json
     const logJson = JSON.stringify(data.log, null, 2);
     files.push({ name: `daily/${date}/log.json`, data: new TextEncoder().encode(logJson) });
 
-    // Add photos — route body photos to progress/, meal photos to daily/
     for (const photo of data.photoFiles) {
       const arrayBuf = await photo.blob.arrayBuffer();
       const isBodyPhoto = photo.name.startsWith('body/');
@@ -28,6 +20,21 @@ const Sync = {
         : `daily/${date}/${photo.name}`;
       files.push({ name: zipPath, data: new Uint8Array(arrayBuf) });
     }
+
+    return files;
+  },
+
+  // --- Export Day as ZIP ---
+  async exportDay(dateStr) {
+    const date = dateStr || App.selectedDate;
+
+    const files = await Sync.buildDayZipFiles(date);
+    if (!files) {
+      UI.toast('Nothing to export for this day', 'error');
+      return;
+    }
+
+    UI.toast('Building export...');
 
     // Build ZIP
     const zipBlob = Sync.buildZip(files);
@@ -501,23 +508,10 @@ const CloudRelay = {
     try {
       CloudRelay.setSyncStatus('uploading');
       this.log(`Building ZIP for ${date}...`);
-      const data = await DB.exportDay(date);
-      if (!data.log.entries.length && !data.log.water_oz && !data.log.weight) {
+      const files = await Sync.buildDayZipFiles(date);
+      if (!files) {
         this.log(`No data for ${date}, skipping`);
         return;
-      }
-
-      const files = [];
-      const logJson = JSON.stringify(data.log, null, 2);
-      files.push({ name: `daily/${date}/log.json`, data: new TextEncoder().encode(logJson) });
-
-      for (const photo of data.photoFiles) {
-        const arrayBuf = await photo.blob.arrayBuffer();
-        const isBodyPhoto = photo.name.startsWith('body/');
-        const zipPath = isBodyPhoto
-          ? `progress/${date}/${photo.name.replace('body/', '')}`
-          : `daily/${date}/${photo.name}`;
-        files.push({ name: zipPath, data: new Uint8Array(arrayBuf) });
       }
 
       this.log(`ZIP: ${files.length} file(s), uploading to relay...`);
@@ -766,28 +760,10 @@ const AutoSync = {
   // Create and download a backup for a specific day
   async backupDay(dateStr) {
     try {
-      const data = await DB.exportDay(dateStr);
-
-      // Skip empty days
-      if (!data.log.entries.length && !data.log.water_oz && !data.log.weight) {
+      const files = await Sync.buildDayZipFiles(dateStr);
+      if (!files) {
         console.log(`AutoSync: no data for ${dateStr}, skipping`);
         return;
-      }
-
-      const files = [];
-
-      // Add log.json
-      const logJson = JSON.stringify(data.log, null, 2);
-      files.push({ name: `daily/${dateStr}/log.json`, data: new TextEncoder().encode(logJson) });
-
-      // Add photos
-      for (const photo of data.photoFiles) {
-        const arrayBuf = await photo.blob.arrayBuffer();
-        const isBodyPhoto = photo.name.startsWith('body/');
-        const zipPath = isBodyPhoto
-          ? `progress/${dateStr}/${photo.name.replace('body/', '')}`
-          : `daily/${dateStr}/${photo.name}`;
-        files.push({ name: zipPath, data: new Uint8Array(arrayBuf) });
       }
 
       // Build and download ZIP

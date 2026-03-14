@@ -20,9 +20,6 @@ const ProfileView = {
     `;
 
     if (activeTab === 'coach' && coachEl) {
-      // Build full HTML (segment + coach) in one pass to avoid innerHTML += destroying listeners
-      const tips = await Coach.getSuggestions(date);
-      html += Coach.render(tips);
       html += await CoachChat.render(date);
       coachEl.innerHTML = html;
       CoachChat.bindEvents(date);
@@ -81,7 +78,7 @@ const ProfileView = {
             <div style="font-size:var(--text-sm); font-weight:500;">${UI.escapeHtml(g.name)}</div>
             <div style="font-size:var(--text-xs); color:var(--text-muted);">${daysLeft} days left</div>
           </div>
-          <span style="font-size:var(--text-xs); color:var(--accent-blue);">${UI.formatDate(g.target)}</span>
+          <span style="font-size:var(--text-xs); color:var(--accent-gold);">${UI.formatDate(g.target)}</span>
         </div>`;
       }
       html += '</div>';

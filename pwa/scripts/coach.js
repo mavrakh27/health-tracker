@@ -54,7 +54,7 @@ const CoachChat = {
     if (isToday) {
       html += `
         <div class="coach-input-row">
-          <input type="text" class="coach-input" id="coach-input" placeholder="Ask your coach..." autocomplete="off">
+          <textarea class="coach-input" id="coach-input" placeholder="Ask your coach..." rows="1"></textarea>
           <button class="coach-send" id="coach-send">Send</button>
         </div>
       `;
@@ -97,11 +97,7 @@ const CoachChat = {
         // Re-render chat
         const container = document.getElementById('today-coach');
         if (container) {
-          // Re-render tips + chat together
-          const tips = await Coach.getSuggestions(date);
-          let html = Coach.render(tips);
-          html += await CoachChat.render(date);
-          container.innerHTML = html;
+          container.innerHTML = await CoachChat.render(date);
           CoachChat.bindEvents(date);
           const messages = document.getElementById('coach-messages');
           if (messages) messages.scrollTop = messages.scrollHeight;
@@ -120,7 +116,8 @@ const CoachChat = {
 
     sendBtn.addEventListener('click', send);
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') send();
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
     });
+    input.addEventListener('input', () => UI.autoResize(input));
   },
 };

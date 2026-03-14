@@ -9,9 +9,10 @@ const DayScore = {
     const analysis = await DB.getAnalysis(date);
     const regimen = await DB.getRegimen();
 
+    const mod = goals.moderate || {};
     const hc = goals.hardcore || {};
-    const moderate = { calories: goals.calories || 1400, protein: goals.protein || 105, water_oz: goals.water_oz || 64 };
-    const hardcore = { calories: hc.calories || 1200, protein: hc.protein || 120, water_oz: hc.water_oz || 64 };
+    const moderate = { calories: mod.calories?.daily || 1400, protein: mod.protein?.grams || 105, water_oz: mod.water?.daily_oz || 64 };
+    const hardcore = { calories: hc.calories?.daily || 1200, protein: hc.protein?.grams || 120, water_oz: hc.water?.daily_oz || 64 };
 
     // Get actuals — prefer analysis data, fall back to entry counting
     const totals = analysis?.totals || {};

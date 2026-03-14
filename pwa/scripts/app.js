@@ -1,152 +1,5 @@
 // app.js — Routing, init, navigation
 
-// --- Daily Coach (suggestions based on entries, summary, analysis + goals) ---
-const Coach = {
-  async getSuggestions(date) {
-    // Only show coach for today — past dates don't need forward-looking tips
-    if (date !== UI.today()) return [];
-
-    const tips = [];
-    const goals = await DB.getProfile('goals') || {};
-    const entries = await DB.getEntriesByDate(date);
-    const summary = await DB.getDailySummary(date);
-    const now = new Date();
-    const hour = now.getHours();
-
-    // --- Water (always available from summary) ---
-    const waterOz = summary.water_oz || 0;
-    if (goals.water_oz) {
-      const waterLeft = goals.water_oz - waterOz;
-      if (waterLeft <= 0) {
-        tips.push({ text: `Water: ${waterOz} oz \u2014 goal hit!`, highlight: true });
-      } else if (hour >= 17 && waterLeft > goals.water_oz * 0.4) {
-        tips.push({ text: `Water: only ${waterOz} of ${goals.water_oz} oz and it's getting late. Drink up!`, highlight: true });
-      } else if (waterLeft > 0) {
-        tips.push({ text: `Water: ${waterOz} of ${goals.water_oz} oz. ${waterLeft} oz to go.` });
-      }
-    } else if (waterOz > 0) {
-      tips.push({ text: `Water: ${waterOz} oz logged today.` });
-    }
-
-    // --- Food entries (always available) ---
-    const meals = entries.filter(e => e.type === 'meal');
-    const workouts = entries.filter(e => e.type === 'workout');
-
-    // Analysis-powered tips (calories/protein) when available
-    const todayAnalysis = await DB.getAnalysis(date);
-    const yesterday = Coach._prevDate(date);
-    const yesterdayAnalysis = await DB.getAnalysis(yesterday);
-    const analysis = todayAnalysis || yesterdayAnalysis;
-    const isToday = !!todayAnalysis;
-
-    if (analysis) {
-      const totals = analysis.totals || {};
-      const label = isToday ? 'So far today' : 'Yesterday';
-
-      // Calorie status
-      if (goals.calories && totals.calories != null) {
-        const remaining = goals.calories - totals.calories;
-        if (isToday) {
-          if (remaining > 200) {
-            tips.push({ text: `${remaining} cal remaining of ${goals.calories}. You've got room.`, highlight: true });
-          } else if (remaining > 0) {
-            tips.push({ text: `${totals.calories} cal \u2014 almost at your ${goals.calories} target!`, highlight: true });
-          } else {
-            tips.push({ text: `${totals.calories} cal (${Math.abs(remaining)} over). Easy on the next meal.` });
-          }
-        } else {
-          const gap = goals.calories - totals.calories;
-          if (gap > 200) {
-            tips.push({ text: `${label}: ${totals.calories} cal (${gap} under target). Aim for ${goals.calories} today.`, highlight: true });
-          } else if (gap < -200) {
-            tips.push({ text: `${label}: ${totals.calories} cal (${Math.abs(gap)} over). Lighter day today.` });
-          } else {
-            tips.push({ text: `${label}: ${totals.calories} cal \u2014 right on target!`, highlight: true });
-          }
-        }
-      }
-
-      // Protein status
-      if (goals.protein && totals.protein != null) {
-        const remaining = goals.protein - totals.protein;
-        if (remaining > 20) {
-          const foods = Coach._proteinIdeas(date);
-          if (isToday) {
-            tips.push({ text: `Protein: ${totals.protein}g (need ${remaining}g more). Try: ${foods}`, highlight: true });
-          } else {
-            tips.push({ text: `Protein was ${totals.protein}g yesterday (goal: ${goals.protein}g). Try: ${foods}`, highlight: true });
-          }
-        } else if (remaining <= 0) {
-          tips.push({ text: `Protein: ${totals.protein}g \u2014 goal hit!`, highlight: true });
-        }
-      }
-    } else if (meals.length > 0) {
-      tips.push({ text: `${meals.length} meal${meals.length > 1 ? 's' : ''} logged. Sync to get calorie & protein tracking.` });
-    }
-
-    // --- Meal timing nudges (only when no analysis context is showing) ---
-    if (meals.length === 0 && hour >= 11 && !analysis) {
-      tips.push({ text: hour >= 14 ? 'No meals logged yet \u2014 snap a photo of what you eat!' : 'Morning going well? Log your first meal when you eat.' });
-    }
-
-    // --- Workout (regimen + logged workouts) ---
-    const regimen = await DB.getRegimen();
-    if (regimen?.weeklySchedule) {
-      const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-      const todayPlan = regimen.weeklySchedule.find(d => d.day === dayName);
-      if (todayPlan && todayPlan.type !== 'rest') {
-        if (workouts.length > 0) {
-          tips.push({ text: 'Workout done!', highlight: true });
-        } else {
-          tips.push({ text: `Today: ${todayPlan.type}`, highlight: true });
-        }
-      } else if (todayPlan?.type === 'rest') {
-        tips.push({ text: 'Rest day \u2014 stretch, walk, recover.' });
-      }
-    } else if (workouts.length > 0) {
-      tips.push({ text: 'Workout logged!', highlight: true });
-    }
-
-    return tips;
-  },
-
-  _prevDate(dateStr) {
-    const d = new Date(dateStr + 'T12:00:00');
-    d.setDate(d.getDate() - 1);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  },
-
-  _proteinIdeas(dateSeed) {
-    const foods = [
-      'eggs (6g each)', 'Greek yogurt (15g)', 'chicken breast (25g/4oz)',
-      'protein shake (25\u201330g)', 'cottage cheese (14g/cup)', 'tuna can (20g)',
-      'edamame (17g/cup)', 'turkey slices (18g/4oz)',
-    ];
-    const seed = parseInt(dateSeed.replace(/-/g, ''), 10);
-    const picked = [];
-    const copy = [...foods];
-    for (let i = 0; i < 3 && copy.length; i++) {
-      const idx = (seed + i * 7) % copy.length;
-      picked.push(copy.splice(idx, 1)[0]);
-    }
-    return picked.join(', ');
-  },
-
-  render(tips) {
-    if (!tips.length) return '';
-    return `
-      <div class="coach-card">
-        <div class="coach-header">Daily Coach</div>
-        ${tips.map(t => `
-          <div class="coach-tip${t.highlight ? ' coach-tip--highlight' : ''}">
-            <span class="coach-tip-text">${UI.escapeHtml(t.text)}</span>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  },
-};
-
 // --- Quick Log (zero-friction logging from Today screen) ---
 const QuickLog = {
   init() {
@@ -585,14 +438,11 @@ const App = {
       } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
     }
 
-    // Coach suggestions + chat
+    // Coach chat
     const coachEl = document.getElementById('today-coach');
     if (coachEl) {
       try {
-        const tips = await Coach.getSuggestions(date);
-        let coachHtml = Coach.render(tips);
-        coachHtml += await CoachChat.render(date);
-        coachEl.innerHTML = coachHtml;
+        coachEl.innerHTML = await CoachChat.render(date);
         CoachChat.bindEvents(date);
       } catch (e) { console.warn('Coach error:', e); coachEl.innerHTML = ''; }
     }

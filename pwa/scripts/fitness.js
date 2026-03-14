@@ -164,7 +164,7 @@ const Fitness = {
       </div>`;
       html += `<div style="margin-top:var(--space-md);">
         <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Notes</div>
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="3">${UI.escapeHtml(notes || '')}</textarea>
+        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
         <button class="btn" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
       </div>`;
       return html;
@@ -194,7 +194,7 @@ const Fitness = {
       </div>`;
       html += `<div style="margin-top:var(--space-md);">
         <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Workout Notes</div>
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="What did you do, how did it feel..." rows="3">${UI.escapeHtml(notes || '')}</textarea>
+        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="What did you do, how did it feel..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
         <button class="btn" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
       </div>`;
       if (regimen.weeklyReview) {
@@ -269,7 +269,7 @@ const Fitness = {
     html += `
       <div style="margin-top:var(--space-md);">
         <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Workout Notes</div>
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Did extra cardio, hip felt tight, modified an exercise..." rows="3">${UI.escapeHtml(notes || '')}</textarea>
+        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Did extra cardio, hip felt tight, modified an exercise..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
         <button class="btn" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
       </div>
     `;
@@ -339,8 +339,9 @@ const Fitness = {
     const notesEl = document.getElementById('fitness-notes');
     const saveBtn = document.getElementById('fitness-save-btn');
     if (notesEl) {
-      // Auto-save on input (fallback if user navigates away)
+      UI.autoResize(notesEl);
       notesEl.addEventListener('input', () => {
+        UI.autoResize(notesEl);
         clearTimeout(Fitness._saveTimer);
         if (saveBtn) { saveBtn.textContent = 'Save Notes'; saveBtn.style.opacity = '1'; }
         Fitness._saveTimer = setTimeout(() => {
