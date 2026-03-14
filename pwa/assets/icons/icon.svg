@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Warm dark rounded background -->
-  <rect width="512" height="512" rx="112" fill="#1a1614"/>
+  <!-- Cool dark rounded background -->
+  <rect width="512" height="512" rx="112" fill="#0d1117"/>
 
   <!-- Speech bubble shape — coaching/guidance -->
   <path d="M256 100c-100 0-170 60-170 140 0 45 25 85 65 112l-15 60 65-35c17 5 35 7 55 7 100 0 170-58 170-144S356 100 256 100z"
-    fill="#2a2520"
-    stroke="#3d362e"
+    fill="#1c2128"
+    stroke="#30363d"
     stroke-width="4"
   />
 
@@ -13,7 +13,7 @@
   <polyline
     points="155,300 210,265 260,280 345,195"
     fill="none"
-    stroke="#c9953c"
+    stroke="#2dd4bf"
     stroke-width="22"
     stroke-linecap="round"
     stroke-linejoin="round"
@@ -23,7 +23,7 @@
   <polyline
     points="310,205 345,195 335,230"
     fill="none"
-    stroke="#c9953c"
+    stroke="#2dd4bf"
     stroke-width="16"
     stroke-linecap="round"
     stroke-linejoin="round"

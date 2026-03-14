@@ -72,7 +72,7 @@ const ProgressView = {
           <div style="font-size:var(--text-sm); font-weight:500;">${UI.escapeHtml(g.name)}</div>
           <div style="font-size:var(--text-xs); color:var(--text-muted);">${daysLeft} days left</div>
         </div>
-        <span style="font-size:var(--text-xs); color:var(--accent-gold);">${UI.formatDate(g.target)}</span>
+        <span style="font-size:var(--text-xs); color:var(--accent-primary);">${UI.formatDate(g.target)}</span>
       </div>`;
     }
     html += '</div>';
@@ -94,7 +94,7 @@ const ProgressView = {
       <span>${UI.formatDate(endDate)}</span>
     </div>`;
     html += `<div class="progress-bar" style="height:8px;">
-      <div class="progress-fill" style="width:${pct}%; background:linear-gradient(90deg, var(--accent-gold), var(--accent-green));"></div>
+      <div class="progress-fill" style="width:${pct}%; background:linear-gradient(90deg, var(--accent-primary), var(--accent-green));"></div>
     </div>`;
 
     // Milestone markers
@@ -204,7 +204,7 @@ const ProgressView = {
         // Hardcore target line (thin marker showing where hardcore score lands)
         if (hs != null) {
           const hcY = svgHeight - (hs / 100) * svgHeight;
-          html += `<line x1="${x}" y1="${hcY}" x2="${x + barWidth}" y2="${hcY}" stroke="var(--accent-gold)" stroke-width="2" stroke-dasharray="3,2" opacity="0.7"/>`;
+          html += `<line x1="${x}" y1="${hcY}" x2="${x + barWidth}" y2="${hcY}" stroke="var(--accent-primary)" stroke-width="2" stroke-dasharray="3,2" opacity="0.7"/>`;
         }
 
         // Score label
@@ -223,7 +223,7 @@ const ProgressView = {
     // Legend
     html += `<div style="display:flex; justify-content:center; gap:var(--space-md); margin-top:var(--space-sm); font-size:var(--text-xs); color:var(--text-muted);">
       <span>&#9632; Moderate</span>
-      <span style="color:var(--accent-gold);">--- Hardcore</span>
+      <span style="color:var(--accent-primary);">--- Hardcore</span>
     </div>`;
 
     // Average
@@ -234,7 +234,7 @@ const ProgressView = {
       const avgHc = hcScored.length ? Math.round(hcScored.reduce((s, d) => s + d.hardcore, 0) / hcScored.length) : 0;
       html += `<div style="display:flex; justify-content:center; gap:var(--space-lg); margin-top:var(--space-xs); font-size:var(--text-sm);">
         <span>Avg: <strong style="color:${avgMod >= 75 ? 'var(--accent-green)' : avgMod >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)'};">${avgMod}</strong></span>
-        <span style="color:var(--accent-gold);">HC: <strong>${avgHc}</strong></span>
+        <span style="color:var(--accent-primary);">HC: <strong>${avgHc}</strong></span>
         <span style="color:var(--text-muted);">${scored.length} day${scored.length > 1 ? 's' : ''}</span>
       </div>`;
     }
@@ -268,7 +268,7 @@ const ProgressView = {
       <div class="stat-label">Avg Protein</div>
     </div>`;
     html += `<div class="stat-card">
-      <div class="stat-value" style="color:var(--accent-gold);">${workoutDays}/${analyses.length}</div>
+      <div class="stat-value" style="color:var(--accent-primary);">${workoutDays}/${analyses.length}</div>
       <div class="stat-label">Workouts</div>
     </div>`;
     html += `<div class="stat-card">

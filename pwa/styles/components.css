@@ -36,14 +36,14 @@
 }
 
 .quick-action-primary {
-  background: var(--accent-gold);
-  color: #1a1614;
-  border-color: var(--accent-gold);
+  background: var(--accent-primary);
+  color: #0d1117;
+  border-color: var(--accent-primary);
   font-weight: 600;
 }
 
 .quick-action-primary:active {
-  background: #b8873a;
+  background: #22b8a6;
 }
 
 .quick-action-water {
@@ -80,7 +80,7 @@
 .supplement-pick:active {
   background: var(--accent-green);
   border-color: var(--accent-green);
-  color: #111;
+  color: #0d1117;
 }
 
 /* Segment control (Nutrition / Fitness toggle) */
@@ -109,8 +109,8 @@
 }
 
 .segment-btn.active {
-  background: var(--accent-green);
-  color: #111;
+  background: var(--accent-primary);
+  color: #0d1117;
   font-weight: 600;
 }
 
@@ -144,7 +144,7 @@
 .fitness-check.checked {
   background: var(--accent-green);
   border-color: var(--accent-green);
-  color: #111;
+  color: #0d1117;
 }
 
 .fitness-exercise.fitness-done {
@@ -259,13 +259,13 @@
 }
 
 .btn-primary {
-  background: var(--accent-gold);
-  color: #1a1614;
+  background: var(--accent-primary);
+  color: #0d1117;
   font-weight: 600;
 }
 
 .btn-primary:active {
-  background: #b8873a;
+  background: #22b8a6;
   transform: scale(0.97);
 }
 
@@ -393,8 +393,8 @@
 
 .form-input:focus {
   outline: none;
-  border-color: var(--accent-gold);
-  box-shadow: 0 0 0 2px rgba(201, 149, 60, 0.15);
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.15);
 }
 
 .form-input::placeholder {
@@ -568,7 +568,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .entry-photo-locked.revealed {
-  border-color: var(--accent-gold);
+  border-color: var(--accent-primary);
 }
 
 /* Stat Cards */
@@ -622,9 +622,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .subtype-chip.selected {
-  background: var(--accent-gold);
-  color: #1a1614;
-  border-color: var(--accent-gold);
+  background: var(--accent-primary);
+  color: #0d1117;
+  border-color: var(--accent-primary);
 }
 
 /* Toast Notifications */
@@ -910,13 +910,13 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .cal-day.today .cal-day-num {
-  color: var(--accent-gold);
+  color: var(--accent-primary);
   font-weight: 700;
 }
 
 .cal-day.selected {
   background: var(--bg-hover);
-  outline: 2px solid var(--accent-gold);
+  outline: 2px solid var(--accent-primary);
 }
 
 .cal-day-num {
@@ -966,8 +966,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .s-card--accent {
-  border-color: var(--accent-gold-dim);
-  background: linear-gradient(135deg, var(--bg-card) 0%, color-mix(in srgb, var(--accent-gold) 5%, var(--bg-card)) 100%);
+  border-color: var(--accent-primary-dim);
+  background: linear-gradient(135deg, var(--bg-card) 0%, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-card)) 100%);
 }
 
 .s-card-row {
@@ -1033,13 +1033,13 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .s-action-btn--primary {
-  background: var(--accent-gold);
-  color: #1a1614;
-  border-color: var(--accent-gold);
+  background: var(--accent-primary);
+  color: #0d1117;
+  border-color: var(--accent-primary);
 }
 
 .s-action-btn--primary:active {
-  background: #b8873a;
+  background: #22b8a6;
 }
 
 .s-btn-row {
@@ -1104,13 +1104,13 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .s-toggle input:checked + .s-toggle-track {
-  background: var(--accent-gold-dim);
-  border-color: var(--accent-gold);
+  background: var(--accent-primary-dim);
+  border-color: var(--accent-primary);
 }
 
 .s-toggle input:checked + .s-toggle-track::before {
   transform: translateX(20px);
-  background: var(--accent-gold);
+  background: var(--accent-primary);
 }
 
 /* ── Coach Card ── */

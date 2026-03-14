@@ -479,15 +479,14 @@ const App = {
   renderWelcomeCard() {
     return `
       <div class="card" style="text-align:center; padding: var(--space-lg);">
-        <div style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-md);">Welcome</div>
-        <h2 style="font-size: var(--text-lg); margin-bottom: var(--space-sm);">Welcome to Health Tracker</h2>
+        <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-sm);">Welcome to Coach</h2>
         <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-lg); line-height: 1.6;">
           Log meals, water, workouts, and weight throughout the day.<br>
           Snap photos of your food and Claude will analyze everything nightly.
         </p>
         <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
           <button class="btn btn-primary btn-block btn-lg" onclick="App.showGoalSetup()">Set Your Goals</button>
-          <button class="btn btn-secondary btn-block" onclick="window.location.hash='log'">Start Logging</button>
+          <button class="btn btn-secondary btn-block" onclick="document.getElementById('toggle-log-types').click()">Start Logging</button>
         </div>
         <p style="color: var(--text-muted); font-size: var(--text-xs); margin-top: var(--space-lg);">
           Set up Cloud Sync in Settings for automatic nightly analysis.

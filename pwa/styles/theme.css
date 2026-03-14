@@ -1,46 +1,47 @@
 /* Coach Design System
-   Theme: Warm Dark — cozy, inviting, wood-and-ember tones.
-   Warm dark browns, soft cream text, subtle warm borders,
-   amber/gold accent. Feels like a fireside companion. */
+   Theme: Cool Dark — focused, serious, lock-in energy.
+   Deep navy backgrounds, crisp silver text, teal accent.
+   Feels like a command center for your goals. */
 
 :root {
-  /* Backgrounds — warm dark browns */
-  --bg-primary: #1a1614;
-  --bg-secondary: #211e1b;
-  --bg-card: #242019;
-  --bg-input: #2a2520;
-  --bg-hover: #332e28;
+  /* Backgrounds — deep navy */
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #1c2128;
+  --bg-input: #21262d;
+  --bg-hover: #292e36;
+  --bg-tertiary: #242a33;
 
-  /* Text — warm cream, not pure white */
-  --text-primary: #ede8e1;
-  --text-secondary: #9b9189;
-  --text-muted: #6b6058;
+  /* Text — cool silver */
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
 
-  /* Accents — warm, earthy */
-  --accent-green: #5ebd6e;
-  --accent-green-dim: #1e2a1a;
-  --accent-blue: #7eaed4;
-  --accent-blue-dim: #1a2430;
-  --accent-orange: #e09347;
-  --accent-orange-dim: #302010;
-  --accent-red: #d4605a;
-  --accent-red-dim: #2e1616;
-  --accent-purple: #a78bda;
-  --accent-purple-dim: #231c30;
-  --accent-yellow: #d4b455;
-  --accent-cyan: #5cb8b0;
-  --accent-gold: #c9953c;        /* Warm amber — primary accent */
-  --accent-gold-dim: #2a2010;
+  /* Accents — cool, focused */
+  --accent-green: #3fb950;
+  --accent-green-dim: #122117;
+  --accent-blue: #58a6ff;
+  --accent-blue-dim: #0d2240;
+  --accent-orange: #d29922;
+  --accent-orange-dim: #2a1f06;
+  --accent-red: #f85149;
+  --accent-red-dim: #3b1117;
+  --accent-purple: #bc8cff;
+  --accent-purple-dim: #1f1232;
+  --accent-yellow: #d2a641;
+  --accent-cyan: #39d3c5;
+  --accent-primary: #2dd4bf;        /* Teal — primary accent */
+  --accent-primary-dim: #0a2725;
 
-  /* Entry type colors — warm-shifted */
-  --color-meal: #5ebd6e;
-  --color-snack: #d4b455;
-  --color-drink: #5cb8b0;
-  --color-workout: #e09347;
-  --color-water: #7eaed4;
-  --color-weight: #a78bda;
-  --color-body-photo: #d47080;
-  --color-sleep: #7c7cd0;
+  /* Entry type colors */
+  --color-meal: #3fb950;
+  --color-snack: #d2a641;
+  --color-drink: #39d3c5;
+  --color-workout: #f0883e;
+  --color-water: #58a6ff;
+  --color-weight: #bc8cff;
+  --color-body-photo: #f778ba;
+  --color-sleep: #8b8bd8;
 
   /* Spacing */
   --space-xs: 4px;
@@ -62,18 +63,18 @@
   --text-xl: 22px;
   --text-2xl: 28px;
 
-  /* Borders — warm, barely visible */
+  /* Borders — cool slate */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-full: 9999px;
-  --border-color: #332e28;
-  --border-accent: #3d362e;
+  --border-color: #30363d;
+  --border-accent: #3d444d;
 
-  /* Shadows — warm in dark mode */
-  --shadow-sm: 0 1px 2px rgba(10, 6, 2, 0.3);
-  --shadow-md: 0 2px 8px rgba(10, 6, 2, 0.4);
-  --shadow-lg: 0 4px 16px rgba(10, 6, 2, 0.5);
+  /* Shadows — cool blue-black */
+  --shadow-sm: 0 1px 2px rgba(0, 4, 15, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 4, 15, 0.4);
+  --shadow-lg: 0 4px 16px rgba(0, 4, 15, 0.5);
 
   /* Layout */
   --nav-height: 64px;

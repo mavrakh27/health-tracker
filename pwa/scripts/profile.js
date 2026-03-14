@@ -78,7 +78,7 @@ const ProfileView = {
             <div style="font-size:var(--text-sm); font-weight:500;">${UI.escapeHtml(g.name)}</div>
             <div style="font-size:var(--text-xs); color:var(--text-muted);">${daysLeft} days left</div>
           </div>
-          <span style="font-size:var(--text-xs); color:var(--accent-gold);">${UI.formatDate(g.target)}</span>
+          <span style="font-size:var(--text-xs); color:var(--accent-primary);">${UI.formatDate(g.target)}</span>
         </div>`;
       }
       html += '</div>';

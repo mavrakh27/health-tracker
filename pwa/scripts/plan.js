@@ -19,7 +19,7 @@ const PlanView = {
       const todayPlan = mealPlan.days.find(d => d.date === date);
       if (todayPlan?.dayType) {
         html += `<div style="text-align:center; margin-bottom:var(--space-md);">
-          <span style="font-size:var(--text-xs); color:var(--accent-gold); background:var(--accent-gold-dim); padding:4px 12px; border-radius:var(--radius-full); text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">${UI.escapeHtml(todayPlan.dayType)}</span>
+          <span style="font-size:var(--text-xs); color:var(--accent-primary); background:var(--accent-primary-dim); padding:4px 12px; border-radius:var(--radius-full); text-transform:uppercase; font-weight:600; letter-spacing:0.5px;">${UI.escapeHtml(todayPlan.dayType)}</span>
         </div>`;
       }
     }
@@ -171,7 +171,7 @@ const PlanView = {
         <span style="font-size:var(--text-xs); color:var(--text-muted);">${day.day_totals?.calories || '?'} cal</span>
       </div>`;
       if (day.dayType) {
-        html += `<div style="font-size:var(--text-xs); color:var(--accent-gold);">${UI.escapeHtml(day.dayType)}</div>`;
+        html += `<div style="font-size:var(--text-xs); color:var(--accent-primary);">${UI.escapeHtml(day.dayType)}</div>`;
       }
       html += `</div>`;
     }
