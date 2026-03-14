@@ -651,6 +651,33 @@ const CloudRelay = {
     }
   },
 
+  // Re-sync all results from relay (for reinstall recovery)
+  async resyncAll() {
+    const config = await this.getConfig();
+    if (!config || !config.workerUrl || !config.syncKey) {
+      UI.toast('Cloud Sync not configured');
+      return;
+    }
+    try {
+      this.log('Requesting resync of all results...');
+      const url = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/resync`;
+      const resp = await fetch(url, { method: 'POST' });
+      if (!resp.ok) {
+        this.log(`Resync failed: HTTP ${resp.status}`, 'error');
+        UI.toast('Resync failed');
+        return;
+      }
+      const { resyncDates } = await resp.json();
+      this.log(`Resync queued ${resyncDates.length} date(s): ${resyncDates.join(', ')}`, 'ok');
+      UI.toast(`Re-syncing ${resyncDates.length} day(s)...`);
+      await this.checkForResults();
+      App.loadDayView();
+    } catch (err) {
+      this.log(`Resync error: ${err.message}`, 'error');
+      UI.toast('Resync failed');
+    }
+  },
+
   // Show sync setup modal
   async showSetup() {
     const overlay = UI.createElement('div', 'modal-overlay');

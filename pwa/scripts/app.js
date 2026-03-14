@@ -447,15 +447,24 @@ const App = {
       } catch (e) { console.warn('Coach error:', e); coachEl.innerHTML = ''; }
     }
 
-    // Inline log toggle (use onclick to avoid listener accumulation on re-render)
-    const toggleBtn = document.getElementById('toggle-log-types');
+    // Add Entry button — insert at top of entry list
     const logGrid = document.getElementById('log-type-grid-inline');
-    if (toggleBtn && logGrid) {
-      toggleBtn.onclick = () => {
+    if (entryList && logGrid) {
+      const addBtn = document.createElement('button');
+      addBtn.id = 'toggle-log-types';
+      addBtn.className = 'btn btn-primary btn-block';
+      addBtn.style.cssText = 'margin-bottom: var(--space-sm); border-radius: var(--radius-md); padding: var(--space-sm);';
+      addBtn.textContent = '+ Add Entry';
+      entryList.insertBefore(addBtn, entryList.firstChild);
+
+      addBtn.onclick = () => {
         const showing = logGrid.style.display !== 'none';
         logGrid.style.display = showing ? 'none' : 'grid';
-        toggleBtn.textContent = showing ? '+ Add' : 'Cancel';
-        if (!showing) {
+        addBtn.textContent = showing ? '+ Add Entry' : 'Cancel';
+        if (showing) {
+          addBtn.className = 'btn btn-primary btn-block';
+        } else {
+          addBtn.className = 'btn btn-secondary btn-block';
           Log.init('log-type-grid-inline', 'log-form-content-inline');
           logGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }

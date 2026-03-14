@@ -93,6 +93,16 @@ async function handle(request, env, key, route) {
     return json(200, { ok: true, date });
   }
 
+  // POST /sync/{key}/results/resync — re-mark all results as new (for reinstall recovery)
+  if (route === 'results/resync' && method === 'POST') {
+    const listed = await env.BUCKET.list({ prefix: `results/${key}/` });
+    const dates = listed.objects.map(o => o.key.replace(`results/${key}/`, '').replace('.json', '')).filter(d => DATE_RE.test(d));
+    await updateState(env, key, state => {
+      state.newResults = dates;
+    });
+    return json(200, { ok: true, resyncDates: dates });
+  }
+
   // GET /sync/{key}/results/new — check for new results
   if (route === 'results/new' && method === 'GET') {
     const state = await getState(env, key);

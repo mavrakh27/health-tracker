@@ -41,12 +41,7 @@
       <div id="today-coach"></div>
 
       <!-- Inline entry creation (merged from Log) -->
-      <div id="today-log-section">
-        <h2 class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
-          <span>Log</span>
-          <button class="btn btn-primary" id="toggle-log-types" style="font-size:var(--text-sm); padding:6px 16px; border-radius:999px;">+ Add</button>
-        </h2>
-
+      <div id="today-log-section" style="margin-top: var(--space-md);">
         <div id="log-type-grid-inline" class="type-grid" style="display:none;">
           <!-- Populated by log.js -->
         </div>
@@ -108,6 +103,10 @@
             <p class="s-subtitle" id="cloud-sync-status">Not configured</p>
           </div>
           <button class="s-action-btn s-action-btn--primary" onclick="CloudRelay.showSetup()">Setup</button>
+        </div>
+        <div class="s-btn-row">
+          <button class="btn btn-secondary" onclick="CloudRelay.checkForResults()">Check Results</button>
+          <button class="btn btn-secondary" onclick="CloudRelay.resyncAll()">Re-sync All</button>
         </div>
       </div>
 
