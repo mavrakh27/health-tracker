@@ -142,7 +142,7 @@ const DayScore = {
     const chips = [];
     if (bd.calories != null) chips.push({ label: 'Cal', pts: bd.calories, max: 25 });
     if (bd.protein != null) chips.push({ label: 'Protein', pts: bd.protein, max: 25 });
-    chips.push({ label: bd.workout === 25 && !bd._isRest ? 'Workout' : 'Rest', pts: bd.workout, max: 25 });
+    chips.push({ label: bd._isRest ? 'Rest' : 'Workout', pts: bd.workout, max: 25 });
     chips.push({ label: 'Water', pts: bd.water, max: 10 });
     chips.push({ label: 'Logged', pts: bd.logging, max: 15 });
     if (bd.vices != null) chips.push({ label: 'Vices', pts: bd.vices, max: 0 });
