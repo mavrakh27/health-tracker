@@ -26,7 +26,8 @@ TODAY=$(date +%Y-%m-%d)
 
 # --- Lock file to prevent concurrent processing ---
 if [ -f "$LOCK_FILE" ]; then
-    LOCK_AGE=$(( $(date +%s) - $(date -r "$LOCK_FILE" +%s 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
+    FILE_MTIME=$(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || date +%s)
+    LOCK_AGE=$(( $(date +%s) - FILE_MTIME ))
     if [ "$LOCK_AGE" -lt 3600 ]; then
         echo "[$TODAY] Another processing run is in progress - lock file exists. Aborting."
         exit 0

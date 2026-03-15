@@ -737,7 +737,7 @@ const App = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Cloud Sync</span>
-        <button class="modal-close" id="gs-close">&times;</button>
+        <button class="modal-close" id="gs-sync-close">&times;</button>
       </div>
       <div style="text-align:center; margin-bottom:var(--space-md);">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" width="40" height="40" style="margin-bottom:var(--space-sm);">
@@ -761,7 +761,7 @@ const App = {
     `;
 
     const closeAndLoad = () => { overlay.remove(); App.loadDayView(); };
-    document.getElementById('gs-close').addEventListener('click', closeAndLoad);
+    document.getElementById('gs-sync-close').addEventListener('click', closeAndLoad);
     document.getElementById('gs-sync-skip').addEventListener('click', closeAndLoad);
 
     document.getElementById('gs-sync-save').addEventListener('click', async () => {

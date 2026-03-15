@@ -179,9 +179,11 @@ async function updateState(env, key, mutator) {
       await env.BUCKET.put(stateKey, JSON.stringify(state), putOptions);
       return; // success
     } catch (err) {
-      // PreconditionFailed means another request wrote state between our read and write
-      if (attempt < MAX_RETRIES - 1) continue;
-      throw new Error(`updateState: failed after ${MAX_RETRIES} attempts (concurrent writes)`);
+      // Only retry on PreconditionFailed (concurrent write); propagate real errors immediately
+      const isPrecondition = err?.message?.includes('PreconditionFailed') || err?.status === 412;
+      if (isPrecondition && attempt < MAX_RETRIES - 1) continue;
+      if (isPrecondition) throw new Error(`updateState: failed after ${MAX_RETRIES} attempts (concurrent writes)`);
+      throw err;
     }
   }
 }

@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-HOUR=$(date +%-H)
+HOUR=$(date +%H); HOUR=${HOUR#0}
 if [ "$HOUR" -ge 0 ] && [ "$HOUR" -lt 8 ]; then
     echo "[watcher] Quiet hours (12am-8am). Exiting."
     exit 0
@@ -22,7 +22,8 @@ LOCK_FILE="$DATA_DIR/processing.lock"
 
 # Lock file check with stale detection (>60 min)
 if [ -f "$LOCK_FILE" ]; then
-    LOCK_AGE=$(( $(date +%s) - $(date -r "$LOCK_FILE" +%s 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || echo 0) ))
+    FILE_MTIME=$(stat -f %m "$LOCK_FILE" 2>/dev/null || stat -c %Y "$LOCK_FILE" 2>/dev/null || date +%s)
+    LOCK_AGE=$(( $(date +%s) - FILE_MTIME ))
     if [ "$LOCK_AGE" -lt 3600 ]; then
         LOCK_MIN=$(( LOCK_AGE / 60 ))
         echo "[watcher] Processing already in progress (lock file age: ${LOCK_MIN} min). Exiting."
