@@ -450,7 +450,7 @@ const CloudRelay = {
     this._uploadTimer = setTimeout(() => this._doUpload(), 3000);
   },
 
-  async _doUpload() {
+  async _doUpload(force = false) {
     const date = this._pendingDate;
     if (!date) return;
     this._pendingDate = null;
@@ -462,20 +462,22 @@ const CloudRelay = {
     }
 
     // Skip upload if analysis already exists and no entries were added after import
-    try {
-      const analysis = await DB.getAnalysis(date);
-      if (analysis && analysis.importedAt) {
-        const entries = await DB.getEntriesByDate(date);
-        const newestEntry = entries.reduce((max, e) => Math.max(max, e.timestamp ? new Date(e.timestamp).getTime() : 0), 0);
-        if (newestEntry <= analysis.importedAt) {
-          this.log(`Skipping upload for ${date} — analysis already imported and no new entries`);
-          return;
+    if (!force) {
+      try {
+        const analysis = await DB.getAnalysis(date);
+        if (analysis && analysis.importedAt) {
+          const entries = await DB.getEntriesByDate(date);
+          const newestEntry = entries.reduce((max, e) => Math.max(max, e.timestamp ? new Date(e.timestamp).getTime() : 0), 0);
+          if (newestEntry <= analysis.importedAt) {
+            this.log(`Skipping upload for ${date} — analysis already imported and no new entries`);
+            return;
+          }
+          this.log(`Re-uploading ${date} — new entries after analysis import`);
         }
-        this.log(`Re-uploading ${date} — new entries after analysis import`);
+      } catch (err) {
+        // If check fails, proceed with upload anyway
+        this.log(`Analysis check failed: ${err.message}, uploading anyway`);
       }
-    } catch (err) {
-      // If check fails, proceed with upload anyway
-      this.log(`Analysis check failed: ${err.message}, uploading anyway`);
     }
 
     try {
@@ -657,6 +659,7 @@ const CloudRelay = {
       ${config.syncKey ? '<button class="btn btn-ghost btn-block" id="cs-test" style="margin-top: var(--space-sm);">Test Connection</button>' : ''}
       <button class="btn btn-secondary btn-block" id="cs-sync-now" style="margin-top: var(--space-sm);">Sync Now</button>
       <button class="btn btn-secondary btn-block" id="cs-check-results" style="margin-top: var(--space-xs);">Check for Results</button>
+      <button class="btn btn-ghost btn-block" id="cs-resync" style="margin-top: var(--space-xs);">Re-sync All Results</button>
       <div style="margin-top: var(--space-md);">
         <label class="form-label">Sync Log</label>
         <div id="cloud-sync-log" style="font-size: var(--text-xs); font-family: monospace; max-height: 200px; overflow-y: auto; padding: var(--space-sm); background: var(--bg-secondary); border-radius: var(--radius-sm);"></div>
@@ -699,12 +702,21 @@ const CloudRelay = {
       CloudRelay._uploadTimer = null;
       CloudRelay.log(`Manual sync triggered for ${today}`);
       CloudRelay._pendingDate = today;
-      await CloudRelay._doUpload();
+      await CloudRelay._doUpload(true);
       await CloudRelay.checkForResults();
     });
 
     document.getElementById('cs-check-results').addEventListener('click', async () => {
+      UI.toast('Checking for results...');
       await CloudRelay.checkForResults();
+      // If no results were found, the toast from checkForResults won't fire — show feedback
+      if (!CloudRelay._gotResults) {
+        UI.toast('No new results on relay');
+      }
+    });
+
+    document.getElementById('cs-resync')?.addEventListener('click', async () => {
+      await CloudRelay.resyncAll();
     });
 
     document.getElementById('cs-test')?.addEventListener('click', async () => {
