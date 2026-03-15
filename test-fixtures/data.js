@@ -68,11 +68,11 @@ function buildFixtures() {
     {
       date: day1,
       entries: [
-        { type: 'meal', subtype: 'breakfast', description: 'Oatmeal with berries and protein powder', calories: 380, protein: 28, carbs: 52, fat: 8, confidence: 'high' },
-        { type: 'meal', subtype: 'lunch', description: 'Grilled chicken salad with quinoa', calories: 450, protein: 42, carbs: 35, fat: 14, confidence: 'high' },
-        { type: 'meal', subtype: 'dinner', description: 'Salmon with roasted vegetables', calories: 520, protein: 38, carbs: 28, fat: 24, confidence: 'medium' },
-        { type: 'workout', subtype: 'cardio', description: 'Elliptical 25 min, level 10', calories_burned: 180, duration_minutes: 25, confidence: 'high' },
-        { type: 'supplement', description: 'Fiber + Collagen', calories: 100, protein: 18 },
+        { id: `meal_${ts(day1,8,0)}_test1`, type: 'meal', subtype: 'breakfast', description: 'Oatmeal with berries and protein powder', calories: 380, protein: 28, carbs: 52, fat: 8, confidence: 'high' },
+        { id: `meal_${ts(day1,12,30)}_test2`, type: 'meal', subtype: 'lunch', description: 'Grilled chicken salad with quinoa', calories: 450, protein: 42, carbs: 35, fat: 14, confidence: 'high' },
+        { id: `meal_${ts(day1,18,0)}_test3`, type: 'meal', subtype: 'dinner', description: 'Salmon with roasted vegetables', calories: 520, protein: 38, carbs: 28, fat: 24, confidence: 'medium' },
+        { id: `workout_${ts(day1,7,0)}_test4`, type: 'workout', subtype: 'cardio', description: 'Elliptical 25 min, level 10', calories_burned: 180, duration_minutes: 25, confidence: 'high' },
+        { id: `supplement_${ts(day1,8,30)}_test5`, type: 'supplement', description: 'Fiber + Collagen', calories: 100, protein: 18 },
       ],
       totals: { calories: 1450, protein: 126, carbs: 115, fat: 46 },
       goals: { water: { target_oz: 64, actual_oz: 72 } },
@@ -81,8 +81,8 @@ function buildFixtures() {
     {
       date: day2,
       entries: [
-        { type: 'meal', subtype: 'breakfast', description: 'Greek yogurt with granola', calories: 320, protein: 22, carbs: 38, fat: 10, confidence: 'medium' },
-        { type: 'meal', subtype: 'lunch', description: 'Turkey sandwich', calories: 480, protein: 32, carbs: 42, fat: 18, confidence: 'medium' },
+        { id: `meal_${ts(day2,9,0)}_test6`, type: 'meal', subtype: 'breakfast', description: 'Greek yogurt with granola', calories: 320, protein: 22, carbs: 38, fat: 10, confidence: 'medium' },
+        { id: `meal_${ts(day2,13,0)}_test7`, type: 'meal', subtype: 'lunch', description: 'Turkey sandwich', calories: 480, protein: 32, carbs: 42, fat: 18, confidence: 'medium' },
       ],
       totals: { calories: 800, protein: 54, carbs: 80, fat: 28 },
       goals: { water: { target_oz: 64, actual_oz: 32 } },
@@ -91,10 +91,10 @@ function buildFixtures() {
     {
       date: day3,
       entries: [
-        { type: 'meal', subtype: 'breakfast', description: 'Eggs and toast', calories: 350, protein: 24, carbs: 30, fat: 16, confidence: 'high' },
-        { type: 'meal', subtype: 'lunch', description: 'Chicken bowl', calories: 550, protein: 45, carbs: 40, fat: 20, confidence: 'medium' },
-        { type: 'meal', subtype: 'dinner', description: 'Steak with sweet potato', calories: 620, protein: 48, carbs: 35, fat: 28, confidence: 'medium' },
-        { type: 'supplement', description: 'Fiber', calories: 30, protein: 0 },
+        { id: `meal_${ts(day3,8,0)}_test8`, type: 'meal', subtype: 'breakfast', description: 'Eggs and toast', calories: 350, protein: 24, carbs: 30, fat: 16, confidence: 'high' },
+        { id: `meal_${ts(day3,12,0)}_test9`, type: 'meal', subtype: 'lunch', description: 'Chicken bowl', calories: 550, protein: 45, carbs: 40, fat: 20, confidence: 'medium' },
+        { id: `meal_${ts(day3,18,30)}_test10`, type: 'meal', subtype: 'dinner', description: 'Steak with sweet potato', calories: 620, protein: 48, carbs: 35, fat: 28, confidence: 'medium' },
+        { id: `supplement_${ts(day3,8,30)}_test11`, type: 'supplement', description: 'Fiber', calories: 30, protein: 0 },
       ],
       totals: { calories: 1550, protein: 117, carbs: 105, fat: 64 },
       goals: { water: { target_oz: 64, actual_oz: 64 } },
@@ -103,7 +103,7 @@ function buildFixtures() {
     {
       date: day4,
       entries: [
-        { type: 'drink', description: 'La Croix sparkling water', calories: 0, protein: 0, confidence: 'high' },
+        { id: `drink_${ts(day4,14,0)}_test12`, type: 'drink', description: 'La Croix sparkling water', calories: 0, protein: 0, confidence: 'high' },
       ],
       totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
       goals: { water: { target_oz: 64, actual_oz: 8 } },
@@ -111,10 +111,10 @@ function buildFixtures() {
     {
       date: day5,
       entries: [
-        { type: 'meal', subtype: 'lunch', description: 'Pizza slice', calories: 450, protein: 18, carbs: 48, fat: 20, confidence: 'medium' },
-        { type: 'meal', subtype: 'dinner', description: 'Burger and fries', calories: 950, protein: 35, carbs: 65, fat: 48, confidence: 'medium' },
-        { type: 'vice', description: 'Beer x2', calories: 300, quantity: 2 },
-        { type: 'vice', description: 'Cocktail', calories: 200, quantity: 1 },
+        { id: `meal_${ts(day5,12,0)}_test13`, type: 'meal', subtype: 'lunch', description: 'Pizza slice', calories: 450, protein: 18, carbs: 48, fat: 20, confidence: 'medium' },
+        { id: `meal_${ts(day5,19,0)}_test14`, type: 'meal', subtype: 'dinner', description: 'Burger and fries', calories: 950, protein: 35, carbs: 65, fat: 48, confidence: 'medium' },
+        { id: `vice_${ts(day5,20,0)}_test15`, type: 'vice', description: 'Beer x2', calories: 300, quantity: 2 },
+        { id: `vice_${ts(day5,21,0)}_test16`, type: 'vice', description: 'Cocktail', calories: 200, quantity: 1 },
       ],
       totals: { calories: 1900, protein: 53, carbs: 113, fat: 68 },
       goals: { water: { target_oz: 64, actual_oz: 24 } },
