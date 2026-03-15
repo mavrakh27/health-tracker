@@ -147,6 +147,12 @@ const UI = {
   clearChildren(el) {
     // Revoke any object URLs in child images to prevent memory leaks
     el.querySelectorAll?.('img[src^="blob:"]')?.forEach(img => URL.revokeObjectURL(img.src));
+    // Revoke blob URLs used as background-image (e.g. body photo lock thumbnails)
+    el.querySelectorAll?.('[style*="blob:"]')?.forEach(node => {
+      const bg = node.style.backgroundImage;
+      const match = bg && bg.match(/url\("?(blob:[^"')]+)"?\)/);
+      if (match) URL.revokeObjectURL(match[1]);
+    });
     while (el.firstChild) el.removeChild(el.firstChild);
   },
 
