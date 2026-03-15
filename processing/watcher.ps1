@@ -8,7 +8,8 @@ if ($hour -ge 0 -and $hour -lt 8) {
 }
 
 # Lock file to prevent concurrent processing
-$lockFile = "$env:USERPROFILE\iCloudDrive\HealthTracker\processing.lock"  # DATA_DIR lock
+$dataDir = if ($env:HEALTH_DATA_DIR) { $env:HEALTH_DATA_DIR } else { "$env:USERPROFILE\HealthTracker" }
+$lockFile = "$dataDir\processing.lock"
 if (Test-Path $lockFile) {
     $lockAge = (Get-Date) - (Get-Item $lockFile).LastWriteTime
     if ($lockAge.TotalMinutes -lt 60) {

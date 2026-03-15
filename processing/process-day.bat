@@ -8,9 +8,9 @@ REM IMPORTANT: Never re-processes dates that already have analysis.
 
 setlocal enabledelayedexpansion
 
-set DATA_DIR=%USERPROFILE%\iCloudDrive\HealthTracker
-set REPO_DIR=%USERPROFILE%\projects\health-tracker
-set BACKUP_DIR=%USERPROFILE%\health-data-backup
+if defined HEALTH_DATA_DIR (set DATA_DIR=%HEALTH_DATA_DIR%) else (set DATA_DIR=%USERPROFILE%\HealthTracker)
+if defined HEALTH_REPO_DIR (set REPO_DIR=%HEALTH_REPO_DIR%) else (set REPO_DIR=%~dp0..)
+if defined HEALTH_BACKUP_DIR (set BACKUP_DIR=%HEALTH_BACKUP_DIR%) else (set BACKUP_DIR=%USERPROFILE%\health-data-backup)
 set LOCK_FILE=%DATA_DIR%\processing.lock
 
 REM --- Get today's date using locale-independent method ---

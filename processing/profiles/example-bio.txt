@@ -1,0 +1,24 @@
+YOUR STATS & GOALS
+Current Stats:
+	- Height, weight, activity level
+	- Any specific body composition notes
+Primary Goal:
+	- Your main health/fitness goal
+	- Secondary goals
+Current Challenges:
+	- Eating habits to improve
+	- Schedule constraints
+
+DIET PLAN
+	- Daily calorie target
+	- Meal timing and structure
+	- Preferred cuisines and meals
+	- Strategies for staying on track
+
+FITNESS PLAN
+	- Cardio routine
+	- Strength/core work
+	- Weekly schedule
+
+Copy this file to your HEALTH_DATA_DIR/profile/bio.txt and fill in your details.
+Claude reads this during processing to personalize your analysis and recommendations.

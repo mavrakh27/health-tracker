@@ -115,9 +115,11 @@ const QuickLog = {
   },
 
   // --- Quick weight modal (always logs to today) ---
-  showWeightEntry() {
+  async showWeightEntry() {
     const overlay = UI.createElement('div', 'modal-overlay');
     const today = UI.today();
+    const prefs = await DB.getProfile('preferences') || {};
+    const weightUnit = prefs.weightUnit || 'lbs';
 
     const sheet = UI.createElement('div', 'modal-sheet');
     sheet.style.maxHeight = '50dvh';
@@ -129,10 +131,10 @@ const QuickLog = {
       <div class="form-group">
         <div class="number-input" style="justify-content:center;">
           <button class="btn btn-secondary" id="qw-minus">\u2212</button>
-          <input type="number" class="form-input" id="qw-weight" placeholder="135.0" step="0.1" inputmode="decimal">
+          <input type="number" class="form-input" id="qw-weight" placeholder="${weightUnit === 'kg' ? '60.0' : '135.0'}" step="0.1" inputmode="decimal">
           <button class="btn btn-secondary" id="qw-plus">+</button>
         </div>
-        <div style="text-align:center; color:var(--text-muted); font-size:var(--text-sm); margin-top:var(--space-xs);">lbs</div>
+        <div style="text-align:center; color:var(--text-muted); font-size:var(--text-sm); margin-top:var(--space-xs);">${weightUnit}</div>
       </div>
       <button class="btn btn-primary btn-block btn-lg" id="qw-save">Save Weight</button>
     `;
@@ -169,8 +171,8 @@ const QuickLog = {
         return;
       }
       try {
-        await DB.updateDailySummary(today, { weight: { value, unit: 'lbs' } });
-        UI.toast(`Weight: ${value} lbs saved`);
+        await DB.updateDailySummary(today, { weight: { value, unit: weightUnit } });
+        UI.toast(`Weight: ${value} ${weightUnit} saved`);
         CloudRelay.queueUpload(today);
         overlay.remove();
         if (App.selectedDate === today) App.loadDayView();
@@ -182,12 +184,24 @@ const QuickLog = {
   },
 
   // --- Supplement picker ---
-  _supplements: [
-    { key: 'fiber', name: 'Fiber', notes: 'Psyllium husk fiber powder', calories: 30, protein: 0, carbs: 10, fat: 0 },
-    { key: 'collagen', name: 'Collagen', notes: 'Vital Proteins collagen peptides', calories: 70, protein: 18, carbs: 0, fat: 0 },
+  // Default supplements — users can customize via profile
+  _defaultSupplements: [
+    { key: 'fiber', name: 'Fiber', notes: 'Fiber supplement', calories: 30, protein: 0, carbs: 10, fat: 0 },
+    { key: 'collagen', name: 'Collagen', notes: 'Collagen peptides', calories: 70, protein: 18, carbs: 0, fat: 0 },
+    { key: 'multivitamin', name: 'Multivitamin', notes: 'Daily multivitamin', calories: 5, protein: 0, carbs: 1, fat: 0 },
+    { key: 'protein_shake', name: 'Protein Shake', notes: 'Protein powder shake', calories: 120, protein: 25, carbs: 3, fat: 2 },
   ],
+  _supplements: [],
 
-  showSupplementPicker() {
+  async loadSupplements() {
+    const profile = await DB.getProfile('supplements');
+    QuickLog._supplements = profile && profile.length > 0 ? profile : QuickLog._defaultSupplements;
+  },
+
+  async showSupplementPicker() {
+    await QuickLog.loadSupplements();
+    const supplements = QuickLog._supplements;
+
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
     sheet.style.maxHeight = '50dvh';
@@ -197,14 +211,15 @@ const QuickLog = {
         <span class="modal-title">Log Supplement</span>
         <button class="modal-close" id="sp-close">&times;</button>
       </div>
+      ${supplements.length === 0 ? `<div style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">No supplements configured. Add them in Profile &gt; Supplements.</div>` : `
       <div class="supplement-grid">
-        ${QuickLog._supplements.map(s => `
+        ${supplements.map(s => `
           <button class="supplement-pick" data-key="${s.key}">
             <div style="font-weight:500;">${s.name}</div>
             <div style="font-size:var(--text-xs); color:var(--text-muted);">${s.calories} cal · ${s.protein}g protein</div>
           </button>
         `).join('')}
-      </div>
+      </div>`}
     `;
 
     overlay.appendChild(sheet);
@@ -216,7 +231,7 @@ const QuickLog = {
 
     sheet.querySelectorAll('.supplement-pick').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const supp = QuickLog._supplements.find(s => s.key === btn.dataset.key);
+        const supp = supplements.find(s => s.key === btn.dataset.key);
         if (!supp) return;
         const today = UI.today();
         const entry = {
@@ -569,17 +584,13 @@ const App = {
     const existing = await DB.getProfile('goals');
     if (!existing) {
       await DB.setProfile('goals', {
-        calories: 1200, protein: 105, water_oz: 64,
-        hardcore: { calories: 1000, protein: 120, water_oz: 64 },
+        calories: 2000, protein: 100, water_oz: 64,
+        hardcore: { calories: 1500, protein: 130, water_oz: 64 },
       });
     } else {
       let changed = false;
       if (!existing.hardcore) {
-        existing.hardcore = { calories: 1000, protein: 120, water_oz: 64 };
-        changed = true;
-      }
-      if (existing.water_oz === 96) {
-        existing.water_oz = 64;
+        existing.hardcore = { calories: 1500, protein: 130, water_oz: 64 };
         changed = true;
       }
       if (changed) await DB.setProfile('goals', existing);
@@ -665,19 +676,19 @@ const App = {
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm);">
         <div class="form-group">
           <label class="form-label">Calories (great)</label>
-          <input type="number" class="form-input" id="gs-calories" value="${Number(goals.calories) || ''}" placeholder="1200" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-calories" value="${Number(goals.calories) || ''}" placeholder="2000" inputmode="numeric">
         </div>
         <div class="form-group">
           <label class="form-label">Calories (crush it)</label>
-          <input type="number" class="form-input" id="gs-hc-calories" value="${Number(hc.calories) || ''}" placeholder="1000" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-hc-calories" value="${Number(hc.calories) || ''}" placeholder="1500" inputmode="numeric">
         </div>
         <div class="form-group">
           <label class="form-label">Protein (great)</label>
-          <input type="number" class="form-input" id="gs-protein" value="${Number(goals.protein) || ''}" placeholder="105" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-protein" value="${Number(goals.protein) || ''}" placeholder="100" inputmode="numeric">
         </div>
         <div class="form-group">
           <label class="form-label">Protein (crush it)</label>
-          <input type="number" class="form-input" id="gs-hc-protein" value="${Number(hc.protein) || ''}" placeholder="120" inputmode="numeric">
+          <input type="number" class="form-input" id="gs-hc-protein" value="${Number(hc.protein) || ''}" placeholder="130" inputmode="numeric">
         </div>
       </div>
       <div class="form-group">
@@ -707,8 +718,63 @@ const App = {
       };
       await DB.setProfile('goals', newGoals);
       UI.toast('Goals saved');
-      overlay.remove();
-      App.loadDayView();
+
+      // If first-run (no sync configured), offer Cloud Sync setup
+      const syncConfigured = await CloudRelay.isConfigured();
+      if (!syncConfigured) {
+        App._showSyncSetupStep(overlay);
+      } else {
+        overlay.remove();
+        App.loadDayView();
+      }
+    });
+  },
+
+  _showSyncSetupStep(overlay) {
+    const sheet = overlay.querySelector('.modal-sheet');
+    if (!sheet) { overlay.remove(); App.loadDayView(); return; }
+
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title">Cloud Sync</span>
+        <button class="modal-close" id="gs-close">&times;</button>
+      </div>
+      <div style="text-align:center; margin-bottom:var(--space-md);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" width="40" height="40" style="margin-bottom:var(--space-sm);">
+          <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z"/>
+        </svg>
+        <p style="font-size:var(--text-sm); color:var(--text-secondary); line-height:1.6;">
+          Cloud Sync enables AI-powered photo analysis, meal plans, and coach responses.<br>
+          You can set this up later in Profile &gt; Cloud Sync.
+        </p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Worker URL</label>
+        <input type="url" class="form-input" id="gs-sync-url" placeholder="https://your-worker.workers.dev">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Sync Key</label>
+        <input type="text" class="form-input" id="gs-sync-key" placeholder="UUID (e.g. from crypto.randomUUID())">
+      </div>
+      <button class="btn btn-primary btn-block btn-lg" id="gs-sync-save">Connect</button>
+      <button class="btn btn-ghost btn-block" id="gs-sync-skip" style="margin-top:var(--space-sm);">Skip for now</button>
+    `;
+
+    const closeAndLoad = () => { overlay.remove(); App.loadDayView(); };
+    document.getElementById('gs-close').addEventListener('click', closeAndLoad);
+    document.getElementById('gs-sync-skip').addEventListener('click', closeAndLoad);
+
+    document.getElementById('gs-sync-save').addEventListener('click', async () => {
+      const url = document.getElementById('gs-sync-url')?.value?.trim();
+      const key = document.getElementById('gs-sync-key')?.value?.trim();
+      if (!url || !key) {
+        UI.toast('Enter both URL and key', 'error');
+        return;
+      }
+      await DB.setProfile('cloudRelay', { workerUrl: url, syncKey: key });
+      localStorage.setItem('cloudRelay_backup', JSON.stringify({ workerUrl: url, syncKey: key }));
+      UI.toast('Cloud Sync configured!');
+      closeAndLoad();
     });
   },
 
@@ -803,7 +869,23 @@ const Settings = {
     const el = document.getElementById('cloud-sync-status');
     if (!el) return;
     const configured = await CloudRelay.isConfigured();
-    el.textContent = configured ? 'Connected — syncing automatically' : 'Not configured';
+    if (!configured) {
+      el.textContent = 'Not configured';
+      return;
+    }
+    // Show last analysis date for processing status
+    try {
+      const today = UI.today();
+      const analyses = await DB.getAnalysisRange('2020-01-01', today);
+      if (analyses.length > 0) {
+        const latest = analyses[analyses.length - 1];
+        el.textContent = `Connected — last analysis: ${UI.formatDate(latest.date)}`;
+      } else {
+        el.textContent = 'Connected — no analysis received yet';
+      }
+    } catch {
+      el.textContent = 'Connected — syncing automatically';
+    }
   },
 
   async loadVersion() {

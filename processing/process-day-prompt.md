@@ -22,6 +22,7 @@ Profile files (always at fixed paths):
 - `{DATA_DIR}/profile/goals.json` — dual plan targets (moderate = active, hardcore = stretch goal)
 - `{DATA_DIR}/profile/regimen.json` — workout plans (moderate + hardcore schedules)
 - `{DATA_DIR}/profile/preferences.json` — dietary preferences
+- `{DATA_DIR}/profile/bio.txt` — user's personal stats, goals, and context (optional but recommended)
 
 ## Corrections System (CRITICAL)
 

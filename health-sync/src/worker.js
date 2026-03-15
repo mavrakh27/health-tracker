@@ -13,6 +13,11 @@ export default {
     // CORS
     if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
 
+    // GET /health — connection check (no auth required)
+    if (parts[0] === 'health' && request.method === 'GET') {
+      return cors(json(200, { ok: true, version: '1.0' }));
+    }
+
     // Route: /sync/{key}/...
     if (parts[0] !== 'sync' || parts.length < 2) return cors(json(404, { error: 'not found' }));
 
@@ -150,14 +155,35 @@ async function getState(env, key) {
   return JSON.parse(await obj.text());
 }
 
-// TODO: read-modify-write without locking — concurrent requests (e.g. uploading
-// results for two dates simultaneously) can cause the second write to overwrite
-// the first's state change. Low risk for single-user, but fix if sync frequency
-// increases. Options: R2 conditional put (onlyIf etag), or serialize via DO.
+// updateState uses etag-based optimistic locking to prevent concurrent read-modify-write
+// races (e.g. two results arriving simultaneously). Retries up to 3 times on conflict.
 async function updateState(env, key, mutator) {
-  const state = await getState(env, key);
-  mutator(state);
-  await env.BUCKET.put(`metadata/${key}/state.json`, JSON.stringify(state));
+  const MAX_RETRIES = 3;
+  const stateKey = `metadata/${key}/state.json`;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    // Read current state + capture etag
+    const obj = await env.BUCKET.get(stateKey);
+    const etag = obj ? obj.etag : null;
+    const state = obj ? JSON.parse(await obj.text()) : {};
+
+    // Apply mutation
+    mutator(state);
+
+    // Conditional put: only succeeds if etag hasn't changed since our read
+    const putOptions = etag
+      ? { onlyIf: { etagMatches: etag } }
+      : { onlyIf: { etagDoesNotMatch: '*' } };
+
+    try {
+      await env.BUCKET.put(stateKey, JSON.stringify(state), putOptions);
+      return; // success
+    } catch (err) {
+      // PreconditionFailed means another request wrote state between our read and write
+      if (attempt < MAX_RETRIES - 1) continue;
+      throw new Error(`updateState: failed after ${MAX_RETRIES} attempts (concurrent writes)`);
+    }
+  }
 }
 
 // --- Response helpers ---

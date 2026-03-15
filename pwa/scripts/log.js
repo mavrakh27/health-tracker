@@ -400,18 +400,19 @@ const Log = {
     // Use a persistent div (not DocumentFragment) so async content appends work
     const wrapper = UI.createElement('div');
 
-    DB.getDailySummary(App.selectedDate).then(summary => {
+    Promise.all([DB.getDailySummary(App.selectedDate), DB.getProfile('preferences')]).then(([summary, prefs]) => {
       const currentWeight = summary.weight ? summary.weight.value : '';
+      const weightUnit = (prefs && prefs.weightUnit) || 'lbs';
 
       const group = UI.createElement('div', 'form-group');
       group.innerHTML = `
         <label class="form-label">Today's Weight</label>
         <div class="number-input" style="justify-content:center;">
           <button class="btn btn-secondary" id="weight-minus">\u2212</button>
-          <input type="number" class="form-input" id="log-weight" value="${currentWeight}" placeholder="135.0" step="0.1" inputmode="decimal">
+          <input type="number" class="form-input" id="log-weight" value="${currentWeight}" placeholder="${weightUnit === 'kg' ? '60.0' : '135.0'}" step="0.1" inputmode="decimal">
           <button class="btn btn-secondary" id="weight-plus">+</button>
         </div>
-        <div style="text-align:center; color:var(--text-muted); font-size:var(--text-sm); margin-top:var(--space-xs);">lbs</div>
+        <div style="text-align:center; color:var(--text-muted); font-size:var(--text-sm); margin-top:var(--space-xs);">${weightUnit}</div>
       `;
       wrapper.appendChild(group);
 
@@ -707,10 +708,12 @@ const Log = {
     }
 
     try {
+      const prefs = await DB.getProfile('preferences') || {};
+      const weightUnit = prefs.weightUnit || 'lbs';
       await DB.updateDailySummary(App.selectedDate, {
-        weight: { value, unit: 'lbs' },
+        weight: { value, unit: weightUnit },
       });
-      UI.toast(`Weight: ${value} lbs saved`);
+      UI.toast(`Weight: ${value} ${weightUnit} saved`);
       CloudRelay.queueUpload(App.selectedDate);
       Log._afterSave();
     } catch (err) {

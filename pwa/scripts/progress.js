@@ -8,11 +8,14 @@ const ProgressView = {
     const goals = await DB.getProfile('goals') || {};
     const activePlan = goals.activePlan || 'moderate';
     const timeline = goals.timeline || {};
-    const startDate = timeline.start || '2026-03-10';
-    const endDate = activePlan === 'hardcore'
-      ? (timeline.hardcore_end || '2026-05-15')
-      : (timeline.moderate_end || '2026-06-30');
     const today = UI.today();
+
+    // Default start: use timeline or today; default end: start + 90 days
+    const startDate = timeline.start || today;
+    const defaultEnd = (() => { const d = new Date(startDate + 'T12:00:00'); d.setDate(d.getDate() + 90); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+    const endDate = activePlan === 'hardcore'
+      ? (timeline.hardcore_end || defaultEnd)
+      : (timeline.moderate_end || defaultEnd);
 
     const analyses = await DB.getAnalysisRange(startDate, today);
     const regimen = await DB.getRegimen();
@@ -165,8 +168,8 @@ const ProgressView = {
     };
 
     return {
-      moderate: calc({ calories: goals.calories || 1200, protein: goals.protein || 105, water: goals.water_oz || 64 }),
-      hardcore: calc({ calories: goals.hardcore?.calories || 1000, protein: goals.hardcore?.protein || 120, water: goals.hardcore?.water_oz || 64 }),
+      moderate: calc({ calories: goals.calories || 2000, protein: goals.protein || 100, water: goals.water_oz || 64 }),
+      hardcore: calc({ calories: goals.hardcore?.calories || 1500, protein: goals.hardcore?.protein || 130, water: goals.hardcore?.water_oz || 64 }),
     };
   },
 
@@ -252,8 +255,8 @@ const ProgressView = {
   },
 
   renderAverages(analyses, goals) {
-    const calTarget = goals.calories || 1200;
-    const proTarget = goals.protein || 105;
+    const calTarget = goals.calories || 2000;
+    const proTarget = goals.protein || 100;
     const waterTarget = goals.water_oz || 64;
 
     const avgCal = Math.round(analyses.reduce((s, a) => s + (a.totals?.calories || 0), 0) / analyses.length);

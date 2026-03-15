@@ -781,6 +781,12 @@ async function testUserFlows(page, fixtures) {
     if (saveBtn) {
       await saveBtn.click();
       await page.waitForTimeout(500);
+      // After saving goals, sync setup step may appear — dismiss it
+      const skipSync = await page.$('#gs-sync-skip');
+      if (skipSync) {
+        await skipSync.click();
+        await page.waitForTimeout(300);
+      }
     } else {
       // Close modal
       const closeBtn = await page.$('.modal-close');
@@ -810,6 +816,12 @@ async function testUserFlows(page, fixtures) {
         if (saveBtn2) {
           await saveBtn2.click();
           await page.waitForTimeout(400);
+          // Dismiss sync setup step if it appears
+          const skipSync2 = await page.$('#gs-sync-skip');
+          if (skipSync2) {
+            await skipSync2.click();
+            await page.waitForTimeout(300);
+          }
         } else {
           const closeBtn = await page.$('.modal-close');
           if (closeBtn) await closeBtn.click();

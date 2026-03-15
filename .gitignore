@@ -27,4 +27,8 @@ data/
 # Processing runtime
 processing/setup-task.ps1
 
+# Personal profile data (NEVER commit — use processing/profiles/example-bio.txt as template)
+processing/profiles/emily.txt
+**/bio.txt
+
 # Generated icons (keep SVG source, ignore generated PNGs if any)

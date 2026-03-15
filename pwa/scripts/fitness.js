@@ -1,23 +1,23 @@
 // fitness.js — Interactive workout checklist with exercise database
 
 const Fitness = {
-  // Exercise database — form cues, muscles, purpose for "abs by June" recomp
+  // Exercise database — form cues, muscles, purpose
   exercises: {
     'goblet squats': {
       muscles: 'Quads, glutes, core',
-      why: 'The biggest calorie-burning muscles in your body. Squats under load signal your legs to hold onto muscle during a cut — and a strong core engagement means bonus ab work every rep.',
+      why: 'The biggest calorie-burning muscles in your body. Squats under load signal your legs to hold onto muscle during a cut — and a strong core engagement means bonus core work every rep.',
       form: 'Hold kettlebell at chest, elbows tucked. Feet shoulder-width, toes slightly out. Sit back and down — hips below knees. Chest stays up, weight in heels. Drive up through heels.',
       mistakes: 'Knees caving inward (push them out over toes). Leaning forward (keep chest proud). Not going deep enough (hip crease below knee).',
     },
     'push-ups': {
       muscles: 'Chest, shoulders, triceps, core',
-      why: 'Full-body pressing that doubles as a plank. Every push-up is core training in disguise — your abs fight to keep your hips from sagging.',
+      why: 'Full-body pressing that doubles as a plank. Every push-up is core training in disguise — your core fights to keep your hips from sagging.',
       form: 'Hands just outside shoulder-width. Body in a straight line from head to heels. Lower until chest nearly touches floor. Push back up, fully extending arms. Squeeze glutes to keep hips level.',
       mistakes: 'Sagging hips (squeeze glutes). Flaring elbows to 90° (keep them at ~45°). Half reps (full range of motion matters).',
     },
     'dumbbell rows': {
       muscles: 'Back (lats), biceps, rear delts, core',
-      why: 'Balances all the pushing work. Strong back = better posture = muscles show more when you\'re lean. Also works core anti-rotation.',
+      why: 'Balances all the pushing work. A strong back improves posture and physique. Also works core anti-rotation.',
       form: 'One hand and knee on bench (or bent over). Pull dumbbell to hip, squeezing shoulder blade back. Lower with control — don\'t just drop it.',
       mistakes: 'Twisting torso to heave weight up (keep hips square). Using momentum (slow and controlled). Shrugging shoulder up (pull to hip, not ear).',
     },
@@ -29,7 +29,7 @@ const Fitness = {
     },
     'dumbbell overhead press': {
       muscles: 'Shoulders (delts), triceps, core',
-      why: 'Pressing overhead requires serious core bracing — your abs work hard to stabilize your spine under load. Defined shoulders make your waist look smaller.',
+      why: 'Pressing overhead requires serious core bracing — your core works hard to stabilize your spine under load. Defined shoulders improve your overall physique.',
       form: 'Start with dumbbells at shoulder height, palms forward. Press straight up, fully extending arms. Bring them slightly together at top. Lower with control to shoulders.',
       mistakes: 'Arching lower back (brace core tight, slight lean back is OK). Not fully extending (lockout at top). Using legs to push (that\'s a push press — different exercise).',
     },
@@ -59,13 +59,13 @@ const Fitness = {
     },
     'dumbbell bench press': {
       muscles: 'Chest, shoulders, triceps',
-      why: 'The king of upper body pushing. Dumbbells let each arm work independently, fixing imbalances. A defined chest adds shape above your abs.',
+      why: 'The king of upper body pushing. Dumbbells let each arm work independently, fixing imbalances. A defined chest adds shape to your upper body.',
       form: 'Lie on bench, feet flat on floor. Dumbbells at chest level, palms forward. Press up, bringing dumbbells slightly together at top. Lower with control until elbows are at 90° or slightly below.',
       mistakes: 'Bouncing at bottom (pause briefly). Feet coming off floor (keep planted for stability). Flaring elbows to 90° (keep at ~45°).',
     },
     'pull-up negatives': {
       muscles: 'Back (lats), biceps, forearms, core',
-      why: 'Building toward full pull-ups — the ultimate back exercise. Negatives (lowering slowly) build strength through the hardest part. Lats are the widest muscle on your body — they create the V-taper that makes your waist look tiny.',
+      why: 'Building toward full pull-ups — the ultimate back exercise. Negatives (lowering slowly) build strength through the hardest part. Lats are the widest muscle on your body — they create the V-taper silhouette.',
       form: 'Jump or step up to the top position (chin above bar). Lower yourself as SLOWLY as possible — aim for 5+ seconds. At the bottom, let go, reset, repeat.',
       mistakes: 'Dropping too fast (the slow descent IS the exercise). Kipping or swinging (dead hang, strict control). Gripping too narrow (shoulder width or slightly wider).',
     },
@@ -77,31 +77,31 @@ const Fitness = {
     },
     'plank': {
       muscles: 'Entire core — rectus abdominis, transverse abdominis, obliques',
-      why: 'The foundation of core training. Teaches your abs to STABILIZE, which is what makes them pop when lean. Every other exercise is harder without a strong plank.',
+      why: 'The foundation of core training. Teaches your core to STABILIZE under load. Every other exercise is harder without a strong plank.',
       form: 'Forearms on ground, body in a straight line. Squeeze glutes, brace abs like someone\'s about to poke your stomach. Breathe normally. Don\'t let hips sag or pike up.',
       mistakes: 'Hips sagging (squeeze glutes harder). Hips piking up (you\'re making it easier — lower them). Holding breath (breathe steadily).',
     },
     'dead bugs': {
       muscles: 'Deep core (transverse abdominis), hip flexors',
-      why: 'The best core exercise most people skip. Trains anti-extension — your abs learn to keep your lower back flat while limbs move. This is what makes abs visible even when moving, not just flexed.',
+      why: 'The best core exercise most people skip. Trains anti-extension — your core learns to keep your lower back flat while limbs move. This builds deep stability that carries over to every other exercise.',
       form: 'Lie on back. Arms straight up, knees at 90°. Press lower back into floor (NO gap). Extend opposite arm and leg slowly. Return. Switch sides. Lower back stays glued to floor the ENTIRE time.',
       mistakes: 'Lower back arching off floor (this is the whole point — if it arches, you\'ve gone too far). Going too fast (slow = harder = better). Holding breath (exhale as you extend).',
     },
     'bicycle crunches': {
       muscles: 'Obliques, rectus abdominis',
-      why: 'One of the highest muscle activation exercises for obliques (the side abs that create that cut V-line). The rotation component defines your waistline.',
+      why: 'One of the highest muscle activation exercises for obliques. The rotation component builds a strong, defined midsection.',
       form: 'Lie on back, hands behind head. Lift shoulders off floor. Bring knee to opposite elbow while extending other leg. Alternate in a pedaling motion. Don\'t pull on your neck.',
       mistakes: 'Pulling neck forward (hands are just resting behind head). Going too fast (slow and controlled — hold each twist for a beat). Not lifting shoulders (crunch UP, don\'t just move elbows).',
     },
     'leg raises': {
       muscles: 'Lower abs, hip flexors',
-      why: 'Targets the lower portion of your abs — the hardest area to define and usually the last to show. Direct work here speeds up the "abs by June" timeline.',
+      why: 'Targets the lower portion of your core — the hardest area to define and usually the last to show. Direct work here accelerates core development.',
       form: 'Lie flat, hands under hips for support. Legs straight (or slight bend if needed). Raise legs to 90°. Lower SLOWLY — stop before lower back arches off floor. That\'s one rep.',
       mistakes: 'Lower back arching up (hands under hips help, reduce range if needed). Using momentum (slow on the way down). Legs bending too much (keep them as straight as possible).',
     },
     'plank shoulder taps': {
       muscles: 'Core (anti-rotation), shoulders',
-      why: 'Levels up the basic plank by adding anti-rotation — your core fights to keep your hips still while you shift weight. This builds the deep stability that makes your midsection look tight.',
+      why: 'Levels up the basic plank by adding anti-rotation — your core fights to keep your hips still while you shift weight. This builds deep stability and total-body control.',
       form: 'Start in push-up position. Tap left shoulder with right hand, then right shoulder with left hand. The goal: your hips should NOT rock side to side. Widen feet for more stability.',
       mistakes: 'Hips rocking side to side (slow down, widen stance). Rushing (each tap should be deliberate). Sagging hips (same as plank — squeeze glutes).',
     },

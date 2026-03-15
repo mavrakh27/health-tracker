@@ -47,7 +47,8 @@ The test runner (`test-fixtures/run-tests.js`) does:
    - Score numbers are valid (0-100)
 6. **Verifies entry types**: Food, Workout, Supplement labels render correctly
 7. **Multi-viewport**: 320px, 390px, 768px — no horizontal overflow, nav visible
-8. **Console errors**: Flags any JS errors (ignoring favicon/SW noise)
+8. **Verifies analysis status**: Entry cards show inline calories when analysis IDs match, "Pending analysis" when unmatched
+9. **Console errors**: Flags any JS errors (ignoring favicon/SW noise)
 
 Pass `--screenshots` to save screenshots to `.claude/test-screenshots/validate/`.
 
@@ -75,6 +76,8 @@ Plus: goals (1200/1000 cal), weekly regimen, meal plan, fitness goals, streaks.
 ## Updating Fixtures
 
 When adding new features, update `test-fixtures/data.js` to include test cases for the new feature, and add assertions in `test-fixtures/run-tests.js`. The fixtures should grow as the app grows.
+
+**Critical:** Analysis entries in fixtures MUST have `id` fields matching their corresponding IndexedDB entry IDs. Without matching IDs, analysis-status features (inline calories, pending/stale indicators) won't render — they'll silently fail with no errors. Always visually verify screenshots after changes to entry rendering.
 
 ## Post-Deploy Smoke Test
 
