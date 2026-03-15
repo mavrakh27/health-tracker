@@ -346,9 +346,13 @@ const QuickLog = {
       });
     };
 
+    let saving = false;
     const saveAndRender = async () => {
+      if (saving) return;
+      saving = true;
       QuickLog._supplements = items;
       await DB.setProfile('supplements', items);
+      saving = false;
       render();
     };
 
