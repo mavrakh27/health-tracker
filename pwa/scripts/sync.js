@@ -450,7 +450,7 @@ const CloudRelay = {
     this._uploadTimer = setTimeout(() => this._doUpload(), 3000);
   },
 
-  async _doUpload(force = false) {
+  async _doUpload() {
     const date = this._pendingDate;
     if (!date) return;
     this._pendingDate = null;
@@ -459,25 +459,6 @@ const CloudRelay = {
     if (!config || !config.workerUrl || !config.syncKey) {
       this.log('Upload skipped — not configured', 'error');
       return;
-    }
-
-    // Skip upload if analysis already exists and no entries were added after import
-    if (!force) {
-      try {
-        const analysis = await DB.getAnalysis(date);
-        if (analysis && analysis.importedAt) {
-          const entries = await DB.getEntriesByDate(date);
-          const newestEntry = entries.reduce((max, e) => Math.max(max, e.timestamp ? new Date(e.timestamp).getTime() : 0), 0);
-          if (newestEntry <= analysis.importedAt) {
-            this.log(`Skipping upload for ${date} — analysis already imported and no new entries`);
-            return;
-          }
-          this.log(`Re-uploading ${date} — new entries after analysis import`);
-        }
-      } catch (err) {
-        // If check fails, proceed with upload anyway
-        this.log(`Analysis check failed: ${err.message}, uploading anyway`);
-      }
     }
 
     try {
@@ -702,7 +683,7 @@ const CloudRelay = {
       CloudRelay._uploadTimer = null;
       CloudRelay.log(`Manual sync triggered for ${today}`);
       CloudRelay._pendingDate = today;
-      await CloudRelay._doUpload(true);
+      await CloudRelay._doUpload();
       await CloudRelay.checkForResults();
     });
 
