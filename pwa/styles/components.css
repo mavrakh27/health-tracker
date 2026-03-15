@@ -571,6 +571,25 @@ input[type="range"]::-webkit-slider-thumb {
   word-break: break-word;
 }
 
+.entry-analysis {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.entry-pending {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  margin-top: 4px;
+  letter-spacing: 0.03em;
+}
+
 .entry-time {
   font-size: var(--text-xs);
   color: var(--text-muted);

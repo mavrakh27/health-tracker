@@ -151,7 +151,7 @@ const UI = {
   },
 
   // --- Render an entry item ---
-  renderEntryItem(entry) {
+  renderEntryItem(entry, analysisEntry) {
     const div = UI.createElement('div', 'entry-item');
     div.dataset.type = entry.type;
 
@@ -161,7 +161,19 @@ const UI = {
     const body = UI.createElement('div', 'entry-body');
 
     const typeLabel = UI.createElement('div', 'entry-type');
-    typeLabel.textContent = UI.entryLabel(entry.type, entry.subtype);
+    // Check if entry was edited after analysis was imported (stale)
+    const isFood = ['meal', 'snack', 'drink'].includes(entry.type);
+    const entryUpdatedAt = entry.updatedAt ? new Date(entry.updatedAt).getTime() : 0;
+    const isStale = analysisEntry && analysisEntry._importedAt && entryUpdatedAt > analysisEntry._importedAt;
+    const showAnalysis = analysisEntry && !isStale;
+
+    // Show AI calories inline with type label if analyzed and not stale
+    if (showAnalysis && isFood && analysisEntry.calories != null) {
+      typeLabel.textContent = `${UI.entryLabel(entry.type, entry.subtype)} · ${analysisEntry.calories} cal`;
+      if (analysisEntry.protein) typeLabel.textContent += ` · ${analysisEntry.protein}g protein`;
+    } else {
+      typeLabel.textContent = UI.entryLabel(entry.type, entry.subtype);
+    }
 
     body.appendChild(typeLabel);
 
@@ -169,6 +181,24 @@ const UI = {
       const notes = UI.createElement('div', 'entry-notes');
       notes.textContent = entry.notes;
       body.appendChild(notes);
+    }
+
+    // Show AI description if analyzed, not stale, and different from user notes
+    if (showAnalysis && analysisEntry.description && analysisEntry.description !== entry.notes) {
+      const aiDesc = UI.createElement('div', 'entry-analysis');
+      aiDesc.textContent = analysisEntry.description;
+      body.appendChild(aiDesc);
+    }
+
+    // Pending/stale analysis indicator
+    if (!analysisEntry && (isFood || entry.type === 'workout')) {
+      const pending = UI.createElement('div', 'entry-pending');
+      pending.textContent = 'Pending analysis';
+      body.appendChild(pending);
+    } else if (isStale && (isFood || entry.type === 'workout')) {
+      const stale = UI.createElement('div', 'entry-pending');
+      stale.textContent = 'Updated · pending re-analysis';
+      body.appendChild(stale);
     }
 
     if (entry.type === 'workout' && entry.duration_minutes) {
@@ -327,7 +357,7 @@ const UI = {
     // Save
     document.getElementById('edit-save').addEventListener('click', async () => {
       const notes = document.getElementById('edit-notes')?.value?.trim() || '';
-      const updated = { ...entry, notes };
+      const updated = { ...entry, notes, updatedAt: new Date().toISOString() };
       if (entry.type === 'workout') {
         const dur = document.getElementById('edit-duration')?.value;
         updated.duration_minutes = dur ? parseInt(dur) : null;

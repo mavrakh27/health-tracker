@@ -428,10 +428,25 @@ const App = {
         }
       }
     } else {
+      // Load analysis to merge AI results into entry cards
+      let analysisMap = {};
+      try {
+        const analysis = await DB.getAnalysis(date);
+        if (analysis && analysis.entries) {
+          const importedAt = analysis.importedAt || 0;
+          for (const ae of analysis.entries) {
+            if (ae.id) analysisMap[ae.id] = { ...ae, _importedAt: importedAt };
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load analysis:', err);
+      }
+
       // Sort by timestamp
       entries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       entries.forEach(entry => {
-        entryList.appendChild(UI.renderEntryItem(entry));
+        const ae = analysisMap[entry.id] || null;
+        entryList.appendChild(UI.renderEntryItem(entry, ae));
       });
     }
 
