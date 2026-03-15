@@ -317,18 +317,38 @@ const UI = {
       }
     }
 
+    const isBodyPhoto = entry.type === 'bodyPhoto';
+    const photoHtml = photoUrl
+      ? isBodyPhoto
+        ? `<div class="ql-photo-preview edit-photo-locked" id="edit-photo-lock">
+            <div class="edit-photo-lock-overlay">${UI.svg.lock}<span>Tap to reveal</span></div>
+            <img src="${photoUrl}" alt="" class="edit-photo-blurred">
+          </div>`
+        : `<div class="ql-photo-preview"><img src="${photoUrl}" alt=""></div>`
+      : '';
+
+    // Body photo entries are locked by default to prevent accidental edits/deletions
+    const lockBarHtml = isBodyPhoto ? `
+      <div class="edit-lock-bar" id="edit-lock-bar">
+        <span class="edit-lock-bar-icon">${UI.svg.lock}</span>
+        <span class="edit-lock-bar-text">Entry locked</span>
+        <button class="edit-lock-toggle" id="edit-lock-toggle">Unlock to edit</button>
+      </div>
+    ` : '';
+
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Edit ${UI.entryLabel(entry.type, entry.subtype)}</span>
         <button class="modal-close" id="edit-close">&times;</button>
       </div>
-      ${photoUrl ? `<div class="ql-photo-preview"><img src="${photoUrl}" alt=""></div>` : ''}
+      ${photoHtml}
+      ${lockBarHtml}
       <div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-md);">
         ${UI.formatTime(entry.timestamp)} &mdash; ${UI.formatDate(entry.date)}
       </div>
       <div class="form-group">
         <label class="form-label">Notes</label>
-        <textarea class="form-input" id="edit-notes" placeholder="Add notes" rows="1">${UI.escapeHtml(entry.notes || '')}</textarea>
+        <textarea class="form-input" id="edit-notes" placeholder="Add notes" rows="1"${isBodyPhoto ? ' disabled' : ''}>${UI.escapeHtml(entry.notes || '')}</textarea>
       </div>
       ${entry.type === 'workout' ? `
         <div class="form-group">
@@ -336,8 +356,8 @@ const UI = {
           <input type="number" class="form-input" id="edit-duration" value="${entry.duration_minutes || ''}" placeholder="30" inputmode="numeric">
         </div>
       ` : ''}
-      <button class="btn btn-primary btn-block btn-lg" id="edit-save">Save Changes</button>
-      <button class="btn btn-ghost btn-block" id="edit-delete" style="margin-top: var(--space-sm); color: var(--accent-red);">Delete Entry</button>
+      <button class="btn btn-primary btn-block btn-lg${isBodyPhoto ? ' btn-locked' : ''}" id="edit-save"${isBodyPhoto ? ' disabled' : ''}>Save Changes</button>
+      <button class="btn btn-ghost btn-block${isBodyPhoto ? ' btn-locked' : ''}" id="edit-delete" style="margin-top: var(--space-sm); color: var(--accent-red);"${isBodyPhoto ? ' disabled' : ''}>Delete Entry</button>
     `;
 
     overlay.appendChild(sheet);
@@ -350,6 +370,48 @@ const UI = {
 
     document.getElementById('edit-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    // Body photo lock toggle (for revealing the photo)
+    const photoLock = document.getElementById('edit-photo-lock');
+    if (photoLock) {
+      photoLock.addEventListener('click', () => {
+        photoLock.classList.toggle('revealed');
+      });
+    }
+
+    // Entry lock toggle (for enabling edit/delete)
+    const lockToggle = document.getElementById('edit-lock-toggle');
+    if (lockToggle) {
+      lockToggle.addEventListener('click', () => {
+        const bar = document.getElementById('edit-lock-bar');
+        const isLocked = !bar.classList.contains('unlocked');
+        bar.classList.toggle('unlocked');
+
+        const saveBtn = document.getElementById('edit-save');
+        const deleteBtn = document.getElementById('edit-delete');
+        const notesEl = document.getElementById('edit-notes');
+
+        if (isLocked) {
+          // Unlock
+          saveBtn.disabled = false;
+          saveBtn.classList.remove('btn-locked');
+          deleteBtn.disabled = false;
+          deleteBtn.classList.remove('btn-locked');
+          if (notesEl) notesEl.disabled = false;
+          lockToggle.textContent = 'Lock';
+          bar.querySelector('.edit-lock-bar-text').textContent = 'Entry unlocked';
+        } else {
+          // Re-lock
+          saveBtn.disabled = true;
+          saveBtn.classList.add('btn-locked');
+          deleteBtn.disabled = true;
+          deleteBtn.classList.add('btn-locked');
+          if (notesEl) notesEl.disabled = true;
+          lockToggle.textContent = 'Unlock to edit';
+          bar.querySelector('.edit-lock-bar-text').textContent = 'Entry locked';
+        }
+      });
+    }
 
     const editNotes = document.getElementById('edit-notes');
     if (editNotes) { UI.autoResize(editNotes); editNotes.addEventListener('input', () => UI.autoResize(editNotes)); }

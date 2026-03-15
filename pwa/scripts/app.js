@@ -183,19 +183,12 @@ const QuickLog = {
     });
   },
 
-  // --- Supplement picker ---
-  // Default supplements — users can customize via profile
-  _defaultSupplements: [
-    { key: 'fiber', name: 'Fiber', notes: 'Fiber supplement', calories: 30, protein: 0, carbs: 10, fat: 0 },
-    { key: 'collagen', name: 'Collagen', notes: 'Collagen peptides', calories: 70, protein: 18, carbs: 0, fat: 0 },
-    { key: 'multivitamin', name: 'Multivitamin', notes: 'Daily multivitamin', calories: 5, protein: 0, carbs: 1, fat: 0 },
-    { key: 'protein_shake', name: 'Protein Shake', notes: 'Protein powder shake', calories: 120, protein: 25, carbs: 3, fat: 2 },
-  ],
+  // --- Dailies (user-configurable supplements/items) ---
   _supplements: [],
 
   async loadSupplements() {
     const profile = await DB.getProfile('supplements');
-    QuickLog._supplements = profile && profile.length > 0 ? profile : QuickLog._defaultSupplements;
+    QuickLog._supplements = profile && profile.length > 0 ? profile : [];
   },
 
   async showSupplementPicker() {
@@ -204,22 +197,34 @@ const QuickLog = {
 
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
-    sheet.style.maxHeight = '50dvh';
+    sheet.style.maxHeight = '60dvh';
+
+    const renderList = () => {
+      if (supplements.length === 0) {
+        return `<div style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">
+          <p style="margin-bottom:var(--space-md);">No dailies configured yet.</p>
+          <button class="btn btn-primary" id="sp-add-first">Add Your First Daily</button>
+        </div>`;
+      }
+      return `
+        <div class="supplement-grid">
+          ${supplements.map(s => `
+            <button class="supplement-pick" data-key="${UI.escapeHtml(s.key)}">
+              <div style="font-weight:500;">${UI.escapeHtml(s.name)}</div>
+              ${s.calories ? `<div style="font-size:var(--text-xs); color:var(--text-muted);">${s.calories} cal${s.protein ? ` · ${s.protein}g protein` : ''}</div>` : ''}
+            </button>
+          `).join('')}
+        </div>
+        <button class="btn btn-ghost btn-block" id="sp-manage" style="margin-top:var(--space-md); font-size:var(--text-xs);">Manage Dailies</button>
+      `;
+    };
 
     sheet.innerHTML = `
       <div class="modal-header">
-        <span class="modal-title">Log Supplement</span>
+        <span class="modal-title">Dailies</span>
         <button class="modal-close" id="sp-close">&times;</button>
       </div>
-      ${supplements.length === 0 ? `<div style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">No supplements configured. Add them in Profile &gt; Supplements.</div>` : `
-      <div class="supplement-grid">
-        ${supplements.map(s => `
-          <button class="supplement-pick" data-key="${s.key}">
-            <div style="font-weight:500;">${s.name}</div>
-            <div style="font-size:var(--text-xs); color:var(--text-muted);">${s.calories} cal · ${s.protein}g protein</div>
-          </button>
-        `).join('')}
-      </div>`}
+      ${renderList()}
     `;
 
     overlay.appendChild(sheet);
@@ -228,6 +233,18 @@ const QuickLog = {
     const closeModal = () => overlay.remove();
     document.getElementById('sp-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    // "Add Your First Daily" button for empty state
+    document.getElementById('sp-add-first')?.addEventListener('click', () => {
+      closeModal();
+      QuickLog.showDailiesManager();
+    });
+
+    // Manage button
+    document.getElementById('sp-manage')?.addEventListener('click', () => {
+      closeModal();
+      QuickLog.showDailiesManager();
+    });
 
     sheet.querySelectorAll('.supplement-pick').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -240,7 +257,7 @@ const QuickLog = {
           subtype: supp.key,
           date: today,
           timestamp: new Date().toISOString(),
-          notes: supp.notes,
+          notes: supp.notes || supp.name,
           photo: null,
           duration_minutes: null,
         };
@@ -256,6 +273,93 @@ const QuickLog = {
         }
       });
     });
+  },
+
+  // --- Dailies Manager (add/remove/edit daily items) ---
+  async showDailiesManager() {
+    await QuickLog.loadSupplements();
+    let items = [...QuickLog._supplements];
+
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.style.maxHeight = '80dvh';
+
+    const renderItems = () => {
+      if (items.length === 0) {
+        return `<div style="text-align:center; padding:var(--space-md); color:var(--text-muted); font-size:var(--text-sm);">
+          No dailies yet. Add items you take or do every day.
+        </div>`;
+      }
+      return items.map((item, i) => `
+        <div class="dailies-item" data-index="${i}">
+          <div class="dailies-item-body">
+            <div style="font-weight:500; font-size:var(--text-sm);">${UI.escapeHtml(item.name)}</div>
+            ${item.calories ? `<div style="font-size:var(--text-xs); color:var(--text-muted);">${item.calories} cal${item.protein ? ` · ${item.protein}g protein` : ''}</div>` : ''}
+          </div>
+          <button class="dailies-remove" data-index="${i}" title="Remove">&times;</button>
+        </div>
+      `).join('');
+    };
+
+    const render = () => {
+      sheet.innerHTML = `
+        <div class="modal-header">
+          <span class="modal-title">Manage Dailies</span>
+          <button class="modal-close" id="dm-close">&times;</button>
+        </div>
+        <div id="dm-list">${renderItems()}</div>
+        <div class="dailies-add-form" id="dm-add-form">
+          <div class="form-group" style="margin-bottom:var(--space-sm);">
+            <input type="text" class="form-input" id="dm-name" placeholder="Item name (e.g. Creatine)" maxlength="50">
+          </div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm); margin-bottom:var(--space-sm);">
+            <input type="number" class="form-input" id="dm-cal" placeholder="Calories (optional)" inputmode="numeric">
+            <input type="number" class="form-input" id="dm-protein" placeholder="Protein g (optional)" inputmode="numeric">
+          </div>
+          <button class="btn btn-primary btn-block" id="dm-add-btn">Add Daily</button>
+        </div>
+        <button class="btn btn-primary btn-block btn-lg" id="dm-done" style="margin-top:var(--space-md);">Done</button>
+      `;
+
+      // Bind events
+      document.getElementById('dm-close').addEventListener('click', closeModal);
+      document.getElementById('dm-done').addEventListener('click', closeModal);
+
+      document.getElementById('dm-add-btn').addEventListener('click', () => {
+        const name = document.getElementById('dm-name')?.value?.trim();
+        if (!name) { UI.toast('Enter a name', 'error'); return; }
+        const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        if (items.some(it => it.key === key)) { UI.toast('Already exists', 'error'); return; }
+        const cal = parseInt(document.getElementById('dm-cal')?.value) || 0;
+        const protein = parseInt(document.getElementById('dm-protein')?.value) || 0;
+        items.push({ key, name, notes: name, calories: cal, protein, carbs: 0, fat: 0 });
+        saveAndRender();
+      });
+
+      sheet.querySelectorAll('.dailies-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.index);
+          items.splice(idx, 1);
+          saveAndRender();
+        });
+      });
+    };
+
+    const saveAndRender = async () => {
+      QuickLog._supplements = items;
+      await DB.setProfile('supplements', items);
+      render();
+    };
+
+    const closeModal = () => {
+      overlay.remove();
+    };
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    render();
   },
 };
 
@@ -894,8 +998,11 @@ const Settings = {
     try {
       const keys = await caches.keys();
       const current = keys.find(k => k.startsWith('coach-v'));
-      el.textContent = current ? current.replace('coach-', '') : 'v74';
-    } catch { el.textContent = 'v74'; }
+      if (current) {
+        el.textContent = current.replace('coach-', '');
+      }
+      // If no cache found (e.g. mid-update), leave the element empty — don't show stale version
+    } catch { /* leave empty */ }
   },
 
   _updateBound: false,
@@ -903,6 +1010,9 @@ const Settings = {
     if (Settings._updateBound) return;
     Settings._updateBound = true;
     document.getElementById('update-app-btn')?.addEventListener('click', async () => {
+      // Clear version text immediately to prevent stale version flash on reload
+      const versionEl = document.getElementById('app-version');
+      if (versionEl) versionEl.textContent = '';
       UI.toast('Updating...');
       try {
         // Clear all SW caches
