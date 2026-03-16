@@ -114,6 +114,8 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
 
 Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing everything — analysis, meal plan, and workout regimen. This file gets synced back to the phone automatically.
 
+**IMPORTANT:** Do NOT use em dashes (—), en dashes (–), or smart quotes ("") in the JSON output. Use plain hyphens (-), double hyphens (--), and straight quotes ("") instead. Unicode special characters get double-encoded through the processing pipeline and display as garbled text (â€") on the phone.
+
 ```json
 {
   "date": "YYYY-MM-DD",

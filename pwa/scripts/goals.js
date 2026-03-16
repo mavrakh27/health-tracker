@@ -117,7 +117,7 @@ const GoalsView = {
 
     for (const entry of analysis.entries) {
       if (entry.type === 'bodyPhoto') continue;
-      const cal = entry.type === 'workout' ? `${entry.calories_burned || '?'} cal burned` :
+      const cal = entry.type === 'workout' ? `${entry.calories_burned || (entry.calories ? Math.abs(entry.calories) : '?')} cal burned` :
                   `${entry.calories || 0} cal`;
       const protein = entry.type !== 'workout' && entry.protein ? ` \u00B7 ${entry.protein}g protein` : '';
 
@@ -221,7 +221,7 @@ const GoalsView = {
       for (const entry of a.entries) {
         if (entry.type === 'bodyPhoto') continue;
         const isWorkout = entry.type === 'workout';
-        const calText = isWorkout ? `${entry.calories_burned || '?'} burned` : `${entry.calories || 0} cal`;
+        const calText = isWorkout ? `${entry.calories_burned || (entry.calories ? Math.abs(entry.calories) : '?')} burned` : `${entry.calories || 0} cal`;
         const proteinText = !isWorkout && entry.protein ? ` \u00B7 ${entry.protein}g P` : '';
         const icon = isWorkout ? '\u{1F3CB}' : (entry.type === 'drink' ? '\u{1F375}' : '\u{1F374}');
         const desc = entry.description || entry.notes || entry.type;

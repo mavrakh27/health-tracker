@@ -285,7 +285,7 @@ const UI = {
     const body = UI.createElement('div', 'entry-body');
 
     const typeLabel = UI.createElement('div', 'entry-type');
-    const cal = ae.type === 'workout' ? (ae.calories_burned ? `${ae.calories_burned} cal burned` : '') : (ae.calories ? `${ae.calories} cal` : '');
+    const cal = ae.type === 'workout' ? ((ae.calories_burned || ae.calories) ? `${ae.calories_burned || Math.abs(ae.calories)} cal burned` : '') : (ae.calories ? `${ae.calories} cal` : '');
     typeLabel.textContent = UI.entryLabel(ae.type, ae.subtype) + (cal ? ` · ${cal}` : '');
 
     body.appendChild(typeLabel);
