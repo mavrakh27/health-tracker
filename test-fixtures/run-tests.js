@@ -1099,6 +1099,29 @@ async function testScoreCentering(page, fixtures) {
   await screenshot(page, 'score-centering');
 }
 
+async function testScrollBehavior(page) {
+  console.log('\n--- Scroll Behavior ---');
+  // Body must NOT be scrollable (prevents iOS nav bounce)
+  await page.evaluate(() => window.scrollTo(0, 1000));
+  await page.waitForTimeout(100);
+  const bodyScroll = await page.evaluate(() => window.scrollY);
+  assert(bodyScroll === 0, `Body is not scrollable (scrollY: ${bodyScroll})`);
+
+  // Active screen content MUST be scrollable
+  const screenScroll = await page.evaluate(() => {
+    const screen = document.querySelector('.screen.active');
+    if (!screen) return null;
+    const before = screen.scrollTop;
+    screen.scrollTop = 500;
+    const after = screen.scrollTop;
+    screen.scrollTop = 0;
+    return { scrollable: screen.scrollHeight > screen.clientHeight, didScroll: after > before };
+  });
+  if (screenScroll && screenScroll.scrollable) {
+    assert(screenScroll.didScroll, 'Screen content is scrollable');
+  }
+}
+
 async function testMultiViewport(page, context, fixtures) {
   console.log('\n--- Multi-Viewport ---');
 
@@ -1184,6 +1207,7 @@ async function run() {
     await testAnalysisStatusIndicators(page, fixtures);
     await testUILabels(page, fixtures);
     await testScoreCentering(page, fixtures);
+    await testScrollBehavior(page);
     await testMultiViewport(page, context, fixtures);
     await testConsoleErrors(page);
 
