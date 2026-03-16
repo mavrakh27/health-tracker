@@ -204,6 +204,7 @@ const QuickLog = {
   async showSupplementPicker() {
     await QuickLog.loadSupplements();
     const supplements = QuickLog._supplements;
+    const selected = new Set();
 
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
@@ -219,76 +220,95 @@ const QuickLog = {
       return `
         <div class="supplement-grid">
           ${supplements.map(s => `
-            <button class="supplement-pick" data-key="${UI.escapeHtml(s.key)}">
+            <button class="supplement-pick${selected.has(s.key) ? ' selected' : ''}" data-key="${UI.escapeHtml(s.key)}">
+              ${s.photo ? `<img src="${s.photo}" class="supplement-pick-photo" alt="">` : ''}
               <div style="font-weight:500;">${UI.escapeHtml(s.name)}</div>
               ${s.calories ? `<div style="font-size:var(--text-xs); color:var(--text-muted);">${s.calories} cal${s.protein ? ` · ${s.protein}g protein` : ''}</div>` : ''}
             </button>
           `).join('')}
         </div>
-        <button class="btn btn-ghost btn-block" id="sp-manage" style="margin-top:var(--space-md); font-size:var(--text-xs);">Manage Dailies</button>
+        <button class="btn btn-primary btn-block btn-lg${selected.size === 0 ? ' disabled' : ''}" id="sp-log-btn" style="margin-top:var(--space-md);"${selected.size === 0 ? ' disabled' : ''}>Log Selected (${selected.size})</button>
+        <button class="btn btn-ghost btn-block" id="sp-manage" style="margin-top:var(--space-sm); font-size:var(--text-xs);">Manage Dailies</button>
       `;
     };
 
-    sheet.innerHTML = `
-      <div class="modal-header">
-        <span class="modal-title">Dailies</span>
-        <button class="modal-close" id="sp-close">&times;</button>
-      </div>
-      ${renderList()}
-    `;
+    const render = () => {
+      sheet.innerHTML = `
+        <div class="modal-header">
+          <span class="modal-title">Dailies</span>
+          <button class="modal-close" id="sp-close">&times;</button>
+        </div>
+        ${renderList()}
+      `;
+      bindEvents();
+    };
+
+    const closeModal = () => overlay.remove();
+
+    const bindEvents = () => {
+      document.getElementById('sp-close').addEventListener('click', closeModal);
+      document.getElementById('sp-add-first')?.addEventListener('click', () => {
+        closeModal();
+        QuickLog.showDailiesManager();
+      });
+      document.getElementById('sp-manage')?.addEventListener('click', () => {
+        closeModal();
+        QuickLog.showDailiesManager();
+      });
+
+      sheet.querySelectorAll('.supplement-pick').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.key;
+          if (selected.has(key)) selected.delete(key);
+          else selected.add(key);
+          render();
+        });
+      });
+
+      document.getElementById('sp-log-btn')?.addEventListener('click', async () => {
+        if (selected.size === 0) return;
+        const today = UI.today();
+        const logged = [];
+        for (const key of selected) {
+          const supp = supplements.find(s => s.key === key);
+          if (!supp) continue;
+          const entry = {
+            id: UI.generateId('supplement'),
+            type: 'supplement',
+            subtype: supp.key,
+            date: today,
+            timestamp: new Date().toISOString(),
+            notes: supp.notes || supp.name,
+            photo: null,
+            duration_minutes: null,
+          };
+          try {
+            await DB.addEntry(entry);
+            logged.push(supp.name);
+          } catch (err) {
+            console.error(`Supplement log failed for ${supp.name}:`, err);
+          }
+        }
+        if (logged.length > 0) {
+          UI.toast(`${logged.join(', ')} logged`);
+          CloudRelay.queueUpload(today);
+        }
+        closeModal();
+        if (App.selectedDate === today) App.loadDayView();
+      });
+    };
 
     overlay.appendChild(sheet);
     document.body.appendChild(overlay);
-
-    const closeModal = () => overlay.remove();
-    document.getElementById('sp-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-
-    // "Add Your First Daily" button for empty state
-    document.getElementById('sp-add-first')?.addEventListener('click', () => {
-      closeModal();
-      QuickLog.showDailiesManager();
-    });
-
-    // Manage button
-    document.getElementById('sp-manage')?.addEventListener('click', () => {
-      closeModal();
-      QuickLog.showDailiesManager();
-    });
-
-    sheet.querySelectorAll('.supplement-pick').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const supp = supplements.find(s => s.key === btn.dataset.key);
-        if (!supp) return;
-        const today = UI.today();
-        const entry = {
-          id: UI.generateId('supplement'),
-          type: 'supplement',
-          subtype: supp.key,
-          date: today,
-          timestamp: new Date().toISOString(),
-          notes: supp.notes || supp.name,
-          photo: null,
-          duration_minutes: null,
-        };
-        try {
-          await DB.addEntry(entry);
-          UI.toast(`${supp.name} logged`);
-          CloudRelay.queueUpload(today);
-          closeModal();
-          if (App.selectedDate === today) App.loadDayView();
-        } catch (err) {
-          console.error('Supplement log failed:', err);
-          UI.toast('Failed to log', 'error');
-        }
-      });
-    });
+    render();
   },
 
   // --- Dailies Manager (add/remove/edit daily items) ---
   async showDailiesManager() {
     await QuickLog.loadSupplements();
     let items = [...QuickLog._supplements];
+    let pendingPhoto = null; // { blob, url, dataURL } for new item
 
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
@@ -302,6 +322,7 @@ const QuickLog = {
       }
       return items.map((item, i) => `
         <div class="dailies-item" data-index="${i}">
+          ${item.photo ? `<img src="${item.photo}" class="dailies-item-photo" alt="">` : ''}
           <div class="dailies-item-body">
             <div style="font-weight:500; font-size:var(--text-sm);">${UI.escapeHtml(item.name)}</div>
             ${item.calories ? `<div style="font-size:var(--text-xs); color:var(--text-muted);">${item.calories} cal${item.protein ? ` · ${item.protein}g protein` : ''}</div>` : ''}
@@ -319,8 +340,10 @@ const QuickLog = {
         </div>
         <div id="dm-list">${renderItems()}</div>
         <div class="dailies-add-form" id="dm-add-form">
-          <div class="form-group" style="margin-bottom:var(--space-sm);">
-            <input type="text" class="form-input" id="dm-name" placeholder="Item name (e.g. Creatine)" maxlength="50">
+          <div id="dm-photo-area" style="margin-bottom:var(--space-sm);"></div>
+          <div style="display:flex; gap:var(--space-sm); margin-bottom:var(--space-sm);">
+            <button class="btn btn-ghost" id="dm-camera-btn" style="flex:0 0 auto; padding:var(--space-xs) var(--space-sm);" title="Add photo">${UI.svg.camera || '📷'}</button>
+            <input type="text" class="form-input" id="dm-name" placeholder="Item name (e.g. Creatine)" maxlength="50" style="flex:1;">
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm); margin-bottom:var(--space-sm);">
             <input type="number" class="form-input" id="dm-cal" placeholder="Calories" inputmode="numeric">
@@ -335,6 +358,25 @@ const QuickLog = {
       document.getElementById('dm-close').addEventListener('click', closeModal);
       document.getElementById('dm-done').addEventListener('click', closeModal);
 
+      document.getElementById('dm-camera-btn').addEventListener('click', async () => {
+        const result = await Camera.capture('meal');
+        if (!result) return;
+        pendingPhoto = result;
+        // Convert to data URL for storage
+        const reader = new FileReader();
+        reader.onload = () => {
+          pendingPhoto.dataURL = reader.result;
+          const area = document.getElementById('dm-photo-area');
+          area.innerHTML = '';
+          area.appendChild(Camera.createPreview(result.url, () => {
+            Camera.revokeURL(pendingPhoto.url);
+            pendingPhoto = null;
+            area.innerHTML = '';
+          }));
+        };
+        reader.readAsDataURL(result.blob);
+      });
+
       document.getElementById('dm-add-btn').addEventListener('click', () => {
         const name = document.getElementById('dm-name')?.value?.trim();
         if (!name) { UI.toast('Enter a name', 'error'); return; }
@@ -342,7 +384,10 @@ const QuickLog = {
         if (items.some(it => it.key === key)) { UI.toast('Already exists', 'error'); return; }
         const cal = parseInt(document.getElementById('dm-cal')?.value) || 0;
         const protein = parseInt(document.getElementById('dm-protein')?.value) || 0;
-        items.push({ key, name, notes: name, calories: cal, protein, carbs: 0, fat: 0 });
+        const item = { key, name, notes: name, calories: cal, protein, carbs: 0, fat: 0 };
+        if (pendingPhoto?.dataURL) item.photo = pendingPhoto.dataURL;
+        items.push(item);
+        if (pendingPhoto) { Camera.revokeURL(pendingPhoto.url); pendingPhoto = null; }
         saveAndRender();
       });
 
@@ -367,6 +412,7 @@ const QuickLog = {
     };
 
     const closeModal = () => {
+      if (pendingPhoto) { Camera.revokeURL(pendingPhoto.url); pendingPhoto = null; }
       overlay.remove();
     };
 
@@ -419,14 +465,14 @@ const App = {
   routes: {
     '': 'today',
     '#today': 'today',
-    '#plan': 'plan',
     '#progress': 'progress',
-    '#profile': 'profile',
-    // Legacy routes redirect to new tabs
+    '#settings': 'settings',
+    // Legacy routes
+    '#plan': 'progress',
+    '#profile': 'settings',
     '#log': 'today',
     '#calendar': 'progress',
-    '#goals': 'plan',
-    '#settings': 'profile',
+    '#goals': 'progress',
   },
 
   handleRoute() {
@@ -453,10 +499,8 @@ const App = {
 
     // Screen-specific init
     if (screenId === 'today') App.loadDayView();
-    if (screenId === 'plan') PlanView.init();
     if (screenId === 'progress') ProgressView.init();
-    if (screenId === 'profile') {
-      ProfileView.init();
+    if (screenId === 'settings') {
       Settings.loadGoalsSummary();
       Settings.loadStorageInfo();
       Settings.loadCloudSyncStatus();
@@ -501,7 +545,6 @@ const App = {
     App.selectedDate = newDate;
     App.updateHeaderDate();
     if (App.currentScreen === 'today') App.loadDayView();
-    if (App.currentScreen === 'plan') PlanView.init();
   },
 
   goToDate(dateStr) {
@@ -596,9 +639,144 @@ const App = {
       } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
     }
 
-    // Coach chat — only on Profile tab, not duplicated on Today
+    // Workout card (collapsible)
+    const workoutEl = document.getElementById('today-workout');
+    if (workoutEl) {
+      try {
+        const regimen = await DB.getRegimen();
+        if (regimen?.weeklySchedule) {
+          const reg = regimen;
+          const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+          const todayPlan = reg.weeklySchedule?.find(d => d.day === dayName.toLowerCase());
+          const isRest = !todayPlan || todayPlan.type === 'rest' || todayPlan.type === 'active_rest' || todayPlan.type === 'active_recovery';
+          const checked = await Fitness.getCheckedExercises(date);
+          const exercises = (!isRest && todayPlan.type !== 'cardio') ? Fitness.parseExercises(todayPlan.description) : [];
+          const total = todayPlan?.type === 'cardio' ? 1 : exercises.length;
+          const done = todayPlan?.type === 'cardio' ? (checked.has('cardio') ? 1 : 0) : exercises.filter(e => checked.has(e.name)).length;
+          const allDone = total > 0 && done === total;
+
+          const fitnessHtml = await Fitness.render(reg, date);
+          const typeLabel = isRest ? 'Rest Day' : (todayPlan.type || 'Workout');
+          workoutEl.innerHTML = `
+            <div class="collapsible-section" style="margin-top:var(--space-md);">
+              <div class="collapsible-header" id="workout-collapse-header">
+                <div style="display:flex; align-items:center; gap:var(--space-sm);">
+                  <span style="font-weight:600;">${dayName}</span>
+                  <span style="font-size:var(--text-xs); color:var(--accent-green); text-transform:uppercase;">${UI.escapeHtml(typeLabel)}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:var(--space-sm);">
+                  ${!isRest ? `<span class="collapsible-badge">${done}/${total}</span>` : ''}
+                  <span class="collapsible-chevron${allDone ? '' : ' open'}">&#9660;</span>
+                </div>
+              </div>
+              <div class="collapsible-body${allDone ? ' collapsed' : ''}" id="workout-collapse-body">
+                ${fitnessHtml}
+              </div>
+            </div>
+          `;
+          // Bind fitness events scoped to this container
+          Fitness.bindEvents(date, workoutEl);
+          // Collapsible toggle
+          document.getElementById('workout-collapse-header')?.addEventListener('click', () => {
+            const body = document.getElementById('workout-collapse-body');
+            const chevron = workoutEl.querySelector('.collapsible-chevron');
+            if (body) {
+              body.classList.toggle('collapsed');
+              chevron?.classList.toggle('open');
+            }
+          });
+        } else {
+          workoutEl.innerHTML = '';
+        }
+      } catch (e) { console.warn('Workout render error:', e); workoutEl.innerHTML = ''; }
+    }
+
+    // Meal suggestion card (collapsible)
+    const mealSuggEl = document.getElementById('today-meal-suggestion');
+    if (mealSuggEl) {
+      try {
+        const mealPlan = await DB.getMealPlan();
+        if (mealPlan?.days) {
+          const todayPlan = mealPlan.days.find(d => d.date === date);
+          const dinner = todayPlan?.meals?.find(m => (m.meal || '').toLowerCase().includes('dinner')) || todayPlan?.meals?.[todayPlan.meals.length - 1];
+          if (dinner) {
+            const allMealsHtml = todayPlan.meals.map(m => `
+              <div style="padding:var(--space-sm) 0; border-bottom:1px solid var(--border-color);">
+                <div style="display:flex; justify-content:space-between;">
+                  <span style="font-weight:500; font-size:var(--text-sm); text-transform:capitalize;">${UI.escapeHtml(m.meal || m.name)}</span>
+                  <span style="font-size:var(--text-xs); color:var(--text-muted);">${m.calories} cal - ${m.protein}g P</span>
+                </div>
+                <div style="font-size:var(--text-xs); color:var(--text-secondary);">${UI.escapeHtml(m.name || '')}</div>
+              </div>
+            `).join('');
+            mealSuggEl.innerHTML = `
+              <div class="collapsible-section" style="margin-top:var(--space-sm);">
+                <div class="collapsible-header" id="meal-collapse-header">
+                  <div style="display:flex; align-items:center; gap:var(--space-sm);">
+                    <span style="font-weight:600;">Tonight</span>
+                    <span style="font-size:var(--text-sm); color:var(--text-secondary);">${UI.escapeHtml(dinner.name)}</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:var(--space-sm);">
+                    <span style="font-size:var(--text-xs); color:var(--text-muted);">${dinner.calories} cal</span>
+                    <span class="collapsible-chevron">&#9660;</span>
+                  </div>
+                </div>
+                <div class="collapsible-body collapsed" id="meal-collapse-body">
+                  ${allMealsHtml}
+                  ${todayPlan.notes ? `<div style="font-size:var(--text-xs); color:var(--text-muted); padding-top:var(--space-sm);">${UI.escapeHtml(todayPlan.notes)}</div>` : ''}
+                </div>
+              </div>
+            `;
+            document.getElementById('meal-collapse-header')?.addEventListener('click', () => {
+              const body = document.getElementById('meal-collapse-body');
+              const chevron = mealSuggEl.querySelector('.collapsible-chevron');
+              if (body) { body.classList.toggle('collapsed'); chevron?.classList.toggle('open'); }
+            });
+          } else { mealSuggEl.innerHTML = ''; }
+        } else { mealSuggEl.innerHTML = ''; }
+      } catch (e) { mealSuggEl.innerHTML = ''; }
+    }
+
+    // Coach inbox (collapsible)
     const coachEl = document.getElementById('today-coach');
-    if (coachEl) coachEl.innerHTML = '';
+    if (coachEl) {
+      try {
+        const savedText = document.getElementById('coach-input')?.value || '';
+        const coachHtml = await CoachChat.render(date);
+        const summary = await DB.getDailySummary(date);
+        const coachAnalysis = await DB.getAnalysis(date);
+        const userMsgs = (summary.coachChat || []).filter(m => m.role === 'user');
+        const coachResps = coachAnalysis?.coachResponses || [];
+        const msgCount = userMsgs.length + coachResps.length;
+        const hasUnanswered = userMsgs.some(m => !coachResps.find(r => r.replyTo === m.id));
+
+        coachEl.innerHTML = `
+          <div class="collapsible-section" style="margin-top:var(--space-sm);">
+            <div class="collapsible-header" id="coach-collapse-header">
+              <div style="display:flex; align-items:center; gap:var(--space-sm);">
+                <span style="font-weight:600;">Inbox</span>
+                ${hasUnanswered ? '<span style="font-size:var(--text-xs); color:var(--accent-orange);">Waiting for reply...</span>' : ''}
+              </div>
+              <div style="display:flex; align-items:center; gap:var(--space-sm);">
+                ${msgCount > 0 ? `<span class="collapsible-badge" style="background:var(--accent-primary-dim, rgba(88, 166, 255, 0.15)); color:var(--accent-primary);">${msgCount}</span>` : ''}
+                <span class="collapsible-chevron">&#9660;</span>
+              </div>
+            </div>
+            <div class="collapsible-body collapsed" id="coach-collapse-body">
+              ${coachHtml}
+            </div>
+          </div>
+        `;
+        CoachChat.bindEvents(date);
+        // Restore unsaved text
+        if (savedText) { const inp = document.getElementById('coach-input'); if (inp) inp.value = savedText; }
+        document.getElementById('coach-collapse-header')?.addEventListener('click', () => {
+          const body = document.getElementById('coach-collapse-body');
+          const chevron = coachEl.querySelector('.collapsible-chevron');
+          if (body) { body.classList.toggle('collapsed'); chevron?.classList.toggle('open'); }
+        });
+      } catch (e) { coachEl.innerHTML = ''; }
+    }
 
     // Add Entry button — skip if welcome card is showing (it has its own CTA)
     const logGrid = document.getElementById('log-type-grid-inline');

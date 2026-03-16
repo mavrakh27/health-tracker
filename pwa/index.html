@@ -50,6 +50,8 @@
       </div>
 
       <div id="today-score"></div>
+      <div id="today-workout"></div>
+      <div id="today-meal-suggestion"></div>
       <div id="today-coach"></div>
 
       <!-- Inline entry creation (merged from Log) -->
@@ -68,24 +70,13 @@
       <div id="today-analysis"></div>
     </main>
 
-    <!-- Screen: Plan (Meals + Workout + Stretching) -->
-    <main id="screen-plan" class="screen">
-      <div id="plan-container"></div>
-    </main>
-
-    <!-- Screen: Progress (Journey + Calendar + Streaks) -->
+    <!-- Screen: Progress (Insights + Trends + Goals) -->
     <main id="screen-progress" class="screen">
       <div id="progress-container"></div>
     </main>
 
-    <!-- Screen: Profile (Coach + Goals + Settings) -->
-    <main id="screen-profile" class="screen">
-      <!-- Coach Chat -->
-      <div id="profile-coach"></div>
-
-      <!-- Fitness Goals -->
-      <div id="profile-goals"></div>
-
+    <!-- Screen: Settings (was Profile) -->
+    <main id="screen-settings" class="screen">
       <!-- Daily Goals Editor -->
       <div class="s-card s-card--accent">
         <div class="s-card-row">
@@ -166,16 +157,6 @@
         <span>Today</span>
       </button>
 
-      <button class="nav-item" data-screen="plan">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="4" y="3" width="16" height="18" rx="2"/>
-          <line x1="8" y1="8" x2="16" y2="8"/>
-          <line x1="8" y1="12" x2="16" y2="12"/>
-          <line x1="8" y1="16" x2="12" y2="16"/>
-        </svg>
-        <span>Plan</span>
-      </button>
-
       <button class="nav-item" data-screen="progress">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="4 18 8 12 12 14 16 8 20 4"/>
@@ -185,12 +166,12 @@
         <span>Progress</span>
       </button>
 
-      <button class="nav-item" data-screen="profile">
+      <button class="nav-item" data-screen="settings">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="8" r="4"/>
-          <path d="M4 21v-1a6 6 0 0112 0v1"/>
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
         </svg>
-        <span>Profile</span>
+        <span>Settings</span>
       </button>
     </nav>
   </div>

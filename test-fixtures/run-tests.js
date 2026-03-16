@@ -239,9 +239,9 @@ async function testTodayScreen(page, fixtures) {
   const chips = await page.$$('.score-chip');
   assert(chips.length >= 3, `Score breakdown chips render (got ${chips.length})`);
 
-  // Coach input moved to Profile tab — verify it's NOT on Today
-  const coachInput = await page.$('#screen-today textarea.coach-input');
-  assert(!coachInput, 'Coach input not on Today (moved to Profile)');
+  // Coach inbox is on Today tab (inside collapsible)
+  const coachSection = await page.$('#today-coach .collapsible-section');
+  assert(coachSection, 'Coach inbox renders on Today tab');
 
   // + Add Entry button exists (dynamic ID: toggle-log-types)
   const addBtn = await page.$('#toggle-log-types');
@@ -251,24 +251,22 @@ async function testTodayScreen(page, fixtures) {
 }
 
 async function testPlanScreen(page, fixtures) {
-  console.log('\n--- Plan Screen ---');
+  console.log('\n--- Progress Segments ---');
 
-  await page.click('nav button:has-text("Plan")');
+  await page.click('nav button:has-text("Progress")');
   await page.waitForTimeout(500);
 
-  // Meal plan should render (we injected one)
-  const container = await page.$('#plan-container');
+  // Segment control should exist
+  const segmentBtns = await page.$$('.segment-btn');
+  assert(segmentBtns.length === 3, `Progress has 3 segment buttons (got ${segmentBtns.length})`);
+
+  // Default tab is Insights — should show meal plan content
+  const container = await page.$('#progress-container');
   const content = await container.textContent();
-  assert(!content.includes('No plan yet'), 'Meal plan renders (not empty state)');
+  const hasMealPlan = content.includes('Meal Plan') || content.includes('dinner') || content.includes('Dinner');
+  assert(hasMealPlan, 'Insights shows meal plan content');
 
-  // Should show workout regimen or meal content (plan renders from regimen + mealPlan)
-  const hasContent = content.includes('Workout') || content.includes('workout') ||
-                     content.includes('Cardio') || content.includes('cardio') ||
-                     content.includes('Elliptical') || content.includes('strength') ||
-                     content.includes('Upper body') || content.includes('Lower body');
-  assert(hasContent, 'Plan shows workout regimen');
-
-  await screenshot(page, 'plan-with-data');
+  await screenshot(page, 'progress-insights');
 }
 
 async function testProgressScreen(page, fixtures) {
@@ -277,11 +275,13 @@ async function testProgressScreen(page, fixtures) {
   await page.click('nav button:has-text("Progress")');
   await page.waitForTimeout(500);
 
+  // Switch to Trends segment
+  const trendsBtn = await page.$('button:has-text("Trends")');
+  if (trendsBtn) await trendsBtn.click();
+  await page.waitForTimeout(500);
+
   const container = await page.$('#progress-container');
   const content = await container.textContent();
-
-  // Timeline should render
-  assert(content.includes('Timeline') || content.includes('Day'), 'Timeline section renders');
 
   // Daily Scores section with sparkline
   assert(content.includes('Daily Scores') || content.includes('Avg'), 'Scores section renders');
@@ -297,31 +297,46 @@ async function testProgressScreen(page, fixtures) {
   // Averages section
   assert(content.includes('Avg Cal') || content.includes('Averages'), 'Averages section renders');
 
-  // Fitness goals
-  assert(content.includes('Lose 10 lbs') || content.includes('Run a 5K'), 'Fitness goals render');
-
   // Streaks (from day1 analysis)
   assert(content.includes('Streak') || content.includes('Logging') || content.includes('Water'), 'Streaks section renders');
 
-  await screenshot(page, 'progress-with-data');
+  await screenshot(page, 'progress-trends');
+
+  // Switch to Goals segment
+  const goalsBtn = await page.$('button:has-text("Goals")');
+  if (goalsBtn) await goalsBtn.click();
+  await page.waitForTimeout(500);
+
+  const goalsContent = await container.textContent();
+  // Timeline should render in Goals
+  assert(goalsContent.includes('Timeline') || goalsContent.includes('Day'), 'Timeline section renders');
+  // Fitness goals
+  assert(goalsContent.includes('Lose 10 lbs') || goalsContent.includes('Run a 5K') || goalsContent.includes('Fitness Goals') || goalsContent.includes('Goal Consistency'), 'Fitness goals render');
+
+  await screenshot(page, 'progress-goals');
 }
 
 async function testProfileScreen(page, fixtures) {
-  console.log('\n--- Profile Screen ---');
+  console.log('\n--- Settings Screen ---');
 
-  await page.click('nav button:has-text("Profile")');
+  await page.click('nav button:has-text("Settings")');
   await page.waitForTimeout(500);
 
   // Daily targets card
   const targetsCard = await page.textContent('.s-card-row');
   assert(targetsCard.includes('1200') || targetsCard.includes('cal'), 'Daily targets show calorie goal');
 
-  // Goals segment button
-  const goalsBtn = await page.$('button:has-text("Goals")');
+  // Goals segment is on Progress tab — verify from there
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(300);
+  const goalsBtn = await page.$('#progress-container button:has-text("Goals")');
   assert(!!goalsBtn, 'Goals segment button exists');
+  // Return to Settings
+  await page.click('nav button:has-text("Settings")');
+  await page.waitForTimeout(300);
 
   // Cloud Sync card
-  const syncCard = await page.textContent('#screen-profile');
+  const syncCard = await page.textContent('#screen-settings');
   assert(syncCard.includes('Cloud Sync'), 'Cloud Sync card renders');
 
   // Backup card was removed — manual import is no longer in the UI
@@ -372,7 +387,7 @@ async function testInteractions(page, fixtures) {
   }
 
   // Test goal setup modal
-  await page.click('nav button:has-text("Profile")');
+  await page.click('nav button:has-text("Settings")');
   await page.waitForTimeout(300);
   const editBtn = await page.$('.s-action-btn');
   if (editBtn) {
@@ -616,9 +631,9 @@ async function testPhotos(page, fixtures) {
   assert(syncCounts.totalSize > 0, `Photos have non-zero total size (${syncCounts.totalSize} bytes)`);
 
   // Verify storage card on Profile
-  await page.click('nav button:has-text("Profile")');
+  await page.click('nav button:has-text("Settings")');
   await page.waitForTimeout(500);
-  const storageText = await page.textContent('#screen-profile');
+  const storageText = await page.textContent('#screen-settings');
   assert(storageText.includes('photo') || storageText.includes('Photo') || storageText.includes('Clear'), 'Storage card references photos');
 
   await screenshot(page, 'profile-storage-with-photos');
@@ -747,7 +762,7 @@ async function testUserFlows(page, fixtures) {
   // ---------------------------------------------------------------
   // Flow 3: Check and edit goals
   // ---------------------------------------------------------------
-  await page.click('nav button:has-text("Profile")');
+  await page.click('nav button:has-text("Settings")');
   await page.waitForTimeout(500);
 
   // Click Edit on Daily Targets
@@ -887,6 +902,11 @@ async function testUserFlows(page, fixtures) {
   await page.click('nav button:has-text("Progress")');
   await page.waitForTimeout(600);
 
+  // Switch to Trends for calendar
+  const trendsBtn5 = await page.$('button:has-text("Trends")');
+  if (trendsBtn5) await trendsBtn5.click();
+  await page.waitForTimeout(500);
+
   // Calendar should show colored dots for days with data
   const calDays = await page.$$('.cal-day:not(.empty)');
   assert(calDays.length > 0, `Flow 5: Calendar renders days (got ${calDays.length})`);
@@ -921,27 +941,27 @@ async function testUserFlows(page, fixtures) {
   // ---------------------------------------------------------------
   // Flow 6: Browse the plan
   // ---------------------------------------------------------------
-  await page.click('nav button:has-text("Plan")');
+  await page.click('nav button:has-text("Progress")');
   await page.waitForTimeout(600);
 
-  const planContainer = await page.$('#plan-container');
-  const planContent = planContainer ? await planContainer.textContent() : '';
-  assert(planContent.length > 0 && !planContent.includes('No plan'), 'Flow 6: Plan screen renders content');
+  const progressContainer = await page.$('#progress-container');
+  const progressContent = progressContainer ? await progressContainer.textContent() : '';
+  assert(progressContent.length > 0, 'Flow 6: Progress screen renders content');
 
   await screenshot(page, 'flow6-plan');
 
   // Navigate to Profile
-  await page.click('nav button:has-text("Profile")');
+  await page.click('nav button:has-text("Settings")');
   await page.waitForTimeout(400);
 
-  // Navigate back to Plan
-  await page.click('nav button:has-text("Plan")');
+  // Navigate back to Progress
+  await page.click('nav button:has-text("Progress")');
   await page.waitForTimeout(600);
 
-  const planContainer2 = await page.$('#plan-container');
-  const planContent2 = planContainer2 ? await planContainer2.textContent() : '';
-  assert(planContent2.length > 0, 'Flow 6: Plan content persists after navigating away and back');
-  assert(!planContent2.includes('No plan'), 'Flow 6: Plan has no blank flash on return');
+  const progressContainer2 = await page.$('#progress-container');
+  const progressContent2 = progressContainer2 ? await progressContainer2.textContent() : '';
+  assert(progressContent2.length > 0, 'Flow 6: Progress content persists after navigating away and back');
+  assert(!progressContent2.includes('No plan'), 'Flow 6: Progress has no blank flash on return');
 
   await screenshot(page, 'flow6-plan-after-return');
 }
@@ -1020,15 +1040,15 @@ async function testUILabels(page, fixtures) {
   assert(hasDailies, 'Quick action button says "Dailies"');
   assert(!hasSupps, 'Quick action button does NOT say "Supps"');
 
-  // Verify "Sync Now" button exists on Profile screen
-  await page.click('nav button:has-text("Profile")');
+  // Verify "Sync Now" button exists on Settings screen
+  await page.click('nav button:has-text("Settings")');
   await page.waitForTimeout(500);
 
-  const profileText = await page.textContent('#screen-profile');
+  const profileText = await page.textContent('#screen-settings');
   const hasSyncNow = profileText.includes('Sync Now') || profileText.includes('sync now');
   // Also check for sync-related action buttons
   const syncBtn = await page.$('#sync-now-btn, button:has-text("Sync Now"), .s-action-btn--primary');
-  assert(hasSyncNow || !!syncBtn, 'Sync Now button exists on Profile screen');
+  assert(hasSyncNow || !!syncBtn, 'Sync Now button exists on Settings screen');
 
   await screenshot(page, 'ui-labels');
 }
@@ -1135,7 +1155,7 @@ async function testMultiViewport(page, context, fixtures) {
 
     // All nav buttons visible
     const navBtns = await page.$$('nav button');
-    assert(navBtns.length === 4, `${vp.name}: 4 nav buttons visible`);
+    assert(navBtns.length === 3, `${vp.name}: 3 nav buttons visible`);
 
     await screenshot(page, `viewport-${vp.name}`);
   }

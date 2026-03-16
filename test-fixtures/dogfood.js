@@ -121,7 +121,7 @@ async function runDogfood(existingBrowser) {
       assert(true, 'Clicked "Set Your Goals" welcome button');
     } else {
       // Navigate to Profile and click Edit on Daily Targets
-      await page.click('nav button:has-text("Profile")');
+      await page.click('nav button:has-text("Settings")');
       await page.waitForTimeout(500);
       const editBtn = await page.$('.s-action-btn');
       if (editBtn) {
@@ -538,18 +538,17 @@ async function runDogfood(existingBrowser) {
     }
 
     // ================================================================
-    // Step 10: Plan tab
+    // Step 10: Progress tab (was Plan)
     // ================================================================
-    console.log('\n--- Step 10: Plan Tab ---');
-    await page.click('nav button:has-text("Plan")');
+    console.log('\n--- Step 10: Progress Tab ---');
+    await page.click('nav button:has-text("Progress")');
     await page.waitForTimeout(600);
 
-    const planContainer = await page.$('#plan-container');
-    const planContent = planContainer ? await planContainer.textContent() : '';
-    // Fresh start has no plan — expect empty state
-    const planHasContent = planContent.length > 10;
-    assert(true, `Plan tab renders (${planHasContent ? 'has content' : 'empty state'})`);
-    await screenshot(page, 'plan-tab');
+    const progressContainer10 = await page.$('#progress-container');
+    const progressContent10 = progressContainer10 ? await progressContainer10.textContent() : '';
+    const progressHasContent = progressContent10.length > 10;
+    assert(true, `Progress tab renders (${progressHasContent ? 'has content' : 'empty state'})`);
+    await screenshot(page, 'progress-tab');
 
     // ================================================================
     // Step 11: Progress tab
@@ -561,6 +560,10 @@ async function runDogfood(existingBrowser) {
     const progressContainer = await page.$('#progress-container');
     assert(!!progressContainer, 'Progress container exists');
 
+    // Switch to Trends for calendar
+    const trendsBtnDf = await page.$('button:has-text("Trends")');
+    if (trendsBtnDf) { await trendsBtnDf.click(); await page.waitForTimeout(500); }
+
     // Calendar should render
     const calDays = await page.$$('.cal-day');
     assert(calDays.length > 0, `Calendar renders (${calDays.length} day cells)`);
@@ -571,10 +574,10 @@ async function runDogfood(existingBrowser) {
     // Step 12: Profile tab
     // ================================================================
     console.log('\n--- Step 12: Profile Tab ---');
-    await page.click('nav button:has-text("Profile")');
+    await page.click('nav button:has-text("Settings")');
     await page.waitForTimeout(500);
 
-    const profileText = await page.textContent('#screen-profile');
+    const profileText = await page.textContent('#screen-settings');
 
     // Daily Targets should show our goals
     assert(profileText.includes('1200') || profileText.includes('cal'), 'Daily Targets shows calorie goal');
@@ -631,7 +634,7 @@ async function runDogfood(existingBrowser) {
         assert(dbGoals && dbGoals.calories === 1500, `Goals saved to DB as 1500 (got: ${dbGoals?.calories})`);
 
         // Navigate to Profile to see updated summary (goals save redirects to Today)
-        await page.click('nav button:has-text("Profile")');
+        await page.click('nav button:has-text("Settings")');
         await page.waitForTimeout(500);
         // Explicitly reload goals summary in case async load hasn't completed
         await page.evaluate(() => Settings.loadGoalsSummary());
@@ -673,7 +676,7 @@ async function runDogfood(existingBrowser) {
     console.log('\n--- Step 14: Cloud Sync Setup ---');
 
     // Make sure we're on profile
-    await page.click('nav button:has-text("Profile")');
+    await page.click('nav button:has-text("Settings")');
     await page.waitForTimeout(400);
 
     const syncSetupBtn = await page.$('button:has-text("Setup")');
@@ -848,7 +851,7 @@ async function runDogfood(existingBrowser) {
       await page.waitForTimeout(300);
 
       // Check each tab
-      for (const tab of ['Today', 'Plan', 'Progress', 'Profile']) {
+      for (const tab of ['Today', 'Progress', 'Settings']) {
         await page.click(`nav button:has-text("${tab}")`);
         await page.waitForTimeout(400);
 
@@ -860,7 +863,7 @@ async function runDogfood(existingBrowser) {
 
       // Verify all nav buttons visible and reachable
       const navBtns = await page.$$('nav button');
-      assert(navBtns.length === 4, `${vp.name}: all 4 nav buttons present`);
+      assert(navBtns.length === 3, `${vp.name}: all 3 nav buttons present`);
 
       // Check all quick action buttons are reachable
       await page.click('nav button:has-text("Today")');

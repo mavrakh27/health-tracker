@@ -1,7 +1,7 @@
 // db.js — IndexedDB wrapper (view-agnostic data API)
 
 const DB_NAME = 'health-tracker';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance = null;
 
@@ -49,6 +49,15 @@ function openDB() {
       // Meal plans
       if (!db.objectStoreNames.contains('mealPlan')) {
         db.createObjectStore('mealPlan', { keyPath: 'generatedDate' });
+      }
+
+      // Analysis history (v2) — archives old analysis before overwrite
+      if (e.oldVersion < 2) {
+        if (!db.objectStoreNames.contains('analysisHistory')) {
+          const historyStore = db.createObjectStore('analysisHistory', { keyPath: 'id', autoIncrement: true });
+          historyStore.createIndex('date', 'date', { unique: false });
+          historyStore.createIndex('importedAt', 'importedAt', { unique: false });
+        }
       }
     };
 
@@ -291,6 +300,7 @@ async function getAnalysis(dateStr) {
 async function importAnalysis(dateStr, data) {
   const db = await openDB();
   const stores = ['analysis', 'photos'];
+  if (db.objectStoreNames.contains('analysisHistory')) stores.push('analysisHistory');
   if (data.mealPlan) stores.push('mealPlan');
   if (data.regimen || data.pwaProfile) stores.push('profile');
   const tx = db.transaction(stores, 'readwrite');
@@ -314,6 +324,25 @@ async function importAnalysis(dateStr, data) {
     if (data.pwaProfile.supplements) {
       profileStore.put({ key: 'supplements', value: data.pwaProfile.supplements });
     }
+  }
+
+  // Archive existing analysis before overwriting (v2+)
+  if (db.objectStoreNames.contains('analysisHistory')) {
+    const existingReq = tx.objectStore('analysis').get(dateStr);
+    existingReq.onsuccess = () => {
+      try {
+        const existing = existingReq.result;
+        if (existing) {
+          tx.objectStore('analysisHistory').add({
+            date: existing.date,
+            importedAt: existing.importedAt || 0,
+            data: existing,
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to archive analysis history:', e);
+      }
+    };
   }
 
   // Store analysis without the bundled plan/regimen/profile (keep it lean)
@@ -477,34 +506,56 @@ async function exportDay(dateStr) {
 // Get all dates that have entries but no analysis, or entries newer than analysis
 async function getDatesNeedingSync() {
   const db = await openDB();
-  // Get all unique entry dates
+  // Get all unique entry dates and their IDs
   const entryTx = db.transaction('entries', 'readonly');
   const entries = await new Promise((resolve, reject) => {
     const req = entryTx.objectStore('entries').getAll();
     req.onsuccess = () => resolve(req.result);
     req.onerror = (e) => reject(e.target.error);
   });
-  const entryDates = {};
+  const entryDateInfo = {};
   for (const e of entries) {
     if (!e.date) continue;
+    if (!entryDateInfo[e.date]) entryDateInfo[e.date] = { ids: new Set(), maxTs: 0 };
+    entryDateInfo[e.date].ids.add(e.id);
     const ts = e.updatedAt ? new Date(e.updatedAt).getTime() : (e.timestamp ? new Date(e.timestamp).getTime() : 0);
-    entryDates[e.date] = Math.max(entryDates[e.date] || 0, ts);
+    entryDateInfo[e.date].maxTs = Math.max(entryDateInfo[e.date].maxTs, ts);
   }
 
-  // Check which dates have no analysis or stale analysis
+  // Check which dates have no analysis, stale analysis, or missing entries
   const needsSync = [];
   const analysisTx = db.transaction('analysis', 'readonly');
-  for (const date of Object.keys(entryDates)) {
+  for (const date of Object.keys(entryDateInfo)) {
     const analysis = await new Promise((resolve) => {
       const req = analysisTx.objectStore('analysis').get(date);
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => resolve(null);
     });
-    if (!analysis || !analysis.importedAt || entryDates[date] > analysis.importedAt) {
+    if (!analysis || !analysis.importedAt) {
       needsSync.push(date);
+    } else if (entryDateInfo[date].maxTs > analysis.importedAt) {
+      needsSync.push(date);
+    } else {
+      // Check if any local entry IDs are missing from analysis
+      const analysisIds = new Set((analysis.entries || []).map(e => e.id));
+      for (const id of entryDateInfo[date].ids) {
+        if (!analysisIds.has(id)) { needsSync.push(date); break; }
+      }
     }
   }
   return needsSync;
+}
+
+async function getAnalysisHistory(dateStr) {
+  const db = await openDB();
+  if (!db.objectStoreNames.contains('analysisHistory')) return [];
+  const tx = db.transaction('analysisHistory', 'readonly');
+  const index = tx.objectStore('analysisHistory').index('date');
+  const request = index.getAll(dateStr);
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => resolve([]);
+  });
 }
 
 // Make functions available globally
@@ -526,6 +577,7 @@ window.DB = {
   getAnalysis,
   importAnalysis,
   getAnalysisRange,
+  getAnalysisHistory,
   getDatesNeedingSync,
   getProfile,
   setProfile,

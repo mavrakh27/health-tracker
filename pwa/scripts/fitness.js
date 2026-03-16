@@ -285,9 +285,10 @@ const Fitness = {
   },
 
   // Wire up event handlers after rendering
-  bindEvents(date) {
+  bindEvents(date, container) {
+    const root = container || document;
     // Checkbox toggles
-    document.querySelectorAll('.fitness-check').forEach(btn => {
+    root.querySelectorAll('.fitness-check').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const name = btn.dataset.name;
@@ -309,23 +310,24 @@ const Fitness = {
         await Fitness.saveCheckedExercises(date, checked);
 
         // Update counter
-        const total = document.querySelectorAll('.fitness-check').length;
-        const done = document.querySelectorAll('.fitness-check.checked').length;
-        const counter = document.querySelector('.fitness-exercise-row')?.closest('.card')?.previousElementSibling?.querySelector('[style*="muted"]');
-        // Simpler: just find the header card's count
-        const headerCard = document.querySelector('.fitness-exercise')?.parentElement?.querySelector('.card:first-child');
+        const total = root.querySelectorAll('.fitness-check').length;
+        const done = root.querySelectorAll('.fitness-check.checked').length;
+        // Update header card count and collapsible badge
+        const headerCard = root.querySelector('.fitness-exercise')?.parentElement?.querySelector('.card:first-child');
         if (headerCard) {
           const countEl = headerCard.querySelector('div[style*="muted"]:last-child');
           if (countEl) countEl.textContent = `${done} / ${total} done`;
         }
+        const badge = root.closest('.collapsible-section')?.querySelector('.collapsible-badge');
+        if (badge) badge.textContent = `${done}/${total}`;
       });
     });
 
     // Info expand/collapse
-    document.querySelectorAll('.fitness-info-btn').forEach(btn => {
+    root.querySelectorAll('.fitness-info-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const detail = document.getElementById(`fitness-detail-${btn.dataset.idx}`);
+        const detail = root.querySelector(`#fitness-detail-${btn.dataset.idx}`);
         if (detail) {
           const isOpen = detail.style.display !== 'none';
           detail.style.display = isOpen ? 'none' : 'block';
@@ -336,8 +338,8 @@ const Fitness = {
 
     // Notes — save button + auto-save fallback
     clearTimeout(Fitness._saveTimer);
-    const notesEl = document.getElementById('fitness-notes');
-    const saveBtn = document.getElementById('fitness-save-btn');
+    const notesEl = root.querySelector('#fitness-notes');
+    const saveBtn = root.querySelector('#fitness-save-btn');
     if (notesEl) {
       UI.autoResize(notesEl);
       notesEl.addEventListener('input', () => {

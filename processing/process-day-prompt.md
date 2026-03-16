@@ -2,6 +2,10 @@
 
 You are analyzing today's health data exported from the Health Tracker PWA. The data arrives as a ZIP file extracted into the extracted folder.
 
+## Day-of-Week Verification (CRITICAL)
+
+**Always compute the day of the week from the date string before processing.** The day of the week determines the workout regimen (e.g., Monday = cardio + core, Sunday = rest) and meal structure (office days vs home days). Never assume or guess the day — calculate it. Getting this wrong cascades into wrong regimen comparisons, wrong meal plans, and wrong weekly reviews.
+
 ## No Re-Processing Rule (CRITICAL)
 
 **Never re-analyze raw data for dates that already have an analysis file.** If `{DATA_DIR}/analysis/{DATE}.json` already exists, the raw data (photos, log.json) has already been synthesized. Only apply corrections to the existing analysis — do NOT re-process photos or re-estimate calories from scratch.
@@ -76,6 +80,7 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
    - Estimate calories burned based on type, duration, and intensity
    - Compare to the workout regimen — does today match the plan?
    - Note any deviations or progressions
+   - If the user did EXTRA work beyond what was scheduled (e.g., core work on a cardio-only day), celebrate the initiative — never criticize the volume of voluntary bonus effort. Only compare rep counts/sets against targets on days where that exercise was actually programmed.
 
 4. **Handle alcohol/vice entries:**
    - Vice entries have `type: 'vice'`, `subtype` (beer/wine/cocktail/shot/etc.), `quantity`, and `calories_est`

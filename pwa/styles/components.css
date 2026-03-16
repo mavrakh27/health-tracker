@@ -109,6 +109,64 @@
   transition: all var(--transition-fast);
 }
 
+/* Collapsible sections */
+.collapsible-section {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.collapsible-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  cursor: pointer;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.collapsible-body {
+  padding: var(--space-sm) 0;
+}
+
+.collapsible-body.collapsed {
+  display: none;
+}
+
+.collapsible-chevron {
+  font-size: var(--text-xs);
+  transition: transform 0.2s;
+  color: var(--text-muted);
+}
+
+.collapsible-chevron.open {
+  transform: rotate(180deg);
+}
+
+.collapsible-badge {
+  font-size: var(--text-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--accent-green-dim, rgba(46, 160, 67, 0.15));
+  color: var(--accent-green);
+  font-weight: 600;
+}
+
+.supplement-pick.selected {
+  background: var(--accent-green);
+  border-color: var(--accent-green);
+  color: #0d1117;
+}
+
+.supplement-pick-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
 /* Dailies Manager */
 .dailies-item {
   display: flex;
@@ -119,6 +177,14 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   margin-bottom: var(--space-xs);
+}
+
+.dailies-item-photo {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  flex-shrink: 0;
 }
 
 .dailies-item-body {

@@ -472,16 +472,28 @@ const CloudRelay = {
 
   // Queue a day for upload (debounced — batches saves within 3s)
   queueUpload(dateStr) {
-    this._pendingDate = dateStr;
+    if (!this._pendingDates) this._pendingDates = new Set();
+    this._pendingDates.add(dateStr);
     this.log(`Queued ${dateStr} for upload (3s debounce)`);
     if (this._uploadTimer) clearTimeout(this._uploadTimer);
-    this._uploadTimer = setTimeout(() => this._doUpload(), 3000);
+    this._uploadTimer = setTimeout(() => this._doUploadAll(), 3000);
   },
 
-  async _doUpload() {
-    const date = this._pendingDate;
+  async _doUploadAll() {
+    const dates = this._pendingDates;
+    this._pendingDates = new Set();
+    if (!dates || dates.size === 0) return;
+    for (const date of dates) {
+      await this._doUpload(date);
+    }
+    // If new dates were queued during uploads, process them too
+    if (this._pendingDates.size > 0) {
+      await this._doUploadAll();
+    }
+  },
+
+  async _doUpload(date) {
     if (!date) return;
-    this._pendingDate = null;
 
     const config = await this.getConfig();
     if (!config || !config.workerUrl || !config.syncKey) {
@@ -706,12 +718,17 @@ const CloudRelay = {
     }
 
     document.getElementById('cs-sync-now').addEventListener('click', async () => {
-      const today = UI.today();
       clearTimeout(CloudRelay._uploadTimer);
       CloudRelay._uploadTimer = null;
-      CloudRelay.log(`Manual sync triggered for ${today}`);
-      CloudRelay._pendingDate = today;
-      await CloudRelay._doUpload();
+      const dates = await DB.getDatesNeedingSync();
+      const today = UI.today();
+      if (!dates.includes(today)) dates.push(today);
+      const viewed = App.selectedDate;
+      if (viewed && !dates.includes(viewed)) dates.push(viewed);
+      CloudRelay.log(`Manual sync: uploading ${dates.length} date(s): ${dates.join(', ')}`);
+      for (const date of dates) {
+        await CloudRelay._doUpload(date);
+      }
       await CloudRelay.checkForResults();
     });
 

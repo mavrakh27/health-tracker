@@ -102,7 +102,7 @@ Plus: goals (1200/1000 cal), weekly regimen, meal plan, fitness goals, streaks.
 ## When to Run
 
 - After any code changes to scripts, HTML, or CSS
-- Before committing/pushing
+- **Before pushing — never push without running tests first.** CSS layout changes (overflow, position, height) can silently break scrolling or hide content. The scroll behavior test catches these.
 - After dependency or data model changes
 - When adding new entry types or UI components
 - Use `--dogfood` for comprehensive E2E verification before releases or major refactors

@@ -68,7 +68,7 @@ const PlanView = {
     container.innerHTML = html;
 
     // Bind fitness events
-    Fitness.bindEvents(date);
+    Fitness.bindEvents(date, container);
   },
 
   renderMeals(todayPlan, analysis) {
