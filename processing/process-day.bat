@@ -65,30 +65,24 @@ for /f "usebackq delims=" %%d in (`powershell -NoProfile -Command "try { ($env:P
 if not "!RELAY_DATES!"=="" (
     echo [%TODAY%] Cloud relay has pending dates: !RELAY_DATES!
 
-    REM Download each pending day - skip dates that already have analysis
+    REM Download each pending day - always download, reprocess if data is newer than analysis
     for %%d in (!RELAY_DATES!) do (
-        if exist "%DATA_DIR%\analysis\%%d.json" (
-            echo [%TODAY%] %%d already has analysis - uploading result and marking done
-            curl -s -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%DATA_DIR%\analysis\%%d.json" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/%%d/done"
-            echo.
+        echo [%TODAY%] Downloading %%d from relay...
+        curl -sf -o "%EXTRACT_DIR%\health-%%d.zip" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/%%d"
+        if not errorlevel 1 (
+            set /a ZIP_COUNT+=1
+            set NEW_DATES=!NEW_DATES! %%d
+            REM Backup raw ZIP locally before any processing
+            copy "%EXTRACT_DIR%\health-%%d.zip" "%BACKUP_DIR%\raw\" >nul 2>&1
+            REM Extract the downloaded ZIP
+            powershell -NoProfile -Command "try { Expand-Archive -LiteralPath '%EXTRACT_DIR%\health-%%d.zip' -DestinationPath '%EXTRACT_DIR%' -Force } catch { Write-Error $_.Exception.Message; exit 1 }"
+            REM Also backup extracted data by date
+            mkdir "%BACKUP_DIR%\raw\%%d" 2>nul
+            xcopy "%EXTRACT_DIR%\*" "%BACKUP_DIR%\raw\%%d\" /E /Y /Q >nul 2>&1
+            REM Archive ZIP
+            move "%EXTRACT_DIR%\health-%%d.zip" "%DATA_DIR%\archive\" >nul 2>&1
         ) else (
-            echo [%TODAY%] Downloading %%d from relay...
-            curl -sf -o "%EXTRACT_DIR%\health-%%d.zip" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/%%d"
-            if not errorlevel 1 (
-                set /a ZIP_COUNT+=1
-                set NEW_DATES=!NEW_DATES! %%d
-                REM Backup raw ZIP locally before any processing
-                copy "%EXTRACT_DIR%\health-%%d.zip" "%BACKUP_DIR%\raw\" >nul 2>&1
-                REM Extract the downloaded ZIP
-                powershell -NoProfile -Command "try { Expand-Archive -LiteralPath '%EXTRACT_DIR%\health-%%d.zip' -DestinationPath '%EXTRACT_DIR%' -Force } catch { Write-Error $_.Exception.Message; exit 1 }"
-                REM Also backup extracted data by date
-                mkdir "%BACKUP_DIR%\raw\%%d" 2>nul
-                xcopy "%EXTRACT_DIR%\*" "%BACKUP_DIR%\raw\%%d\" /E /Y /Q >nul 2>&1
-                REM Archive ZIP
-                move "%EXTRACT_DIR%\health-%%d.zip" "%DATA_DIR%\archive\" >nul 2>&1
-            ) else (
-                echo [%TODAY%] WARNING: Failed to download %%d
-            )
+            echo [%TODAY%] WARNING: Failed to download %%d
         )
     )
 ) else (
