@@ -1043,45 +1043,26 @@ async function testScoreCentering(page, fixtures) {
 
   const scoreCard = await page.$('.day-score');
   if (scoreCard) {
-    // Check that the score card content is centered by comparing bounding rects
-    const alignment = await page.evaluate(() => {
-      const card = document.querySelector('.day-score');
-      if (!card) return null;
-      const style = getComputedStyle(card);
-      return {
-        justifyContent: style.justifyContent,
-        display: style.display,
-      };
-    });
-    assert(
-      alignment && alignment.justifyContent === 'center',
-      `Score card has justify-content: center (got: ${alignment?.justifyContent})`
-    );
-
-    // Also verify the score gauge and labels are within the card bounds (not overflowing left)
-    const positions = await page.evaluate(() => {
-      const card = document.querySelector('.day-score');
+    // Check that the score NUMBER is centered inside the score RING (bounding rect, not CSS props)
+    const numberOffset = await page.evaluate(() => {
       const gauge = document.querySelector('.day-score-gauge');
-      if (!card || !gauge) return null;
-      const cardRect = card.getBoundingClientRect();
-      const gaugeRect = gauge.getBoundingClientRect();
+      const num = document.querySelector('.score-number');
+      if (!gauge || !num) return null;
+      const gRect = gauge.getBoundingClientRect();
+      const nRect = num.getBoundingClientRect();
       return {
-        cardLeft: cardRect.left,
-        cardRight: cardRect.right,
-        cardWidth: cardRect.width,
-        gaugeLeft: gaugeRect.left,
-        gaugeCenterX: gaugeRect.left + gaugeRect.width / 2,
-        cardCenterX: cardRect.left + cardRect.width / 2,
+        x: Math.abs((nRect.left + nRect.width / 2) - (gRect.left + gRect.width / 2)),
+        y: Math.abs((nRect.top + nRect.height / 2) - (gRect.top + gRect.height / 2)),
       };
     });
-    if (positions) {
-      const offset = Math.abs(positions.gaugeCenterX - positions.cardCenterX);
-      // Gauge center should be reasonably close to card center (within card's half-width)
-      assert(
-        positions.gaugeLeft > positions.cardLeft,
-        `Score gauge is not flush left (gauge left: ${positions.gaugeLeft.toFixed(0)}, card left: ${positions.cardLeft.toFixed(0)})`
-      );
+    if (numberOffset) {
+      assert(numberOffset.x < 2, `Score number centered horizontally in ring (offset: ${numberOffset.x.toFixed(1)}px)`);
+      assert(numberOffset.y < 2, `Score number centered vertically in ring (offset: ${numberOffset.y.toFixed(1)}px)`);
     }
+
+    // Verify score card is NOT center-aligned (should be left-aligned flex row)
+    const cardJC = await page.$eval('.day-score', el => getComputedStyle(el).justifyContent);
+    assert(cardJC !== 'center', `Score card is not center-aligned (got: ${cardJC})`);
   } else {
     assert(false, 'Score card (.day-score) found for centering test');
   }
