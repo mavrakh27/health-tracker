@@ -324,8 +324,7 @@ async function testProfileScreen(page, fixtures) {
   const syncCard = await page.textContent('#screen-profile');
   assert(syncCard.includes('Cloud Sync'), 'Cloud Sync card renders');
 
-  // Backup card (compacted to inline links)
-  assert(syncCard.includes('Manual import'), 'Backup card renders (Manual import links)');
+  // Backup card was removed — manual import is no longer in the UI
 
   // Storage card with danger button
   const dangerBtn = await page.$('.btn-danger');
