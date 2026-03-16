@@ -18,8 +18,9 @@ After ZIP extraction, the data is at `{EXTRACT_DIR}/`:
 
 The `{EXTRACT_DIR}` path will be provided in the processing prompt. ZIP extraction may nest paths (e.g. `{EXTRACT_DIR}/daily/{DATE}/daily/{DATE}/log.json`). Use Glob to find the actual `log.json` location.
 
-Profile files (always at fixed paths):
-- `{DATA_DIR}/profile/goals.json` — dual plan targets (moderate = active, hardcore = stretch goal)
+Profile files (check BOTH locations — ZIP-bundled profile takes priority over fixed-path):
+- `{EXTRACT_DIR}/profile/goals.json` — goals bundled from the PWA (most up-to-date, **use this first**)
+- `{DATA_DIR}/profile/goals.json` — fallback goals on the processing machine
 - `{DATA_DIR}/profile/regimen.json` — workout plans (moderate + hardcore schedules)
 - `{DATA_DIR}/profile/preferences.json` — dietary preferences
 - `{DATA_DIR}/profile/bio.txt` — user's personal stats, goals, and context (optional but recommended)

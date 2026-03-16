@@ -1,20 +1,25 @@
 {
   "calories": {
-    "daily": 1800,
-    "adjustment": "Cut — aiming for gradual fat loss"
+    "daily": 2000,
+    "adjustment": "Edit to match your goal"
   },
   "macros": {
-    "protein": { "grams": 130, "priority": "high" },
+    "protein": { "grams": 100, "priority": "high" },
     "carbs": { "grams": 200, "priority": "medium" },
     "fat": { "grams": 70, "priority": "low" }
   },
   "water": {
-    "daily_oz": 96
+    "daily_oz": 64
+  },
+  "hardcore": {
+    "calories": { "daily": 1500 },
+    "macros": { "protein": { "grams": 130 } },
+    "water": { "daily_oz": 64 }
   },
   "weight": {
     "current": null,
     "goal": null,
     "unit": "lbs"
   },
-  "notes": "Edit this file to set your personal goals. These are used by Claude during nightly processing."
+  "notes": "Fallback goals — the PWA now bundles your actual goals in each upload. This file is only used if no goals arrive in the ZIP."
 }

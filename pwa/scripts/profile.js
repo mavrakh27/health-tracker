@@ -39,7 +39,6 @@ const ProfileView = {
     }
 
     if (activeTab === 'goals') {
-      if (coachEl) coachEl.querySelector('.segment-control')?.scrollIntoView();
       if (goalsEl) {
         goalsEl.style.display = 'block';
         await ProfileView.renderGoals(goalsEl);

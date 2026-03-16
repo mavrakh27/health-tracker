@@ -12,6 +12,27 @@ const Sync = {
     const logJson = JSON.stringify(data.log, null, 2);
     files.push({ name: `daily/${date}/log.json`, data: new TextEncoder().encode(logJson) });
 
+    // Bundle user's goals so processing uses their actual targets
+    const goals = await DB.getProfile('goals');
+    if (goals) {
+      const hc = goals.hardcore || {};
+      const goalsJson = JSON.stringify({
+        calories: { daily: goals.calories || 2000, adjustment: 'User-configured goal' },
+        macros: {
+          protein: { grams: goals.protein || 100, priority: 'high' },
+          carbs: { grams: 200, priority: 'medium' },
+          fat: { grams: 70, priority: 'low' },
+        },
+        water: { daily_oz: goals.water_oz || 64 },
+        hardcore: {
+          calories: { daily: hc.calories || 1500 },
+          macros: { protein: { grams: hc.protein || 130 } },
+          water: { daily_oz: hc.water_oz || 64 },
+        },
+      }, null, 2);
+      files.push({ name: `profile/goals.json`, data: new TextEncoder().encode(goalsJson) });
+    }
+
     for (const photo of data.photoFiles) {
       const arrayBuf = await photo.blob.arrayBuffer();
       const isBodyPhoto = photo.name.startsWith('body/');

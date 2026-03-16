@@ -313,8 +313,8 @@ const QuickLog = {
             <input type="text" class="form-input" id="dm-name" placeholder="Item name (e.g. Creatine)" maxlength="50">
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm); margin-bottom:var(--space-sm);">
-            <input type="number" class="form-input" id="dm-cal" placeholder="Calories (optional)" inputmode="numeric">
-            <input type="number" class="form-input" id="dm-protein" placeholder="Protein g (optional)" inputmode="numeric">
+            <input type="number" class="form-input" id="dm-cal" placeholder="Calories" inputmode="numeric">
+            <input type="number" class="form-input" id="dm-protein" placeholder="Protein (g)" inputmode="numeric">
           </div>
           <button class="btn btn-primary btn-block" id="dm-add-btn">Add Daily</button>
         </div>

@@ -205,6 +205,10 @@ async function testTodayScreen(page, fixtures) {
   console.log('\n--- Today Screen ---');
 
   await page.click('nav button:has-text("Today")');
+
+  // Wait for entries to render (confirms data injection + loadDayView completed)
+  await page.waitForSelector('.entry-item', { timeout: 5000 }).catch(() => {});
+  // Give score calculation time to finish (runs async after entries)
   await page.waitForTimeout(500);
 
   // Score ring should render
