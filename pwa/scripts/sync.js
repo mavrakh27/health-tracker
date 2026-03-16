@@ -12,7 +12,7 @@ const Sync = {
     const logJson = JSON.stringify(data.log, null, 2);
     files.push({ name: `daily/${date}/log.json`, data: new TextEncoder().encode(logJson) });
 
-    // Bundle user's goals so processing uses their actual targets
+    // Bundle user profile so processing uses actual targets + profile survives reinstalls
     const goals = await DB.getProfile('goals');
     if (goals) {
       const hc = goals.hardcore || {};
@@ -31,6 +31,13 @@ const Sync = {
         },
       }, null, 2);
       files.push({ name: `profile/goals.json`, data: new TextEncoder().encode(goalsJson) });
+
+      // Also bundle raw PWA profile for round-trip restore on reinstall
+      const pwaProfile = {
+        goals,
+        supplements: await DB.getProfile('supplements'),
+      };
+      files.push({ name: `profile/pwa-profile.json`, data: new TextEncoder().encode(JSON.stringify(pwaProfile, null, 2)) });
     }
 
     for (const photo of data.photoFiles) {

@@ -292,7 +292,7 @@ async function importAnalysis(dateStr, data) {
   const db = await openDB();
   const stores = ['analysis', 'photos'];
   if (data.mealPlan) stores.push('mealPlan');
-  if (data.regimen) stores.push('profile');
+  if (data.regimen || data.pwaProfile) stores.push('profile');
   const tx = db.transaction(stores, 'readwrite');
 
   // Extract and save bundled meal plan and regimen before storing analysis
@@ -305,8 +305,19 @@ async function importAnalysis(dateStr, data) {
     tx.objectStore('profile').put({ key: 'regimen', value: data.regimen });
   }
 
-  // Store analysis without the bundled plan/regimen (keep it lean)
-  const { mealPlan, regimen, ...analysisData } = data;
+  // Restore PWA profile (goals + dailies) — survives reinstalls/cache clears
+  if (data.pwaProfile) {
+    const profileStore = tx.objectStore('profile');
+    if (data.pwaProfile.goals) {
+      profileStore.put({ key: 'goals', value: data.pwaProfile.goals });
+    }
+    if (data.pwaProfile.supplements) {
+      profileStore.put({ key: 'supplements', value: data.pwaProfile.supplements });
+    }
+  }
+
+  // Store analysis without the bundled plan/regimen/profile (keep it lean)
+  const { mealPlan, regimen, pwaProfile, ...analysisData } = data;
   tx.objectStore('analysis').put({ ...analysisData, date: dateStr, importedAt: Date.now() });
 
   // Mark meal photos for this date as processed
