@@ -1033,6 +1033,36 @@ async function testUILabels(page, fixtures) {
   await screenshot(page, 'ui-labels');
 }
 
+async function testFixtureSchema(fixtures) {
+  console.log('\n--- Fixture Schema Validation ---');
+
+  // Validate analysis entries match real processing output format
+  for (const analysis of fixtures.analyses) {
+    for (const entry of analysis.entries) {
+      // All entries must have: id, type, description, calories
+      assert(entry.id, `Analysis entry has id (date: ${analysis.date}, type: ${entry.type})`);
+      assert(entry.type, `Analysis entry has type (id: ${entry.id})`);
+      assert(entry.description != null, `Analysis entry has description (id: ${entry.id})`);
+
+      if (entry.type === 'workout') {
+        // Workouts use negative calories, NOT calories_burned
+        assert(!entry.calories_burned, `Workout uses calories (negative), not calories_burned (id: ${entry.id})`);
+        assert(entry.calories <= 0, `Workout calories are negative or zero (id: ${entry.id}, got: ${entry.calories})`);
+      } else {
+        // Food entries use positive calories
+        assert(entry.calories >= 0, `Food calories are non-negative (id: ${entry.id}, got: ${entry.calories})`);
+      }
+
+      // No em dashes or smart quotes in descriptions (causes mojibake on Windows)
+      if (entry.description) {
+        assert(!entry.description.includes('\u2014'), `No em dash in description (id: ${entry.id})`);
+        assert(!entry.description.includes('\u2013'), `No en dash in description (id: ${entry.id})`);
+        assert(!entry.description.includes('\u201c') && !entry.description.includes('\u201d'), `No smart quotes in description (id: ${entry.id})`);
+      }
+    }
+  }
+}
+
 async function testScoreCentering(page, fixtures) {
   console.log('\n--- Score Centering ---');
 
@@ -1149,6 +1179,7 @@ async function run() {
     await testEntryTypes(page, fixtures);
     await testPhotos(page, fixtures);
     await testUserFlows(page, fixtures);
+    await testFixtureSchema(fixtures);
     await testProfileRoundTrip(page, fixtures);
     await testAnalysisStatusIndicators(page, fixtures);
     await testUILabels(page, fixtures);

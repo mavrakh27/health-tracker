@@ -75,7 +75,7 @@ function buildFixtures() {
         { id: `meal_${ts(day1,8,0)}_test1`, type: 'meal', subtype: 'breakfast', description: 'Oatmeal with berries and protein powder', calories: 380, protein: 28, carbs: 52, fat: 8, confidence: 'high' },
         { id: `meal_${ts(day1,12,30)}_test2`, type: 'meal', subtype: 'lunch', description: 'Grilled chicken salad with quinoa', calories: 450, protein: 42, carbs: 35, fat: 14, confidence: 'high' },
         { id: `meal_${ts(day1,18,0)}_test3`, type: 'meal', subtype: 'dinner', description: 'Salmon with roasted vegetables', calories: 520, protein: 38, carbs: 28, fat: 24, confidence: 'medium' },
-        { id: `workout_${ts(day1,7,0)}_test4`, type: 'workout', subtype: 'cardio', description: 'Elliptical 25 min, level 10', calories_burned: 180, duration_minutes: 25, confidence: 'high' },
+        { id: `workout_${ts(day1,7,0)}_test4`, type: 'workout', subtype: 'cardio', description: 'Elliptical 25 min, level 10', calories: -180, protein: 0, carbs: 0, fat: 0, confidence: 'high' },
         { id: `supplement_${ts(day1,8,30)}_test5`, type: 'supplement', description: 'Fiber + Collagen', calories: 100, protein: 18 },
       ],
       totals: { calories: 1450, protein: 126, carbs: 115, fat: 46 },
