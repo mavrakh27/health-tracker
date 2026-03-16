@@ -142,8 +142,9 @@ const Log = {
       const logGrid = document.getElementById(Log._gridId);
       if (logGrid) logGrid.style.display = 'none';
       Log.hideForm();
-      const toggleBtn = document.getElementById('toggle-log-types');
-      if (toggleBtn) toggleBtn.textContent = '+ Add';
+      // Close the More panel after saving
+      const moreEl = document.getElementById('more-entry-types');
+      if (moreEl) moreEl.style.display = 'none';
       App.loadDayView();
     } else {
       Log.init();
@@ -282,9 +283,24 @@ const Log = {
     saveGroup.appendChild(saveBtn);
     frag.appendChild(saveGroup);
 
-    // Load types async and render
+    // Load types async and render (auto-detect existing subtypes on first use)
     requestAnimationFrame(async () => {
-      Log._bodyPhotoTypes = await DB.getProfile('bodyPhotoTypes') || [{ key: 'body', name: 'Body' }];
+      let types = await DB.getProfile('bodyPhotoTypes');
+      if (!types) {
+        // First time — detect existing body photo subtypes so nothing is orphaned
+        types = [{ key: 'body', name: 'Body' }];
+        try {
+          const allEntries = await DB.getEntriesByType('bodyPhoto');
+          const existing = new Set(allEntries.map(e => e.subtype).filter(Boolean));
+          for (const sub of existing) {
+            if (!types.some(t => t.key === sub)) {
+              types.push({ key: sub, name: sub.charAt(0).toUpperCase() + sub.slice(1) });
+            }
+          }
+        } catch (e) { /* ignore */ }
+        await DB.setProfile('bodyPhotoTypes', types);
+      }
+      Log._bodyPhotoTypes = types;
       Log._renderBodyPhotoTypes();
     });
 
