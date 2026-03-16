@@ -1,5 +1,5 @@
 // Service Worker — Health Tracker PWA
-const CACHE_NAME = 'coach-v95';
+const CACHE_NAME = 'coach-v96';
 
 const ASSETS = [
   './',

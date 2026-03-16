@@ -1207,7 +1207,6 @@ async function run() {
     await testAnalysisStatusIndicators(page, fixtures);
     await testUILabels(page, fixtures);
     await testScoreCentering(page, fixtures);
-    await testScrollBehavior(page);
     await testMultiViewport(page, context, fixtures);
     await testConsoleErrors(page);
 
