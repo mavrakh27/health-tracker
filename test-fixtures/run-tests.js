@@ -239,9 +239,9 @@ async function testTodayScreen(page, fixtures) {
   const chips = await page.$$('.score-chip');
   assert(chips.length >= 3, `Score breakdown chips render (got ${chips.length})`);
 
-  // Coach inbox is on Today tab (inside collapsible)
-  const coachSection = await page.$('#today-coach .collapsible-section');
-  assert(coachSection, 'Coach inbox renders on Today tab');
+  // Coach is its own tab now — verify Coach nav button exists
+  const coachNav = await page.$('nav button[data-screen="coach"]');
+  assert(!!coachNav, 'Coach tab exists in navigation');
 
   // More button exists for additional entry types
   const moreBtn = await page.$('#quick-more-btn');
@@ -1146,7 +1146,7 @@ async function testMultiViewport(page, context, fixtures) {
 
     // All nav buttons visible
     const navBtns = await page.$$('nav button');
-    assert(navBtns.length === 3, `${vp.name}: 3 nav buttons visible`);
+    assert(navBtns.length === 4, `${vp.name}: 4 nav buttons visible`);
 
     await screenshot(page, `viewport-${vp.name}`);
   }

@@ -508,6 +508,7 @@ const App = {
   routes: {
     '': 'today',
     '#today': 'today',
+    '#coach': 'coach',
     '#progress': 'progress',
     '#settings': 'settings',
     // Legacy routes
@@ -542,6 +543,7 @@ const App = {
 
     // Screen-specific init
     if (screenId === 'today') App.loadDayView();
+    if (screenId === 'coach') App.loadCoachView();
     if (screenId === 'progress') ProgressView.init();
     if (screenId === 'settings') {
       Settings.loadGoalsSummary();
@@ -588,6 +590,7 @@ const App = {
     App.selectedDate = newDate;
     App.updateHeaderDate();
     if (App.currentScreen === 'today') App.loadDayView();
+    if (App.currentScreen === 'coach') App.loadCoachView();
   },
 
   goToDate(dateStr) {
@@ -780,62 +783,39 @@ const App = {
       } catch (e) { mealSuggEl.innerHTML = ''; }
     }
 
-    // Coach inbox (collapsible)
-    const coachEl = document.getElementById('today-coach');
-    if (coachEl) {
-      try {
-        const savedText = document.getElementById('coach-input')?.value || '';
-        const coachHtml = await CoachChat.render(date);
-        const summary = await DB.getDailySummary(date);
-        const coachAnalysis = await DB.getAnalysis(date);
-        const userMsgs = (summary.coachChat || []).filter(m => m.role === 'user');
-        const coachResps = coachAnalysis?.coachResponses || [];
-        const msgCount = userMsgs.length + coachResps.length;
-        const hasUnanswered = userMsgs.some(m => !coachResps.find(r => r.replyTo === m.id));
-
-        coachEl.innerHTML = `
-          <div class="collapsible-section" style="margin-top:var(--space-sm);">
-            <div class="collapsible-header" id="coach-collapse-header">
-              <div style="display:flex; align-items:center; gap:var(--space-sm);">
-                <span style="font-weight:600;">Inbox</span>
-                ${hasUnanswered ? '<span style="font-size:var(--text-xs); color:var(--accent-orange);">Waiting for reply...</span>' : ''}
-              </div>
-              <div style="display:flex; align-items:center; gap:var(--space-sm);">
-                ${msgCount > 0 ? `<span class="collapsible-badge" style="background:var(--accent-primary-dim, rgba(88, 166, 255, 0.15)); color:var(--accent-primary);">${msgCount}</span>` : ''}
-                <span class="collapsible-chevron">&#9660;</span>
-              </div>
-            </div>
-            <div class="collapsible-body collapsed" id="coach-collapse-body">
-              ${coachHtml}
-            </div>
-          </div>
-        `;
-        CoachChat.bindEvents(date);
-        // Restore unsaved text
-        if (savedText) { const inp = document.getElementById('coach-input'); if (inp) inp.value = savedText; }
-        document.getElementById('coach-collapse-header')?.addEventListener('click', () => {
-          const body = document.getElementById('coach-collapse-body');
-          const chevron = coachEl.querySelector('.collapsible-chevron');
-          if (body) { body.classList.toggle('collapsed'); chevron?.classList.toggle('open'); }
-        });
-      } catch (e) { coachEl.innerHTML = ''; }
-    }
-
     // Close the "More" types panel on re-render
     const moreEl = document.getElementById('more-entry-types');
     if (moreEl) moreEl.style.display = 'none';
+  },
 
-    // Load analysis if available
-    const analysis = await DB.getAnalysis(date);
-    const analysisEl = document.getElementById('today-analysis');
+  async loadCoachView() {
+    const date = App.selectedDate;
+
+    // Coach inbox (full view, not collapsible)
+    const inboxEl = document.getElementById('coach-inbox');
+    if (inboxEl) {
+      try {
+        const savedText = document.getElementById('coach-input')?.value || '';
+        const coachHtml = await CoachChat.render(date);
+        inboxEl.innerHTML = `<h2 class="section-header">Inbox</h2>${coachHtml}`;
+        CoachChat.bindEvents(date);
+        if (savedText) { const inp = document.getElementById('coach-input'); if (inp) inp.value = savedText; }
+      } catch (e) { inboxEl.innerHTML = ''; }
+    }
+
+    // In-depth analysis
+    const analysisEl = document.getElementById('coach-analysis');
     if (analysisEl) {
+      const analysis = await DB.getAnalysis(date);
       if (analysis) {
-        // Pass current profile goals so stale analysis targets get overridden
         const goals = await DB.getProfile('goals') || {};
-        analysisEl.innerHTML = `<div style="margin-top: var(--space-lg);">` +
-          GoalsView.renderAnalysisSummary(analysis, goals) + `</div>`;
+        analysisEl.innerHTML = GoalsView.renderRemainingBudget(analysis, goals) +
+          GoalsView.renderAnalysisSummary(analysis, goals);
       } else {
-        analysisEl.innerHTML = '';
+        analysisEl.innerHTML = `<div class="card" style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">
+          <div style="font-size:var(--text-sm);">No analysis for ${UI.formatDate(date)} yet.</div>
+          <div style="font-size:var(--text-xs); margin-top:var(--space-xs);">Log meals and sync to get your coach's breakdown.</div>
+        </div>`;
       }
     }
   },

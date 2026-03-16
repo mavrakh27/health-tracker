@@ -863,7 +863,7 @@ async function runDogfood(existingBrowser) {
 
       // Verify all nav buttons visible and reachable
       const navBtns = await page.$$('nav button');
-      assert(navBtns.length === 3, `${vp.name}: all 3 nav buttons present`);
+      assert(navBtns.length === 4, `${vp.name}: all 4 nav buttons present`);
 
       // Check all quick action buttons are reachable
       await page.click('nav button:has-text("Today")');
