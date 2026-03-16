@@ -139,17 +139,12 @@
         </div>
       </div>
 
-      <!-- Backup -->
-      <div class="s-card">
+      <!-- Backup (manual import — for recovery without cloud sync) -->
+      <div class="s-card" style="opacity: 0.7;">
         <div class="s-card-row">
           <div class="s-card-body">
-            <h3 class="s-title">Backup</h3>
-            <p class="s-subtitle">Import analysis or restore from ZIP</p>
+            <p class="s-subtitle">Manual import: <a href="#" onclick="event.preventDefault(); Sync.importAll()">analysis JSON</a> · <a href="#" onclick="event.preventDefault(); Sync.restoreFromZip()">restore ZIP</a></p>
           </div>
-        </div>
-        <div class="s-btn-row">
-          <button class="btn btn-secondary" onclick="Sync.importAll()">Import</button>
-          <button class="btn btn-secondary" onclick="Sync.restoreFromZip()">Restore</button>
         </div>
       </div>
 
