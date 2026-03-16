@@ -108,6 +108,9 @@
         </div>
       </div>
 
+      <!-- Sync Now — primary sync action -->
+      <button class="btn btn-primary btn-block btn-lg" id="profile-sync-now" onclick="App.syncNow()" style="margin-bottom: var(--space-md);">Sync Now</button>
+
       <!-- Cloud Sync -->
       <div class="s-card s-card--accent">
         <div class="s-card-row">
@@ -119,8 +122,8 @@
           <button class="s-action-btn" onclick="CloudRelay.showSetup()">Setup</button>
         </div>
         <div class="s-btn-row" style="margin-top: var(--space-sm);">
-          <button class="btn btn-secondary" onclick="CloudRelay.checkForResults()">Check Results</button>
-          <button class="btn btn-secondary" onclick="CloudRelay.resyncAll()">Re-sync All</button>
+          <button class="btn btn-secondary" onclick="App.checkResults()">Check Results</button>
+          <button class="btn btn-ghost" onclick="CloudRelay.resyncAll()" style="font-size: var(--text-xs);">Re-sync All</button>
         </div>
       </div>
 

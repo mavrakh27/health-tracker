@@ -699,6 +699,36 @@ const App = {
     }
   },
 
+  // Profile-level sync actions (called from index.html buttons)
+  async syncNow() {
+    const configured = await CloudRelay.isConfigured();
+    if (!configured) { UI.toast('Set up Cloud Sync first', 'error'); return; }
+    UI.toast('Syncing...');
+    const today = UI.today();
+    CloudRelay._pendingDate = today;
+    await CloudRelay._doUpload();
+    CloudRelay._gotResults = false;
+    await CloudRelay.checkForResults();
+    if (CloudRelay._gotResults) {
+      App.loadDayView();
+    } else {
+      UI.toast('Uploaded — no new results yet');
+    }
+  },
+
+  async checkResults() {
+    const configured = await CloudRelay.isConfigured();
+    if (!configured) { UI.toast('Set up Cloud Sync first', 'error'); return; }
+    UI.toast('Checking for results...');
+    CloudRelay._gotResults = false;
+    await CloudRelay.checkForResults();
+    if (CloudRelay._gotResults) {
+      App.loadDayView();
+    } else {
+      UI.toast('No new results on relay');
+    }
+  },
+
   async ensureDefaultGoals() {
     const existing = await DB.getProfile('goals');
     if (!existing) {

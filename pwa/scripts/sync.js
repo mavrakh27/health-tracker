@@ -717,8 +717,8 @@ const CloudRelay = {
 
     document.getElementById('cs-check-results').addEventListener('click', async () => {
       UI.toast('Checking for results...');
+      CloudRelay._gotResults = false;
       await CloudRelay.checkForResults();
-      // If no results were found, the toast from checkForResults won't fire — show feedback
       if (!CloudRelay._gotResults) {
         UI.toast('No new results on relay');
       }
