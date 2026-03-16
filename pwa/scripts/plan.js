@@ -175,10 +175,11 @@ const PlanView = {
     }
 
     for (const day of (plan.days || [])) {
+      const dayCals = day.day_totals?.calories || (day.meals ? day.meals.reduce((sum, m) => sum + (m.calories || 0), 0) : 0);
       html += `<div class="card" style="margin-bottom:var(--space-sm); cursor:pointer;" onclick="App.goToDate('${day.date}')">`;
       html += `<div style="display:flex; justify-content:space-between; align-items:baseline;">
         <span style="font-weight:500;">${UI.formatDate(day.date)}</span>
-        <span style="font-size:var(--text-xs); color:var(--text-muted);">${day.day_totals?.calories || '?'} cal</span>
+        <span style="font-size:var(--text-xs); color:var(--text-muted);">${dayCals || '?'} cal</span>
       </div>`;
       if (day.dayType) {
         html += `<div style="font-size:var(--text-xs); color:var(--accent-primary);">${UI.escapeHtml(day.dayType)}</div>`;

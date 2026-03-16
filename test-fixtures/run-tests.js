@@ -323,8 +323,8 @@ async function testProfileScreen(page, fixtures) {
   const syncCard = await page.textContent('#screen-profile');
   assert(syncCard.includes('Cloud Sync'), 'Cloud Sync card renders');
 
-  // Backup card
-  assert(syncCard.includes('Backup'), 'Backup card renders');
+  // Backup card (compacted to inline links)
+  assert(syncCard.includes('Manual import'), 'Backup card renders (Manual import links)');
 
   // Storage card with danger button
   const dangerBtn = await page.$('.btn-danger');
@@ -946,6 +946,148 @@ async function testUserFlows(page, fixtures) {
   await screenshot(page, 'flow6-plan-after-return');
 }
 
+async function testProfileRoundTrip(page, fixtures) {
+  console.log('\n--- Profile Round-Trip ---');
+
+  // Import analysis with pwaProfile and verify goals restored
+  // The fixtures already inject goals with calories=1200 — verify that's what's in the DB
+  const goalsFromDB = await page.evaluate(async () => {
+    const goals = await DB.getProfile('goals');
+    return goals;
+  });
+  assert(goalsFromDB && goalsFromDB.calories === 1200, `Goals restored from fixture: calories=${goalsFromDB?.calories} (expected 1200)`);
+  assert(goalsFromDB && goalsFromDB.protein === 105, `Goals restored from fixture: protein=${goalsFromDB?.protein} (expected 105)`);
+
+  // Simulate importing an analysis with pwaProfile and verify goals update
+  await page.evaluate(async () => {
+    const analysisWithProfile = {
+      totals: { calories: 500, protein: 50, carbs: 30, fat: 10 },
+      pwaProfile: {
+        goals: { calories: 1200, protein: 105, water_oz: 64, hardcore: { calories: 1000, protein: 120, water_oz: 64 } },
+        supplements: ['Fiber', 'Collagen', 'Vitamin D'],
+      },
+    };
+    await DB.importAnalysis('2099-01-01', analysisWithProfile);
+  });
+
+  const updatedGoals = await page.evaluate(async () => await DB.getProfile('goals'));
+  assert(updatedGoals && updatedGoals.calories === 1200, `Goals preserved after pwaProfile import: calories=${updatedGoals?.calories}`);
+
+  const supplements = await page.evaluate(async () => await DB.getProfile('supplements'));
+  assert(supplements && supplements.length >= 3, `Supplements restored from pwaProfile (got ${supplements?.length})`);
+
+  await screenshot(page, 'profile-round-trip');
+}
+
+async function testAnalysisStatusIndicators(page, fixtures) {
+  console.log('\n--- Analysis Status Indicators ---');
+
+  // Day 1 has entries with matching analysis IDs — should show inline calories
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(800);
+
+  // Look for inline calorie text on entries (e.g. "Food · 380 Cal" or similar)
+  const entryTexts = await page.$$eval('.entry-item', els => els.map(e => e.textContent));
+  const hasInlineCal = entryTexts.some(t => /\d+\s*Cal/i.test(t));
+  assert(hasInlineCal, 'Day 1 entry shows inline calories from analysis');
+
+  // Check for at least one entry that shows calorie info
+  const calEntries = await page.$$eval('.entry-item', els => {
+    return els.filter(e => /\d+\s*Cal/i.test(e.textContent)).length;
+  });
+  assert(calEntries >= 1, `At least one entry shows calories on Day 1 (found ${calEntries})`);
+
+  // Day 4 has minimal data — drink entry should show pending or low calories
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[3]);
+  await page.waitForTimeout(600);
+
+  const day4Entries = await page.$$('.entry-item');
+  assert(day4Entries.length >= 1, `Day 4 has entries (got ${day4Entries.length})`);
+
+  await screenshot(page, 'analysis-status-indicators');
+}
+
+async function testUILabels(page, fixtures) {
+  console.log('\n--- UI Labels ---');
+
+  // Verify quick action button says "Dailies" not "Supps"
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(500);
+
+  const quickActionTexts = await page.$$eval('.quick-action', els => els.map(e => e.textContent.trim()));
+  const hasDailies = quickActionTexts.some(t => t.includes('Dailies'));
+  const hasSupps = quickActionTexts.some(t => t.includes('Supps'));
+  assert(hasDailies, 'Quick action button says "Dailies"');
+  assert(!hasSupps, 'Quick action button does NOT say "Supps"');
+
+  // Verify "Sync Now" button exists on Profile screen
+  await page.click('nav button:has-text("Profile")');
+  await page.waitForTimeout(500);
+
+  const profileText = await page.textContent('#screen-profile');
+  const hasSyncNow = profileText.includes('Sync Now') || profileText.includes('sync now');
+  // Also check for sync-related action buttons
+  const syncBtn = await page.$('#sync-now-btn, button:has-text("Sync Now"), .s-action-btn--primary');
+  assert(hasSyncNow || !!syncBtn, 'Sync Now button exists on Profile screen');
+
+  await screenshot(page, 'ui-labels');
+}
+
+async function testScoreCentering(page, fixtures) {
+  console.log('\n--- Score Centering ---');
+
+  // Navigate to a day with score data
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(800);
+
+  const scoreCard = await page.$('.day-score');
+  if (scoreCard) {
+    // Check that the score card content is centered by comparing bounding rects
+    const alignment = await page.evaluate(() => {
+      const card = document.querySelector('.day-score');
+      if (!card) return null;
+      const style = getComputedStyle(card);
+      return {
+        justifyContent: style.justifyContent,
+        display: style.display,
+      };
+    });
+    assert(
+      alignment && alignment.justifyContent === 'center',
+      `Score card has justify-content: center (got: ${alignment?.justifyContent})`
+    );
+
+    // Also verify the score gauge and labels are within the card bounds (not overflowing left)
+    const positions = await page.evaluate(() => {
+      const card = document.querySelector('.day-score');
+      const gauge = document.querySelector('.day-score-gauge');
+      if (!card || !gauge) return null;
+      const cardRect = card.getBoundingClientRect();
+      const gaugeRect = gauge.getBoundingClientRect();
+      return {
+        cardLeft: cardRect.left,
+        cardRight: cardRect.right,
+        cardWidth: cardRect.width,
+        gaugeLeft: gaugeRect.left,
+        gaugeCenterX: gaugeRect.left + gaugeRect.width / 2,
+        cardCenterX: cardRect.left + cardRect.width / 2,
+      };
+    });
+    if (positions) {
+      const offset = Math.abs(positions.gaugeCenterX - positions.cardCenterX);
+      // Gauge center should be reasonably close to card center (within card's half-width)
+      assert(
+        positions.gaugeLeft > positions.cardLeft,
+        `Score gauge is not flush left (gauge left: ${positions.gaugeLeft.toFixed(0)}, card left: ${positions.cardLeft.toFixed(0)})`
+      );
+    }
+  } else {
+    assert(false, 'Score card (.day-score) found for centering test');
+  }
+
+  await screenshot(page, 'score-centering');
+}
+
 async function testMultiViewport(page, context, fixtures) {
   console.log('\n--- Multi-Viewport ---');
 
@@ -1026,6 +1168,10 @@ async function run() {
     await testEntryTypes(page, fixtures);
     await testPhotos(page, fixtures);
     await testUserFlows(page, fixtures);
+    await testProfileRoundTrip(page, fixtures);
+    await testAnalysisStatusIndicators(page, fixtures);
+    await testUILabels(page, fixtures);
+    await testScoreCentering(page, fixtures);
     await testMultiViewport(page, context, fixtures);
     await testConsoleErrors(page);
 

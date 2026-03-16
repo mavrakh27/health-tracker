@@ -165,7 +165,7 @@ const Fitness = {
       html += `<div style="margin-top:var(--space-md);">
         <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Notes</div>
         <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
-        <button class="btn" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
+        <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
       </div>`;
       return html;
     }
@@ -195,7 +195,7 @@ const Fitness = {
       html += `<div style="margin-top:var(--space-md);">
         <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Workout Notes</div>
         <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="What did you do, how did it feel..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
-        <button class="btn" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
+        <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
       </div>`;
       if (regimen.weeklyReview) {
         html += `<div class="card" style="margin-top:var(--space-sm);"><div style="font-size:var(--text-xs); color:var(--text-muted);">${UI.escapeHtml(regimen.weeklyReview)}</div></div>`;
@@ -270,7 +270,7 @@ const Fitness = {
       <div style="margin-top:var(--space-md);">
         <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Workout Notes</div>
         <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Did extra cardio, hip felt tight, modified an exercise..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
-        <button class="btn" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
+        <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
       </div>
     `;
 

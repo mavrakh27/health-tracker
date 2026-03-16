@@ -190,7 +190,7 @@ const GoalsView = {
           <div style="margin-bottom: var(--space-sm);">
             <div style="display:flex; justify-content:space-between; font-size:var(--text-sm);">
               <span style="text-transform:capitalize;">${name}</span>
-              <span style="color:var(--text-secondary)">${m.actual}g / ${m.goal || '?'}g</span>
+              <span style="color:var(--text-secondary)">${m.actual}g${m.goal ? ' / ' + m.goal + 'g' : ''}</span>
             </div>
             <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${color}"></div></div>
           </div>

@@ -79,6 +79,23 @@ When adding new features, update `test-fixtures/data.js` to include test cases f
 
 **Critical:** Analysis entries in fixtures MUST have `id` fields matching their corresponding IndexedDB entry IDs. Without matching IDs, analysis-status features (inline calories, pending/stale indicators) won't render — they'll silently fail with no errors. Always visually verify screenshots after changes to entry rendering.
 
+## Phase 3 — Visual UX Review
+
+After Playwright tests pass, take screenshots and review them for:
+
+- **Layout alignment**: Centering, spacing, overflow — score cards centered, no left-aligned content that should be centered
+- **Theme consistency**: All elements match dark theme — no white/unstyled buttons, no default browser styling bleeding through
+- **Touch target sizes**: Minimum 44px on mobile — buttons, links, interactive elements all large enough to tap
+- **Text readability**: Contrast ratios meet WCAG AA, font sizes appropriate for mobile, no truncated text
+- **Empty states**: Graceful handling — no "undefined", "NaN", "?g", or placeholder text leaking through
+- **Modal styling**: Consistent across all modals — close button, padding, border radius, backdrop
+
+Review the screenshots in `.claude/test-screenshots/validate/` — especially:
+- `today-default.png` — score centering, entry layout, quick actions
+- `plan-with-data.png` — meal plan calories, Save Notes button styling
+- `profile-default.png` — all cards styled consistently
+- `viewport-iPhone-SE.png` — smallest viewport, check for overflow
+
 ## Post-Deploy Smoke Test
 
 After pushing, verify the deployed site loads:
