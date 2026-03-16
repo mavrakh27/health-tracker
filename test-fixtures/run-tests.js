@@ -1,5 +1,5 @@
 // test-fixtures/run-tests.js — Playwright-based validation with fake data injection
-// Usage: node test-fixtures/run-tests.js [--screenshots]
+// Usage: node test-fixtures/run-tests.js [--screenshots] [--dogfood]
 
 const { chromium } = require('playwright');
 const { buildFixtures } = require('./data');
@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs');
 
 const TAKE_SCREENSHOTS = process.argv.includes('--screenshots');
+const RUN_DOGFOOD = process.argv.includes('--dogfood');
 const SCREENSHOT_DIR = path.join(__dirname, '..', '.claude', 'test-screenshots', 'validate');
 const BASE_URL = 'http://localhost:8080';
 const VIEWPORTS = [
@@ -1183,16 +1184,29 @@ async function run() {
 
   await browser.close();
 
-  // Report
-  console.log('\n=== Results ===');
+  // Report Phase 2 results
+  console.log('\n=== Phase 2 Results ===');
   console.log(`  Passed: ${passed}`);
   console.log(`  Failed: ${failed}`);
   if (errors.length > 0) {
     console.log('\n  Failed tests:');
     errors.forEach(e => console.log(`    - ${e}`));
   }
-  console.log(`\n${failed === 0 ? 'ALL TESTS PASSED' : 'SOME TESTS FAILED'}`);
-  process.exit(failed > 0 ? 1 : 0);
+  console.log(`\n${failed === 0 ? 'PHASE 2: ALL TESTS PASSED' : 'PHASE 2: SOME TESTS FAILED'}`);
+
+  // Phase 3: Interactive Dogfood Loop (if --dogfood flag passed)
+  let dogfoodFailed = 0;
+  if (RUN_DOGFOOD) {
+    const { runDogfood } = require('./dogfood');
+    const dogfoodResult = await runDogfood();
+    dogfoodFailed = dogfoodResult.failed;
+  }
+
+  const totalFailed = failed + dogfoodFailed;
+  if (RUN_DOGFOOD) {
+    console.log(`\n=== Overall: ${totalFailed === 0 ? 'ALL PHASES PASSED' : 'SOME TESTS FAILED'} ===`);
+  }
+  process.exit(totalFailed > 0 ? 1 : 0);
 }
 
 run();

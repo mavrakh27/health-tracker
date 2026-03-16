@@ -1,6 +1,6 @@
 # /validate — Health Tracker
 
-End-to-end verification that the PWA works correctly. Runs static checks, then Playwright tests with injected fake data for regression coverage.
+End-to-end verification that the PWA works correctly. Three phases: static checks, Playwright data injection tests, and interactive dogfood loop.
 
 ## Quick Run
 
@@ -13,6 +13,11 @@ for f in pwa/scripts/*.js pwa/sw.js; do node --check "$f" 2>&1; done
 # Phase 2: Start server, run Playwright tests with fake data
 cd pwa && python -m http.server 8080 &
 cd .. && node test-fixtures/run-tests.js --screenshots
+# Kill server after
+
+# Phase 2 + Phase 3: Full validation including interactive dogfood
+cd pwa && python -m http.server 8080 &
+cd .. && node test-fixtures/run-tests.js --screenshots --dogfood
 # Kill server after
 ```
 
@@ -52,6 +57,34 @@ The test runner (`test-fixtures/run-tests.js`) does:
 
 Pass `--screenshots` to save screenshots to `.claude/test-screenshots/validate/`.
 
+## Phase 3 — Interactive Dogfood Loop
+
+Pass `--dogfood` to run the full interactive E2E flow after Phase 2. This tests the app like a real user — pressing every button, filling fields, uploading photos, and screenshotting every state change.
+
+The dogfood runner (`test-fixtures/dogfood.js`) does:
+
+1. **Fresh start** — clears all IndexedDB data, verifies empty/welcome state
+2. **Onboarding** — sets goals (1200 cal, 105g protein, 64oz water), verifies they persist
+3. **Log food** — opens + Add Entry -> Food, enters notes "Test chicken salad", saves, verifies entry appears
+4. **Log water** — opens water picker, selects amount, verifies total updates
+5. **Log weight** — opens weight entry, enters 145, saves
+6. **Log dailies** — opens dailies modal, checks for empty state or items
+7. **Edit entry** — taps entry, unlocks, changes notes, saves, verifies updated text
+8. **Delete entry** — taps entry, unlocks, deletes, verifies count decreases
+9. **Navigate dates** — taps prev/next arrows, verifies date changes
+10. **Plan tab** — navigates, screenshots empty state or content
+11. **Progress tab** — navigates, verifies calendar renders
+12. **Profile tab** — verifies Daily Targets, Cloud Sync card, Sync Now, storage info
+13. **Goal setup modal** — edits goals to 1500, verifies card updates, restores to 1200
+14. **Cloud Sync setup** — opens sync setup modal, verifies URL/Key fields
+15. **Water picker detailed** — tries multiple water amounts, verifies totals accumulate
+16. **Photo upload** — uses file chooser interception to upload a canvas-generated test image
+17. **Multi-viewport** — runs on 320px and 390px viewports, checks overflow and touch targets on every tab
+
+Screenshots saved to `.claude/test-screenshots/dogfood/` with sequential numbering (e.g. `dogfood-01-fresh-start.png`).
+
+Can also run standalone: `node test-fixtures/dogfood.js`
+
 ## Test Data
 
 `test-fixtures/data.js` builds 5 days of fixture data (dates are relative to today):
@@ -72,6 +105,7 @@ Plus: goals (1200/1000 cal), weekly regimen, meal plan, fitness goals, streaks.
 - Before committing/pushing
 - After dependency or data model changes
 - When adding new entry types or UI components
+- Use `--dogfood` for comprehensive E2E verification before releases or major refactors
 
 ## Updating Fixtures
 
@@ -79,7 +113,7 @@ When adding new features, update `test-fixtures/data.js` to include test cases f
 
 **Critical:** Analysis entries in fixtures MUST have `id` fields matching their corresponding IndexedDB entry IDs. Without matching IDs, analysis-status features (inline calories, pending/stale indicators) won't render — they'll silently fail with no errors. Always visually verify screenshots after changes to entry rendering.
 
-## Phase 3 — Visual UX Review
+## Visual UX Review
 
 After Playwright tests pass, take screenshots and review them for:
 
@@ -95,6 +129,12 @@ Review the screenshots in `.claude/test-screenshots/validate/` — especially:
 - `plan-with-data.png` — meal plan calories, Save Notes button styling
 - `profile-default.png` — all cards styled consistently
 - `viewport-iPhone-SE.png` — smallest viewport, check for overflow
+
+And in `.claude/test-screenshots/dogfood/` — especially:
+- `dogfood-01-fresh-start.png` — empty state appearance
+- `dogfood-*-food-logged.png` — entry creation flow
+- `dogfood-*-edit-modal-*.png` — edit flow
+- `dogfood-*-viewport-*.png` — multi-viewport screenshots
 
 ## Post-Deploy Smoke Test
 
