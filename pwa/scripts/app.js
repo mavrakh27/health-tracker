@@ -704,10 +704,20 @@ const App = {
     const configured = await CloudRelay.isConfigured();
     if (!configured) { UI.toast('Set up Cloud Sync first', 'error'); return; }
     UI.toast('Syncing...');
-    // Sync both today and the currently viewed date (if different)
-    const today = UI.today();
-    const dates = [today];
-    if (App.selectedDate && App.selectedDate !== today) dates.push(App.selectedDate);
+    // Find all dates that need sync (no analysis or entries newer than analysis)
+    const dates = await DB.getDatesNeedingSync();
+    if (dates.length === 0) {
+      // Nothing unprocessed — just check for results
+      CloudRelay._gotResults = false;
+      await CloudRelay.checkForResults();
+      if (CloudRelay._gotResults) {
+        App.loadDayView();
+      } else {
+        UI.toast('Everything is up to date');
+      }
+      return;
+    }
+    UI.toast(`Uploading ${dates.length} day(s)...`);
     for (const date of dates) {
       CloudRelay._pendingDate = date;
       await CloudRelay._doUpload();
@@ -717,7 +727,7 @@ const App = {
     if (CloudRelay._gotResults) {
       App.loadDayView();
     } else {
-      UI.toast(`Uploaded ${dates.length} day(s) -- no new results yet`);
+      UI.toast(`Uploaded ${dates.length} day(s) -- processing soon`);
     }
   },
 

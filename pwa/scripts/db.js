@@ -474,6 +474,39 @@ async function exportDay(dateStr) {
   return { log, photoFiles };
 }
 
+// Get all dates that have entries but no analysis, or entries newer than analysis
+async function getDatesNeedingSync() {
+  const db = await openDB();
+  // Get all unique entry dates
+  const entryTx = db.transaction('entries', 'readonly');
+  const entries = await new Promise((resolve, reject) => {
+    const req = entryTx.objectStore('entries').getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+  const entryDates = {};
+  for (const e of entries) {
+    if (!e.date) continue;
+    const ts = e.updatedAt ? new Date(e.updatedAt).getTime() : (e.timestamp ? new Date(e.timestamp).getTime() : 0);
+    entryDates[e.date] = Math.max(entryDates[e.date] || 0, ts);
+  }
+
+  // Check which dates have no analysis or stale analysis
+  const needsSync = [];
+  const analysisTx = db.transaction('analysis', 'readonly');
+  for (const date of Object.keys(entryDates)) {
+    const analysis = await new Promise((resolve) => {
+      const req = analysisTx.objectStore('analysis').get(date);
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    });
+    if (!analysis || !analysis.importedAt || entryDates[date] > analysis.importedAt) {
+      needsSync.push(date);
+    }
+  }
+  return needsSync;
+}
+
 // Make functions available globally
 window.DB = {
   openDB,
@@ -493,6 +526,7 @@ window.DB = {
   getAnalysis,
   importAnalysis,
   getAnalysisRange,
+  getDatesNeedingSync,
   getProfile,
   setProfile,
   getProfileSetting,
