@@ -57,9 +57,9 @@ const ProfileView = {
 
     let html = '';
 
-    // Remaining budget (if analysis available)
+    // Remaining budget (if analysis available) — pass current profile goals to override stale analysis targets
     if (analysis) {
-      html += GoalsView.renderRemainingBudget(analysis);
+      html += GoalsView.renderRemainingBudget(analysis, goals);
     }
 
     // Fitness goals
@@ -83,9 +83,19 @@ const ProfileView = {
       html += '</div>';
     }
 
-    // Analysis summary (if available)
+    // Analysis summary (if available) — pass current profile goals
     if (analysis) {
-      html += GoalsView.renderAnalysisSummary(analysis);
+      html += GoalsView.renderAnalysisSummary(analysis, goals);
+    }
+
+    // Empty state when no analysis and no fitness goals
+    if (!html) {
+      html = `
+        <div class="card" style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">
+          <div style="font-size:var(--text-sm); margin-bottom:var(--space-xs);">No analysis data yet</div>
+          <div style="font-size:var(--text-xs);">Log meals and sync to see your daily breakdown, remaining budget, and goal tracking here.</div>
+        </div>
+      `;
     }
 
     container.innerHTML = html;

@@ -142,11 +142,21 @@ const QuickLog = {
     overlay.appendChild(sheet);
     document.body.appendChild(overlay);
 
-    // Pre-fill current weight and auto-focus
-    DB.getDailySummary(today).then(summary => {
+    // Pre-fill current weight (or last known weight) and auto-focus
+    DB.getDailySummary(today).then(async summary => {
       const input = document.getElementById('qw-weight');
-      if (summary.weight) input.value = summary.weight.value;
+      if (summary.weight) {
+        input.value = summary.weight.value;
+      } else {
+        // Check yesterday for a recent weight to pre-fill
+        const yesterday = UI.yesterday(today);
+        const yesterdaySummary = await DB.getDailySummary(yesterday);
+        if (yesterdaySummary.weight) {
+          input.value = yesterdaySummary.weight.value;
+        }
+      }
       input.focus();
+      input.select();
     }).catch(() => {});
 
     // +/- buttons (prevent going below 0)
@@ -622,9 +632,10 @@ const App = {
     const analysisEl = document.getElementById('today-analysis');
     if (analysisEl) {
       if (analysis) {
-        // renderAnalysisSummary already includes its own header
+        // Pass current profile goals so stale analysis targets get overridden
+        const goals = await DB.getProfile('goals') || {};
         analysisEl.innerHTML = `<div style="margin-top: var(--space-lg);">` +
-          GoalsView.renderAnalysisSummary(analysis) + `</div>`;
+          GoalsView.renderAnalysisSummary(analysis, goals) + `</div>`;
       } else {
         analysisEl.innerHTML = '';
       }

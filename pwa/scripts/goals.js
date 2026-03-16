@@ -4,7 +4,8 @@ const GoalsView = {
   // Normalize analysis data to a consistent shape for rendering.
   // Handles both the old schema (a.calories.intake, a.macros.protein.grams) and
   // the actual processing schema (a.totals.calories, a.goals.calories.target).
-  _normalizeAnalysis(a) {
+  // profileGoals (optional): user's current profile goals — overrides stale analysis targets.
+  _normalizeAnalysis(a, profileGoals) {
     let calIntake = null, calGoal = null, calBurned = null, calNet = null;
     const macros = {}; // { protein: { actual, goal }, carbs: {...}, fat: {...} }
     let waterActual = null, waterGoal = null;
@@ -40,11 +41,18 @@ const GoalsView = {
       waterActual = a.goals.water.actual_oz; waterGoal = a.goals.water.target_oz;
     }
 
+    // Override with current profile goals (analysis may have stale targets)
+    if (profileGoals) {
+      if (profileGoals.calories) calGoal = profileGoals.calories;
+      if (profileGoals.protein && macros.protein) macros.protein.goal = profileGoals.protein;
+      if (profileGoals.water_oz) waterGoal = profileGoals.water_oz;
+    }
+
     return { calIntake, calGoal, calBurned, calNet, macros, waterActual, waterGoal };
   },
 
-  renderRemainingBudget(analysis) {
-    const n = GoalsView._normalizeAnalysis(analysis);
+  renderRemainingBudget(analysis, profileGoals) {
+    const n = GoalsView._normalizeAnalysis(analysis, profileGoals);
     let html = '<h2 class="section-header">Remaining Today</h2><div class="card">';
 
     if (n.calIntake != null && n.calGoal) {
@@ -148,10 +156,10 @@ const GoalsView = {
     return html;
   },
 
-  renderAnalysisSummary(a) {
+  renderAnalysisSummary(a, profileGoals) {
     const dateLabel = a.date ? UI.formatDate(a.date) : 'Daily Summary';
     let html = `<h2 class="section-header">${UI.escapeHtml(dateLabel)} Analysis</h2>`;
-    const n = GoalsView._normalizeAnalysis(a);
+    const n = GoalsView._normalizeAnalysis(a, profileGoals);
 
     // Calorie bar
     if (n.calIntake != null) {
