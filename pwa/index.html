@@ -47,6 +47,13 @@
           <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="16" rx="6"/><line x1="6" y1="12" x2="18" y2="12"/></svg></span>
           Dailies
         </button>
+        <button class="quick-action quick-action-more" id="quick-more-btn">
+          <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+          More
+        </button>
+      </div>
+      <!-- More entry types (expanded by + button) -->
+      <div id="more-entry-types" class="quick-actions" style="display:none;">
       </div>
 
       <div id="today-score"></div>
@@ -54,11 +61,9 @@
       <div id="today-meal-suggestion"></div>
       <div id="today-coach"></div>
 
-      <!-- Inline entry creation (merged from Log) -->
+      <!-- Inline entry form (appears when a "More" type is selected) -->
       <div id="today-log-section" style="margin-top: var(--space-md);">
-        <div id="log-type-grid-inline" class="type-grid" style="display:none;">
-          <!-- Populated by log.js -->
-        </div>
+        <div id="log-type-grid-inline" class="type-grid" style="display:none;"></div>
         <div id="log-form-inline" style="display:none;">
           <div id="log-form-content-inline"></div>
         </div>

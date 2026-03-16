@@ -7,6 +7,49 @@ const QuickLog = {
     document.getElementById('quick-water-btn')?.addEventListener('click', () => QuickLog.showWaterPicker());
     document.getElementById('quick-weight-btn')?.addEventListener('click', () => QuickLog.showWeightEntry());
     document.getElementById('quick-supplement-btn')?.addEventListener('click', () => QuickLog.showSupplementPicker());
+    document.getElementById('quick-more-btn')?.addEventListener('click', () => QuickLog.toggleMoreTypes());
+  },
+
+  toggleMoreTypes() {
+    const moreEl = document.getElementById('more-entry-types');
+    if (!moreEl) return;
+    const isShowing = moreEl.style.display !== 'none';
+    if (isShowing) {
+      moreEl.style.display = 'none';
+      // Also hide any open form
+      const logGrid = document.getElementById('log-type-grid-inline');
+      const logForm = document.getElementById('log-form-inline');
+      if (logGrid) logGrid.style.display = 'none';
+      if (logForm) logForm.style.display = 'none';
+      return;
+    }
+    moreEl.style.display = 'flex';
+    moreEl.innerHTML = `
+      <button class="quick-action" data-more-type="workout" style="--type-color: var(--color-workout);">
+        <span class="qa-icon">${UI.svg.workout}</span>
+        Workout
+      </button>
+      <button class="quick-action" data-more-type="vice" style="--type-color: var(--accent-red);">
+        <span class="qa-icon">${UI.svg.vice}</span>
+        Alcohol
+      </button>
+      <button class="quick-action" data-more-type="bodyPhoto" style="--type-color: var(--color-body-photo, var(--accent-primary));">
+        <span class="qa-icon">${UI.svg.bodyPhoto}</span>
+        Body Photo
+      </button>
+    `;
+    moreEl.querySelectorAll('[data-more-type]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const type = btn.dataset.moreType;
+        // Show inline form for this type
+        const logGrid = document.getElementById('log-type-grid-inline');
+        if (logGrid) logGrid.style.display = 'none'; // hide grid, go straight to form
+        Log._gridId = 'log-type-grid-inline';
+        Log._formId = null;
+        Log._formContentId = 'log-form-content-inline';
+        Log.selectType(type);
+      });
+    });
   },
 
   // --- Snap food → auto-save (zero taps after photo) ---
@@ -778,32 +821,9 @@ const App = {
       } catch (e) { coachEl.innerHTML = ''; }
     }
 
-    // Add Entry button — skip if welcome card is showing (it has its own CTA)
-    const logGrid = document.getElementById('log-type-grid-inline');
-    const isWelcome = entryList?.querySelector?.('.welcome-card');
-    if (entryList && logGrid && !isWelcome) {
-      const addBtn = document.createElement('button');
-      addBtn.id = 'toggle-log-types';
-      addBtn.className = 'btn btn-secondary btn-block';
-      addBtn.style.cssText = 'margin-bottom: var(--space-sm); border-radius: var(--radius-md); padding: var(--space-sm); border-style: dashed;';
-      addBtn.textContent = '+ Add Entry';
-      entryList.insertBefore(addBtn, entryList.firstChild);
-
-      addBtn.onclick = () => {
-        const showing = logGrid.style.display !== 'none';
-        logGrid.style.display = showing ? 'none' : 'grid';
-        addBtn.textContent = showing ? '+ Add Entry' : 'Cancel';
-        if (showing) {
-          addBtn.className = 'btn btn-secondary btn-block';
-          addBtn.style.borderStyle = 'dashed';
-        } else {
-          addBtn.className = 'btn btn-ghost btn-block';
-          addBtn.style.borderStyle = 'solid';
-          Log.init('log-type-grid-inline', 'log-form-content-inline');
-          logGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      };
-    }
+    // Close the "More" types panel on re-render
+    const moreEl = document.getElementById('more-entry-types');
+    if (moreEl) moreEl.style.display = 'none';
 
     // Load analysis if available
     const analysis = await DB.getAnalysis(date);

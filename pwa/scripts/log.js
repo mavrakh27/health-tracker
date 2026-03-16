@@ -68,10 +68,12 @@ const Log = {
     Log.selectedSubtype = null;
     Log.clearPendingPhoto();
     // Also clear body photo previews
-    for (const p of Log._pendingFacePhotos) Camera.revokeURL(p.url);
-    for (const p of Log._pendingBodyPhotos) Camera.revokeURL(p.url);
-    Log._pendingFacePhotos = [];
-    Log._pendingBodyPhotos = [];
+    if (Log._pendingBodyPhotos && typeof Log._pendingBodyPhotos === 'object') {
+      for (const photos of Object.values(Log._pendingBodyPhotos)) {
+        if (Array.isArray(photos)) photos.forEach(p => Camera.revokeURL(p.url));
+      }
+    }
+    Log._pendingBodyPhotos = {};
 
     // Highlight selected
     document.querySelectorAll('.type-btn').forEach(btn => {
@@ -255,37 +257,18 @@ const Log = {
     return frag;
   },
 
-  // --- Body Photo Form (supports multiple face + body photos) ---
+  // --- Body Photo Form (configurable photo types) ---
   buildBodyPhotoForm() {
     const frag = document.createDocumentFragment();
 
-    const info = UI.createElement('p', '', 'Take face and body photos for your progress timeline. You can take multiple of each.');
+    const info = UI.createElement('p', '', 'Take progress photos. You can take multiple of each type.');
     info.style.cssText = 'font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: var(--space-md);';
     frag.appendChild(info);
 
-    // Face photos
-    const faceGroup = UI.createElement('div', 'form-group');
-    faceGroup.innerHTML = `
-      <label class="form-label">Face Photos</label>
-      <div class="photo-actions">
-        <button class="btn btn-secondary" id="log-face-capture">Take Photo</button>
-        <button class="btn btn-ghost" id="log-face-pick">Library</button>
-      </div>
-      <div id="log-face-preview-area" class="body-photo-grid"></div>
-    `;
-    frag.appendChild(faceGroup);
-
-    // Body photos
-    const bodyGroup = UI.createElement('div', 'form-group');
-    bodyGroup.innerHTML = `
-      <label class="form-label">Body Photos</label>
-      <div class="photo-actions">
-        <button class="btn btn-secondary" id="log-body-capture">Take Photo</button>
-        <button class="btn btn-ghost" id="log-body-pick">Library</button>
-      </div>
-      <div id="log-body-preview-area" class="body-photo-grid"></div>
-    `;
-    frag.appendChild(bodyGroup);
+    // Load configured photo types (or default)
+    const container = UI.createElement('div');
+    container.id = 'body-photo-types-container';
+    frag.appendChild(container);
 
     // Notes
     frag.appendChild(Log.buildNotesField('Any notes about today?'));
@@ -299,43 +282,92 @@ const Log = {
     saveGroup.appendChild(saveBtn);
     frag.appendChild(saveGroup);
 
-    // Wire up buttons after DOM render
-    requestAnimationFrame(() => {
-      document.getElementById('log-face-capture')?.addEventListener('click', async () => {
-        const result = await Camera.capture('body');
-        if (result) Log.addBodyPhoto('face', result);
-      });
-      document.getElementById('log-face-pick')?.addEventListener('click', async () => {
-        const result = await Camera.pick('body');
-        if (result) Log.addBodyPhoto('face', result);
-      });
-      document.getElementById('log-body-capture')?.addEventListener('click', async () => {
-        const result = await Camera.capture('body');
-        if (result) Log.addBodyPhoto('body', result);
-      });
-      document.getElementById('log-body-pick')?.addEventListener('click', async () => {
-        const result = await Camera.pick('body');
-        if (result) Log.addBodyPhoto('body', result);
-      });
+    // Load types async and render
+    requestAnimationFrame(async () => {
+      Log._bodyPhotoTypes = await DB.getProfile('bodyPhotoTypes') || [{ key: 'body', name: 'Body' }];
+      Log._renderBodyPhotoTypes();
     });
 
     return frag;
   },
 
-  _pendingFacePhotos: [],
-  _pendingBodyPhotos: [],
+  _pendingBodyPhotos: {},
+  _bodyPhotoTypes: [],
 
-  addBodyPhoto(which, photo) {
-    const list = which === 'face' ? Log._pendingFacePhotos : Log._pendingBodyPhotos;
-    const areaId = which === 'face' ? 'log-face-preview-area' : 'log-body-preview-area';
-    const area = document.getElementById(areaId);
+  _renderBodyPhotoTypes() {
+    const typesContainer = document.getElementById('body-photo-types-container');
+    if (!typesContainer) return;
+
+    typesContainer.innerHTML = '';
+    Log._pendingBodyPhotos = Log._pendingBodyPhotos || {};
+
+    for (const pt of Log._bodyPhotoTypes) {
+      if (!Log._pendingBodyPhotos[pt.key]) Log._pendingBodyPhotos[pt.key] = [];
+      const group = UI.createElement('div', 'form-group');
+      group.innerHTML = `
+        <label class="form-label">${UI.escapeHtml(pt.name)}</label>
+        <div class="photo-actions">
+          <button class="btn btn-secondary" data-bp-capture="${pt.key}">Take Photo</button>
+          <button class="btn btn-ghost" data-bp-pick="${pt.key}">Library</button>
+        </div>
+        <div id="log-bp-preview-${pt.key}" class="body-photo-grid"></div>
+      `;
+      typesContainer.appendChild(group);
+
+      // Re-render existing pending previews
+      const area = group.querySelector(`#log-bp-preview-${pt.key}`);
+      for (const photo of Log._pendingBodyPhotos[pt.key]) {
+        area.appendChild(Camera.createPreview(photo.url, () => {
+          const i = Log._pendingBodyPhotos[pt.key].indexOf(photo);
+          if (i >= 0) { Camera.revokeURL(photo.url); Log._pendingBodyPhotos[pt.key].splice(i, 1); }
+        }));
+      }
+    }
+
+    // Add new type row
+    const addRow = UI.createElement('div', 'form-group');
+    addRow.style.cssText = 'display:flex; gap:var(--space-sm); align-items:center;';
+    addRow.innerHTML = `
+      <input type="text" class="form-input" id="bp-new-type-name" placeholder="Add type (e.g. Arms, Abs)" maxlength="30" style="flex:1;">
+      <button class="btn btn-secondary" id="bp-add-type-btn" style="flex-shrink:0;">+ Add</button>
+    `;
+    typesContainer.appendChild(addRow);
+
+    // Bind all events
+    typesContainer.querySelectorAll('[data-bp-capture]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const result = await Camera.capture('body');
+        if (result) Log.addBodyPhoto(btn.dataset.bpCapture, result);
+      });
+    });
+    typesContainer.querySelectorAll('[data-bp-pick]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const result = await Camera.pick('body');
+        if (result) Log.addBodyPhoto(btn.dataset.bpPick, result);
+      });
+    });
+
+    document.getElementById('bp-add-type-btn')?.addEventListener('click', async () => {
+      const input = document.getElementById('bp-new-type-name');
+      const name = input?.value?.trim();
+      if (!name) { UI.toast('Enter a name', 'error'); return; }
+      const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      if (Log._bodyPhotoTypes.some(t => t.key === key)) { UI.toast('Already exists', 'error'); return; }
+      Log._bodyPhotoTypes.push({ key, name });
+      await DB.setProfile('bodyPhotoTypes', Log._bodyPhotoTypes);
+      Log._renderBodyPhotoTypes();
+    });
+  },
+
+  addBodyPhoto(typeKey, photo) {
+    if (!Log._pendingBodyPhotos[typeKey]) Log._pendingBodyPhotos[typeKey] = [];
+    const list = Log._pendingBodyPhotos[typeKey];
+    const area = document.getElementById(`log-bp-preview-${typeKey}`);
     if (!area) return;
 
-    const idx = list.length;
     list.push(photo);
 
     const preview = Camera.createPreview(photo.url, () => {
-      // Remove this photo from the list
       const i = list.indexOf(photo);
       if (i >= 0) { Camera.revokeURL(photo.url); list.splice(i, 1); }
     });
@@ -637,10 +669,10 @@ const Log = {
   },
 
   async saveBodyPhotos() {
-    const facePhotos = Log._pendingFacePhotos;
-    const bodyPhotos = Log._pendingBodyPhotos;
+    const allPhotos = Log._pendingBodyPhotos;
+    const totalCount = Object.values(allPhotos).reduce((s, list) => s + list.length, 0);
 
-    if (facePhotos.length === 0 && bodyPhotos.length === 0) {
+    if (totalCount === 0) {
       UI.toast('Take at least one photo', 'error');
       return;
     }
@@ -651,42 +683,26 @@ const Log = {
     let count = 0;
 
     try {
-      // Save all face photos
-      for (const photo of facePhotos) {
-        const entry = {
-          id: UI.generateId('bodyPhoto_face'),
-          type: 'bodyPhoto',
-          subtype: 'face',
-          date,
-          timestamp,
-          notes: count === 0 ? notes : '',
-          photo: true,
-          duration_minutes: null,
-        };
-        await DB.addEntry(entry, photo.blob);
-        count++;
-      }
-
-      // Save all body photos
-      for (const photo of bodyPhotos) {
-        const entry = {
-          id: UI.generateId('bodyPhoto_body'),
-          type: 'bodyPhoto',
-          subtype: 'body',
-          date,
-          timestamp,
-          notes: count === 0 ? notes : '',
-          photo: true,
-          duration_minutes: null,
-        };
-        await DB.addEntry(entry, photo.blob);
-        count++;
+      for (const [typeKey, photos] of Object.entries(allPhotos)) {
+        for (const photo of photos) {
+          const entry = {
+            id: UI.generateId(`bodyPhoto_${typeKey}`),
+            type: 'bodyPhoto',
+            subtype: typeKey,
+            date,
+            timestamp,
+            notes: count === 0 ? notes : '',
+            photo: true,
+            duration_minutes: null,
+          };
+          await DB.addEntry(entry, photo.blob);
+          count++;
+        }
       }
 
       UI.toast(`${count} progress photo${count > 1 ? 's' : ''} saved`);
       CloudRelay.queueUpload(date);
-      Log._pendingFacePhotos = [];
-      Log._pendingBodyPhotos = [];
+      Log._pendingBodyPhotos = {};
       Log._afterSave();
     } catch (err) {
       console.error('Save body photos failed:', err);

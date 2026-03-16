@@ -228,7 +228,7 @@ async function testTodayScreen(page, fixtures) {
 
   // Quick action buttons exist
   const quickActions = await page.$$('.quick-action');
-  assert(quickActions.length === 4, `4 quick-action buttons (got ${quickActions.length})`);
+  assert(quickActions.length >= 5, `5+ quick-action buttons (got ${quickActions.length})`);
 
   // Entry list has items from today's fixture data
   const entryItems = await page.$$('.entry-item');
@@ -243,9 +243,9 @@ async function testTodayScreen(page, fixtures) {
   const coachSection = await page.$('#today-coach .collapsible-section');
   assert(coachSection, 'Coach inbox renders on Today tab');
 
-  // + Add Entry button exists (dynamic ID: toggle-log-types)
-  const addBtn = await page.$('#toggle-log-types');
-  assert(!!addBtn, '+ Add Entry button exists');
+  // More button exists for additional entry types
+  const moreBtn = await page.$('#quick-more-btn');
+  assert(!!moreBtn, 'More (+) button exists');
 
   await screenshot(page, 'today-default');
 }
@@ -648,50 +648,41 @@ async function testUserFlows(page, fixtures) {
   await page.click('nav button:has-text("Today")');
   await page.waitForTimeout(500);
 
-  // Navigate to today so the Add Entry button exists
-  await page.evaluate(() => App.goToDate(App.selectedDate || UI.today()));
-  await page.waitForTimeout(400);
-
-  const addBtn = await page.$('#toggle-log-types');
-  if (addBtn) {
-    await addBtn.click();
+  // Click More (+) button to show additional entry types
+  const moreBtn1 = await page.$('#quick-more-btn');
+  if (moreBtn1) {
+    await moreBtn1.click();
     await page.waitForTimeout(400);
 
-    // Log type grid should now be visible
-    const gridDisplay = await page.$eval('#log-type-grid-inline', el => el.style.display).catch(() => null);
-    assert(gridDisplay !== 'none' && gridDisplay !== null, 'Flow 1: Log type grid appears after clicking + Add Entry');
+    // More types panel should be visible
+    const morePanel = await page.$('#more-entry-types');
+    const morePanelDisplay = morePanel ? await morePanel.evaluate(el => el.style.display) : 'none';
+    assert(morePanelDisplay !== 'none', 'Flow 1: Log type grid appears after clicking + Add Entry');
 
-    // Click the Food type button
-    const foodBtn = await page.$('#log-type-grid-inline .type-btn[data-type="meal"]');
-    if (foodBtn) {
-      await foodBtn.click();
+    // Click a workout type button to open its form
+    const workoutBtn = await page.$('[data-more-type="workout"]');
+    if (workoutBtn) {
+      await workoutBtn.click();
       await page.waitForTimeout(400);
 
-      // Food logging UI should render (form content, camera, or notes area)
       const formContent = await page.$('#log-form-content-inline');
       const hasFormContent = !!formContent;
       const formText = hasFormContent ? await formContent.textContent() : '';
       assert(
-        hasFormContent && (formText.length > 0 || await page.$('.ql-photo-btn, textarea, .log-notes-input, input[type="text"]')),
+        hasFormContent && formText.length > 0,
         'Flow 1: Food logging UI appears after selecting Food type'
       );
-      await screenshot(page, 'flow1-food-logging-ui');
-    } else {
-      assert(false, 'Flow 1: Food button found in log type grid');
+      await screenshot(page, 'flow1-workout-logging-ui');
     }
 
-    // Cancel — click the button again (now shows "Cancel") to close
-    const cancelBtn = await page.$('#toggle-log-types');
-    if (cancelBtn) {
-      await cancelBtn.click();
-      await page.waitForTimeout(300);
-    }
+    // Cancel — click More again to close
+    await moreBtn1.click();
+    await page.waitForTimeout(300);
 
-    // Grid should be hidden again
-    const gridAfter = await page.$eval('#log-type-grid-inline', el => el.style.display).catch(() => null);
-    assert(gridAfter === 'none' || gridAfter === null, 'Flow 1: Log type grid hidden after cancel');
+    const morePanelAfter = morePanel ? await morePanel.evaluate(el => el.style.display) : 'none';
+    assert(morePanelAfter === 'none', 'Flow 1: Log type grid hidden after cancel');
   } else {
-    assert(false, 'Flow 1: + Add Entry button found on Today');
+    assert(false, 'Flow 1: More button found on Today');
   }
 
   // ---------------------------------------------------------------

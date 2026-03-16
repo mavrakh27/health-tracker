@@ -1,9 +1,14 @@
 /* Quick Actions */
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: var(--space-sm);
   margin-top: var(--space-sm);
+}
+
+#more-entry-types {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 0;
 }
 
 .quick-action {
@@ -75,6 +80,11 @@
 .quick-action-supplement {
   border-color: var(--accent-green);
   color: var(--accent-green);
+}
+
+.quick-action-more {
+  border-color: var(--text-muted);
+  color: var(--text-muted);
 }
 
 /* Supplement picker */
