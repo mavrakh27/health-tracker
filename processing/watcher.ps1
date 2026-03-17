@@ -42,12 +42,20 @@ try {
 
     Write-Output "[watcher] Pending dates: $($pending -join ', '). Launching processing..."
 
-    $batPath = Join-Path $PSScriptRoot 'process-day.bat'
-    # Ensure nested Claude session check doesn't block processing
-    $env:CLAUDECODE = $null
-    $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`"" -Wait -PassThru -NoNewWindow
-    Write-Output "[watcher] Processing finished with exit code $($proc.ExitCode)."
+    # Create lock file — watcher owns the lifecycle (try/finally ensures cleanup)
+    Get-Date -Format 'yyyy-MM-dd HH:mm:ss' | Out-File $lockFile -Encoding ascii
+    try {
+        $batPath = Join-Path $PSScriptRoot 'process-day.bat'
+        # Ensure nested Claude session check doesn't block processing
+        $env:CLAUDECODE = $null
+        $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`"" -Wait -PassThru -NoNewWindow
+        Write-Output "[watcher] Processing finished with exit code $($proc.ExitCode)."
+    } finally {
+        # Always remove lock — even if processing crashes
+        if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
+    }
 } catch {
     Write-Output "[watcher] Error checking relay: $_"
+    if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
     exit 1
 }
