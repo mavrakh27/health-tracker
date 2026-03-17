@@ -694,7 +694,7 @@ const App = {
 
     // Load daily summary stats
     const summary = await DB.getDailySummary(date);
-    App.renderDayStats(summary, entries, date);
+    await App.renderDayStats(summary, entries, date);
 
     // Day Score (above coach)
     const scoreEl = document.getElementById('today-score');

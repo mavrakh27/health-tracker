@@ -283,17 +283,11 @@ const Fitness = {
         }
         await Fitness.saveCheckedExercises(date, checked);
 
-        // Update counter
+        // Update workout stat card counter
         const total = root.querySelectorAll('.fitness-check').length;
         const done = root.querySelectorAll('.fitness-check.checked').length;
-        // Update header card count and collapsible badge
-        const headerCard = root.querySelector('.fitness-exercise')?.parentElement?.querySelector('.card:first-child');
-        if (headerCard) {
-          const countEl = headerCard.querySelector('div[style*="muted"]:last-child');
-          if (countEl) countEl.textContent = `${done} / ${total} done`;
-        }
-        const badge = root.closest('.collapsible-section')?.querySelector('.collapsible-badge');
-        if (badge) badge.textContent = `${done}/${total}`;
+        const statCard = document.querySelector('[data-stat-action="workout"] .stat-value');
+        if (statCard && total > 0) statCard.textContent = `${done}/${total}`;
       });
     });
 
