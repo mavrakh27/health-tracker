@@ -32,17 +32,23 @@ const CoachChat = {
 
     let html = '<div class="coach-chat">';
 
-    if (timeline.length === 0 && isToday) {
-      // Welcome message when no conversation exists yet
-      html += `<div class="coach-messages" id="coach-messages">
-        <div class="chat-bubble chat-coach">
-          <div class="chat-text">Hey! I'm your coach. Ask me anything about your diet, workouts, or goals. I check in every ~30 minutes when you sync -- so send a message and I'll get back to you soon.</div>
-        </div>
-      </div>`;
-    }
+    // Messages area — always rendered, takes flex space
+    html += '<div class="coach-messages" id="coach-messages">';
 
-    if (timeline.length > 0) {
-      html += '<div class="coach-messages" id="coach-messages">';
+    if (timeline.length === 0) {
+      // Empty state: friendly explanation of how this works
+      html += `
+        <div class="coach-empty-state">
+          <div class="coach-empty-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+            </svg>
+          </div>
+          <p class="coach-empty-title">Your coach is here</p>
+          <p class="coach-empty-sub">Ask about your diet, workouts, or goals. ${isToday ? 'Send a message below — your coach checks in every ~30 min.' : 'No messages for this day.'}</p>
+        </div>
+      `;
+    } else {
       for (const msg of timeline) {
         const isUser = msg.role === 'user';
         const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
@@ -54,19 +60,22 @@ const CoachChat = {
         `;
       }
       if (hasUnanswered) {
-        html += '<div class="chat-waiting">Waiting for coach...</div>';
+        html += '<div class="chat-waiting">Coach is reviewing your message...</div>';
       }
-      html += '</div>';
     }
 
-    // Input field (only for today)
+    html += '</div>'; // end .coach-messages
+
+    // Input bar (only for today) — anchored at bottom of chat area
     if (isToday) {
       html += `
-        <div class="coach-input-row">
+        <div class="coach-input-bar">
           <textarea class="coach-input" id="coach-input" placeholder="Ask your coach..." rows="1"></textarea>
-          <button class="coach-send" id="coach-send">Send</button>
+          <button class="coach-send" id="coach-send" aria-label="Send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
         </div>
-        <div style="text-align:right; font-size:var(--text-xs); color:var(--text-muted); margin-top:2px;">~30 min reply</div>
+        <div class="coach-reply-hint">~30 min reply via sync</div>
       `;
     }
 
@@ -105,7 +114,7 @@ const CoachChat = {
         }
 
         // Re-render chat
-        const container = document.getElementById('today-coach');
+        const container = document.getElementById('coach-inbox');
         if (container) {
           container.innerHTML = await CoachChat.render(date);
           CoachChat.bindEvents(date);

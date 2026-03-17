@@ -1741,32 +1741,84 @@ input[type="range"]::-webkit-slider-thumb {
   color: var(--accent-primary);
 }
 
-/* Coach Chat */
+/* ── Coach Chat ── */
+
+/* Outer container: flex column so messages grow and input stays at bottom */
 .coach-chat {
-  margin-top: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  /* Fixed height so the chat feels bounded; adjust if needed */
+  min-height: 320px;
+  max-height: 480px;
 }
 
+/* Messages area: grows to fill available space, scrollable */
 .coach-messages {
-  max-height: 300px;
+  flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
-  margin-bottom: var(--space-sm);
+  padding: var(--space-md);
+  -webkit-overflow-scrolling: touch;
 }
 
+/* Empty state inside the message area */
+.coach-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg) var(--space-md);
+  color: var(--text-muted);
+}
+
+.coach-empty-icon {
+  width: 40px;
+  height: 40px;
+  opacity: 0.35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coach-empty-icon svg {
+  width: 40px;
+  height: 40px;
+}
+
+.coach-empty-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.coach-empty-sub {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  max-width: 240px;
+}
+
+/* Chat bubbles */
 .chat-bubble {
   max-width: 85%;
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .chat-user {
   align-self: flex-end;
   background: var(--accent-primary);
-  color: var(--bg-primary);
+  color: #0d1117;
   border-bottom-right-radius: 4px;
 }
 
@@ -1775,55 +1827,153 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--bg-tertiary);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
+  border: 1px solid var(--border-color);
 }
 
 .chat-time {
   font-size: var(--text-xs);
-  opacity: 0.6;
-  margin-top: 2px;
+  opacity: 0.55;
+  margin-top: 3px;
 }
 
 .chat-waiting {
+  align-self: flex-start;
   font-size: var(--text-xs);
   color: var(--text-muted);
   font-style: italic;
   padding: var(--space-xs) 0;
 }
 
-.coach-input-row {
+/* Input bar — pinned at bottom of .coach-chat */
+.coach-input-bar {
   display: flex;
+  align-items: flex-end;
   gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 
 .coach-input {
   flex: 1;
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-secondary);
+  border-radius: var(--radius-full);
+  background: var(--bg-input);
   color: var(--text-primary);
   font-size: var(--text-sm);
   font-family: var(--font-sans);
   line-height: 1.4;
-  max-height: 120px;
+  max-height: 100px;
   overflow-y: auto;
+  transition: border-color var(--transition-fast);
+}
+
+.coach-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
 }
 
 .coach-input::placeholder {
   color: var(--text-muted);
 }
 
+/* Send button: icon-only circle */
 .coach-send {
-  padding: var(--space-sm) var(--space-md);
-  background: transparent;
-  color: var(--accent-primary);
-  border: 1px solid var(--accent-primary);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: var(--accent-primary);
+  color: #0d1117;
+  border: none;
+  border-radius: 50%;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.coach-send svg {
+  width: 16px;
+  height: 16px;
+}
+
+.coach-send:active {
+  transform: scale(0.9);
+  background: #22b8a6;
 }
 
 .coach-send:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* "~30 min reply" hint — small muted text below the chat box */
+.coach-reply-hint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: right;
+  margin-top: var(--space-xs);
+  padding-right: 2px;
+}
+
+/* ── Coach Analysis Section ── */
+.coach-analysis-section {
+  margin-top: var(--space-lg);
+}
+
+/* Section label (reused from Settings style) */
+.coach-section-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: var(--space-sm);
+  padding: 0 2px;
+}
+
+/* Analysis empty state */
+.coach-analysis-empty {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-sm);
+}
+
+.coach-analysis-empty-icon {
+  width: 40px;
+  height: 40px;
+  opacity: 0.3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coach-analysis-empty-icon svg {
+  width: 40px;
+  height: 40px;
+  color: var(--accent-primary);
+}
+
+.coach-analysis-empty-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.coach-analysis-empty-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-width: 280px;
 }

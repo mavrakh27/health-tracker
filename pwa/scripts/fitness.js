@@ -191,8 +191,10 @@ const Fitness = {
           <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; font-weight:600;">Rest Day</div>
           <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-top:2px;">${todayPlan ? UI.escapeHtml(todayPlan.description) : 'Recover and recharge.'}</div>
         </div>
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1" style="margin-top:var(--space-sm);">${UI.escapeHtml(notes || '')}</textarea>
-        <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%;">Save Notes</button>
+        <div class="card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
+          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes || '')}</textarea>
+          <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%; font-size:var(--text-xs);">Save Notes</button>
+        </div>
       `;
     }
 
@@ -251,8 +253,10 @@ const Fitness = {
 
     // Notes
     html += `
-      <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Extra cardio, felt tight, modified an exercise..." rows="1" style="margin-top:var(--space-sm);">${UI.escapeHtml(notes || '')}</textarea>
-      <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%;">Save Notes</button>
+      <div class="card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
+        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Notes..." rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes || '')}</textarea>
+        <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%; font-size:var(--text-xs);">Save Notes</button>
+      </div>
     `;
 
     return html;

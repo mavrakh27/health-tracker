@@ -784,9 +784,12 @@ const App = {
       try {
         const savedText = document.getElementById('coach-input')?.value || '';
         const coachHtml = await CoachChat.render(date);
-        inboxEl.innerHTML = `<h2 class="section-header">Inbox</h2>${coachHtml}`;
+        inboxEl.innerHTML = coachHtml;
         CoachChat.bindEvents(date);
         if (savedText) { const inp = document.getElementById('coach-input'); if (inp) inp.value = savedText; }
+        // Scroll messages to bottom
+        const msgs = document.getElementById('coach-messages');
+        if (msgs) msgs.scrollTop = msgs.scrollHeight;
       } catch (e) { inboxEl.innerHTML = ''; }
     }
 
@@ -796,7 +799,8 @@ const App = {
       const analysis = await DB.getAnalysis(date);
       if (analysis) {
         const goals = await DB.getProfile('goals') || {};
-        let analysisHtml = GoalsView.renderRemainingBudget(analysis, goals) +
+        let analysisHtml = '<div class="coach-analysis-section"><p class="coach-section-label">Analysis</p>' +
+          GoalsView.renderRemainingBudget(analysis, goals) +
           GoalsView.renderAnalysisSummary(analysis, goals);
 
         // Analysis version history
@@ -819,12 +823,20 @@ const App = {
           }
         } catch (e) { /* no history store yet */ }
 
+        analysisHtml += '</div>'; // end .coach-analysis-section
         analysisEl.innerHTML = analysisHtml;
       } else {
-        analysisEl.innerHTML = `<div class="card" style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">
-          <div style="font-size:var(--text-sm);">No analysis for ${UI.formatDate(date)} yet.</div>
-          <div style="font-size:var(--text-xs); margin-top:var(--space-xs);">Log meals and sync to get your coach's breakdown.</div>
-        </div>`;
+        analysisEl.innerHTML = `
+          <div class="coach-analysis-section">
+            <p class="coach-section-label">Analysis</p>
+            <div class="coach-analysis-empty">
+              <div class="coach-analysis-empty-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9h.01M15 9h.01"/><path d="M9.5 15a5 5 0 005 0"/></svg>
+              </div>
+              <p class="coach-analysis-empty-title">No analysis yet for ${UI.formatDate(date)}</p>
+              <p class="coach-analysis-empty-sub">Your coach breaks down your day every ~30 min — calories, macros, highlights, and recommendations. Log some meals and sync to get started.</p>
+            </div>
+          </div>`;
       }
     }
   },
