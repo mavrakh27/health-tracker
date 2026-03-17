@@ -129,6 +129,19 @@ const UI = {
     el.style.height = el.scrollHeight + 'px';
   },
 
+  // Scroll focused input into view when mobile keyboard opens
+  initKeyboardScroll() {
+    document.addEventListener('focusin', (e) => {
+      const el = e.target;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        // Delay to let keyboard animation finish
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+      }
+    });
+  },
+
   // --- DOM Helpers ---
   $(selector) {
     return document.querySelector(selector);

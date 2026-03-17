@@ -496,6 +496,7 @@ const App = {
     App.setupNavigation();
     App.setupDateNav();
     QuickLog.init();
+    UI.initKeyboardScroll();
     window.addEventListener('hashchange', () => App.handleRoute());
 
     // Initialize DB, then load the initial route
