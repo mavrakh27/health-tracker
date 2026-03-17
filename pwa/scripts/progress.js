@@ -1,4 +1,4 @@
-// progress.js -- Progress tab: Insights / Trends / Goals segments
+// progress.js -- Progress tab: Insights / Trends segments
 
 const ProgressView = {
   _tab: 'insights',
@@ -9,12 +9,11 @@ const ProgressView = {
 
     const activeTab = ProgressView._tab || 'insights';
 
-    // Segment control
+    // Segment control (2 tabs)
     let html = `
       <div class="segment-control" style="margin-bottom:var(--space-md);">
         <button class="segment-btn${activeTab === 'insights' ? ' active' : ''}" data-ptab="insights">Insights</button>
         <button class="segment-btn${activeTab === 'trends' ? ' active' : ''}" data-ptab="trends">Trends</button>
-        <button class="segment-btn${activeTab === 'goals' ? ' active' : ''}" data-ptab="goals">Goals</button>
       </div>
     `;
 
@@ -22,8 +21,6 @@ const ProgressView = {
       html += await ProgressView.renderInsights();
     } else if (activeTab === 'trends') {
       html += await ProgressView.renderTrends();
-    } else if (activeTab === 'goals') {
-      html += await ProgressView.renderGoals();
     }
 
     container.innerHTML = html;
@@ -54,9 +51,34 @@ const ProgressView = {
     // Weekly summary (this week vs last week)
     html += await ProgressView.renderWeeklySummary(goals);
 
-    // Remaining budget
-    if (analysis) {
-      html += GoalsView.renderRemainingBudget(analysis, goals);
+    // Goal consistency (moved from Goals segment)
+    const activePlan = goals.activePlan || 'moderate';
+    const timeline = goals.timeline || {};
+    const startDate = timeline.start || today;
+    const analyses = await DB.getAnalysisRange(startDate, today);
+    if (analyses.length > 0) {
+      const calTarget = goals.calories || 1200;
+      const proTarget = goals.protein || 105;
+      const calHits = analyses.filter(a => (a.totals?.calories || 0) <= calTarget * 1.1).length;
+      const proHits = analyses.filter(a => (a.totals?.protein || 0) >= proTarget * 0.85).length;
+      const workoutDays = analyses.filter(a => (a.entries || []).some(e => e.type === 'workout')).length;
+
+      html += '<h2 class="section-header">Goal Consistency</h2><div class="card">';
+      html += `<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--space-sm); text-align:center;">
+        <div>
+          <div style="font-size:var(--text-lg); font-weight:600; color:${calHits/analyses.length >= 0.7 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${calHits}/${analyses.length}</div>
+          <div style="font-size:var(--text-xs); color:var(--text-muted);">Cal target</div>
+        </div>
+        <div>
+          <div style="font-size:var(--text-lg); font-weight:600; color:${proHits/analyses.length >= 0.7 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${proHits}/${analyses.length}</div>
+          <div style="font-size:var(--text-xs); color:var(--text-muted);">Protein target</div>
+        </div>
+        <div>
+          <div style="font-size:var(--text-lg); font-weight:600; color:var(--accent-primary);">${workoutDays}/${analyses.length}</div>
+          <div style="font-size:var(--text-xs); color:var(--text-muted);">Workouts</div>
+        </div>
+      </div>`;
+      html += '</div>';
     }
 
     // Meal plan
@@ -174,7 +196,9 @@ const ProgressView = {
     const timeline = goals.timeline || {};
     const today = UI.today();
 
-    const startDate = timeline.start || today;
+    // Show at least 14 days of history
+    const minStart = (() => { const d = new Date(today + 'T12:00:00'); d.setDate(d.getDate() - 14); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+    const startDate = timeline.start && timeline.start < minStart ? timeline.start : minStart;
     const defaultEnd = (() => { const d = new Date(startDate + 'T12:00:00'); d.setDate(d.getDate() + 90); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
     const endDate = activePlan === 'hardcore'
       ? (timeline.hardcore_end || defaultEnd)
@@ -213,10 +237,10 @@ const ProgressView = {
   },
 
   async renderWeightTrend() {
-    // Get weight data from daily summaries (batch lookup)
+    // Get weight data from daily summaries (batch lookup, 90 days)
     const today = new Date();
     const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(today.getDate() - 30);
+    thirtyDaysAgo.setDate(today.getDate() - 90);
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
     const dateStrs = [];
@@ -270,74 +294,7 @@ const ProgressView = {
     return html;
   },
 
-  // --- Goals ---
-  async renderGoals() {
-    const goals = await DB.getProfile('goals') || {};
-    const activePlan = goals.activePlan || 'moderate';
-    const timeline = goals.timeline || {};
-    const today = UI.today();
-    const regimen = await DB.getRegimen();
-
-    const startDate = timeline.start || today;
-    const defaultEnd = (() => { const d = new Date(startDate + 'T12:00:00'); d.setDate(d.getDate() + 90); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-    const endDate = activePlan === 'hardcore'
-      ? (timeline.hardcore_end || defaultEnd)
-      : (timeline.moderate_end || defaultEnd);
-
-    let html = '';
-
-    // Forward-looking: Timeline + fitness goals
-    html += ProgressView.renderTimeline(startDate, endDate, today, timeline, activePlan);
-
-    if (goals.fitnessGoals?.length) {
-      html += ProgressView.renderFitnessGoals(goals.fitnessGoals);
-    }
-
-    // Backward-reflecting: weekly target hit rates
-    const analyses = await DB.getAnalysisRange(startDate, today);
-    if (analyses.length > 0) {
-      const calTarget = goals.calories || 1200;
-      const proTarget = goals.protein || 105;
-      const waterTarget = goals.water_oz || 64;
-
-      const calHits = analyses.filter(a => (a.totals?.calories || 0) <= calTarget * 1.1).length;
-      const proHits = analyses.filter(a => (a.totals?.protein || 0) >= proTarget * 0.85).length;
-      const workoutDays = analyses.filter(a => (a.entries || []).some(e => e.type === 'workout')).length;
-
-      html += '<h2 class="section-header">Goal Consistency</h2><div class="card">';
-      html += `<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:var(--space-sm); text-align:center;">
-        <div>
-          <div style="font-size:var(--text-lg); font-weight:600; color:${calHits/analyses.length >= 0.7 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${calHits}/${analyses.length}</div>
-          <div style="font-size:var(--text-xs); color:var(--text-muted);">Cal target</div>
-        </div>
-        <div>
-          <div style="font-size:var(--text-lg); font-weight:600; color:${proHits/analyses.length >= 0.7 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${proHits}/${analyses.length}</div>
-          <div style="font-size:var(--text-xs); color:var(--text-muted);">Protein target</div>
-        </div>
-        <div>
-          <div style="font-size:var(--text-lg); font-weight:600; color:var(--accent-primary);">${workoutDays}/${analyses.length}</div>
-          <div style="font-size:var(--text-xs); color:var(--text-muted);">Workouts</div>
-        </div>
-      </div>`;
-      html += '</div>';
-    }
-
-    // Analysis history placeholder
-    html += '<h2 class="section-header">Analysis History</h2>';
-    html += `<div class="card" style="text-align:center; padding:var(--space-md); color:var(--text-muted); font-size:var(--text-sm);">
-      Analysis versioning coming soon
-    </div>`;
-
-    if (!html) {
-      html = `<div class="card" style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">
-        <div style="font-size:var(--text-sm);">Set goals to track your progress here.</div>
-      </div>`;
-    }
-
-    return html;
-  },
-
-  // --- Shared render methods (used by Trends + Goals) ---
+  // --- Shared render methods ---
 
   renderFitnessGoals(fitnessGoals) {
     let html = '<h2 class="section-header">Fitness Goals</h2><div class="card">';

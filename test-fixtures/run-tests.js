@@ -258,7 +258,7 @@ async function testPlanScreen(page, fixtures) {
 
   // Segment control should exist
   const segmentBtns = await page.$$('.segment-btn');
-  assert(segmentBtns.length === 3, `Progress has 3 segment buttons (got ${segmentBtns.length})`);
+  assert(segmentBtns.length === 2, `Progress has 2 segment buttons (got ${segmentBtns.length})`);
 
   // Default tab is Insights — should show meal plan content
   const container = await page.$('#progress-container');
@@ -302,18 +302,15 @@ async function testProgressScreen(page, fixtures) {
 
   await screenshot(page, 'progress-trends');
 
-  // Switch to Goals segment
-  const goalsBtn = await page.$('button:has-text("Goals")');
-  if (goalsBtn) await goalsBtn.click();
+  // Switch back to Insights to check goal consistency
+  const insightsBtn2 = await page.$('button:has-text("Insights")');
+  if (insightsBtn2) await insightsBtn2.click();
   await page.waitForTimeout(500);
 
-  const goalsContent = await container.textContent();
-  // Timeline should render in Goals
-  assert(goalsContent.includes('Timeline') || goalsContent.includes('Day'), 'Timeline section renders');
-  // Fitness goals
-  assert(goalsContent.includes('Lose 10 lbs') || goalsContent.includes('Run a 5K') || goalsContent.includes('Fitness Goals') || goalsContent.includes('Goal Consistency'), 'Fitness goals render');
+  const insightsContent = await container.textContent();
+  assert(insightsContent.includes('Goal Consistency') || insightsContent.includes('This Week') || insightsContent.includes('Meal Plan'), 'Insights shows goal consistency or weekly data');
 
-  await screenshot(page, 'progress-goals');
+  await screenshot(page, 'progress-insights-full');
 }
 
 async function testProfileScreen(page, fixtures) {
@@ -326,12 +323,11 @@ async function testProfileScreen(page, fixtures) {
   const targetsCard = await page.textContent('.s-card-row');
   assert(targetsCard.includes('1200') || targetsCard.includes('cal'), 'Daily targets show calorie goal');
 
-  // Goals segment is on Progress tab — verify from there
+  // Progress has Insights + Trends segments
   await page.click('nav button:has-text("Progress")');
   await page.waitForTimeout(300);
-  const goalsBtn = await page.$('#progress-container button:has-text("Goals")');
-  assert(!!goalsBtn, 'Goals segment button exists');
-  // Return to Settings
+  const insightsBtn = await page.$('#progress-container button:has-text("Insights")');
+  assert(!!insightsBtn, 'Progress Insights segment exists');
   await page.click('nav button:has-text("Settings")');
   await page.waitForTimeout(300);
 
