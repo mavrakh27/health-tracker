@@ -67,11 +67,6 @@
   color: var(--color-water);
 }
 
-.quick-action-weight {
-  border-color: var(--color-weight);
-  color: var(--color-weight);
-}
-
 .quick-action-supplement {
   border-color: var(--accent-green);
   color: var(--accent-green);

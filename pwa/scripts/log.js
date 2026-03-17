@@ -43,7 +43,7 @@ const Log = {
       { type: 'meal', icon: UI.svg.meal, label: 'Food', color: 'var(--color-meal)' },
       { type: 'workout', icon: UI.svg.workout, label: 'Workout', color: 'var(--color-workout)' },
       { type: 'water', icon: UI.svg.water, label: 'Water', color: 'var(--color-water)' },
-      { type: 'custom', icon: UI.svg.vice, label: 'Alcohol', color: 'var(--accent-red)' },
+      { type: 'custom', icon: UI.svg.custom, label: 'Alcohol', color: 'var(--accent-red)' },
       { type: 'weight', icon: UI.svg.weight, label: 'Weight', color: 'var(--color-weight)' },
       { type: 'bodyPhoto', icon: UI.svg.bodyPhoto, label: 'Body Photo', color: 'var(--color-body-photo)' },
     ];
@@ -558,8 +558,8 @@ const Log = {
   _pendingCustom: null,
 
   async saveCustom() {
-    const vice = Log._pendingCustom;
-    if (!vice) {
+    const item = Log._pendingCustom;
+    if (!item) {
       UI.toast('Select a drink type', 'error');
       return;
     }
@@ -571,19 +571,19 @@ const Log = {
     const entry = {
       id: UI.generateId('custom'),
       type: 'custom',
-      subtype: vice.label.toLowerCase(),
+      subtype: item.label.toLowerCase(),
       date,
       timestamp: new Date().toISOString(),
-      notes: notes || `${qty}x ${vice.label}`,
+      notes: notes || `${qty}x ${item.label}`,
       quantity: qty,
-      calories_est: vice.cal * qty,
+      calories_est: item.cal * qty,
       photo: false,
       duration_minutes: null,
     };
 
     try {
       await DB.addEntry(entry);
-      UI.toast(`${qty}x ${vice.label} logged (~${vice.cal * qty} cal)`);
+      UI.toast(`${qty}x ${item.label} logged (~${item.cal * qty} cal)`);
       CloudRelay.queueUpload(date);
       Log._pendingCustom = null;
       Log._afterSave();

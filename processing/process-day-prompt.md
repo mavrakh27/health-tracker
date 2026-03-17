@@ -88,7 +88,7 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
    - Note impact on daily score and goals (alcohol calories are "empty" -- no protein/useful macros)
 
 5. **Calculate daily totals:**
-   - Sum calories and macros from all meals AND vice entries
+   - Sum calories and macros from all meals AND custom entries (alcohol, etc.)
    - Compare to BOTH moderate and hardcore goals from `goals.json`
    - Calculate remaining budget for the day
    - Do NOT generate a `dayScore` — scoring is handled client-side by the PWA

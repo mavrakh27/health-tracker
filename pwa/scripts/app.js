@@ -766,9 +766,6 @@ const App = {
       } catch (e) { mealSuggEl.innerHTML = ''; }
     }
 
-    // Close the "More" types panel on re-render
-    const moreEl = document.getElementById('more-entry-types');
-    if (moreEl) moreEl.style.display = 'none';
   },
 
   async loadCoachView() {
