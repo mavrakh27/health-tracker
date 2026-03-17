@@ -20,12 +20,11 @@ if "%TODAY%"=="" (
     exit /b 1
 )
 
-REM --- Lock file to prevent concurrent processing ---
+REM --- Lock file check (watcher.ps1 owns lock lifecycle, but guard against direct runs) ---
 if exist "%LOCK_FILE%" (
     echo [%TODAY%] Another processing run is in progress - lock file exists. Aborting.
     exit /b 0
 )
-echo %TODAY% %TIME% > "%LOCK_FILE%"
 
 echo [%TODAY%] Starting processing run...
 
@@ -45,12 +44,10 @@ set NEW_DATES=
 REM --- Download pending data from cloud relay ---
 if not defined HEALTH_SYNC_URL (
     echo [%TODAY%] HEALTH_SYNC_URL not set. Cannot sync.
-    del "%LOCK_FILE%" 2>nul
     exit /b 1
 )
 if not defined HEALTH_SYNC_KEY (
     echo [%TODAY%] HEALTH_SYNC_KEY not set. Cannot sync.
-    del "%LOCK_FILE%" 2>nul
     exit /b 1
 )
 
@@ -92,7 +89,6 @@ if not "!RELAY_DATES!"=="" (
 if !ZIP_COUNT! equ 0 (
     echo [%TODAY%] No new data to process.
     rmdir /s /q "%EXTRACT_DIR%" 2>nul
-    del "%LOCK_FILE%" 2>nul
     exit /b 0
 )
 
@@ -114,26 +110,25 @@ xcopy "%DATA_DIR%\analysis\*.json" "%BACKUP_DIR%\analysis\" /Y /Q >nul 2>&1
 xcopy "%DATA_DIR%\corrections\*.json" "%BACKUP_DIR%\corrections\" /Y /Q >nul 2>&1
 
 REM --- Upload results back to cloud relay ---
+REM Upload ALL recent analysis files (not just this run's dates).
+REM This catches results from crashed previous runs that never uploaded.
 echo [%TODAY%] Uploading analysis results to cloud relay...
-for %%d in (!NEW_DATES!) do (
-    if exist "%DATA_DIR%\analysis\%%d.json" (
-        echo [%TODAY%] Uploading analysis for %%d...
-        curl -s -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%DATA_DIR%\analysis\%%d.json" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/%%d/done"
-        if not errorlevel 1 (
-            echo [%TODAY%] Uploaded results for %%d
-        ) else (
-            echo [%TODAY%] WARNING: Failed to upload results for %%d
-        )
+set UPLOAD_COUNT=0
+for %%f in ("%DATA_DIR%\analysis\2026-*.json") do (
+    set "ADATE=%%~nf"
+    echo [%TODAY%] Uploading analysis for !ADATE!...
+    curl -sf -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%%f" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/!ADATE!/done"
+    if not errorlevel 1 (
+        echo [%TODAY%] Uploaded results for !ADATE!
+        set /a UPLOAD_COUNT+=1
     ) else (
-        echo [%TODAY%] WARNING: No analysis produced for %%d - NOT marking as done.
+        echo [%TODAY%] WARNING: Failed to upload results for !ADATE!
     )
 )
+echo [%TODAY%] Uploaded !UPLOAD_COUNT! analysis files.
 
 REM --- Clean up extracted data ---
 rmdir /s /q "%EXTRACT_DIR%" 2>nul
-
-REM --- Remove lock file ---
-del "%LOCK_FILE%" 2>nul
 
 echo [%TODAY%] Processing run complete.
 endlocal
