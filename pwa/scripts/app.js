@@ -918,8 +918,7 @@ const App = {
     }
     UI.toast(`Uploading ${dates.length} day(s)...`);
     for (const date of dates) {
-      CloudRelay._pendingDate = date;
-      await CloudRelay._doUpload();
+      await CloudRelay._doUpload(date);
     }
     CloudRelay._gotResults = false;
     await CloudRelay.checkForResults();

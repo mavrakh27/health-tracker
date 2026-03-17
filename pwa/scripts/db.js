@@ -248,16 +248,20 @@ async function getPhotoSyncStatus() {
   const db = await openDB();
   const tx = db.transaction('photos', 'readonly');
   const store = tx.objectStore('photos');
-  const request = store.getAll();
+  // Use cursor to count without loading all blobs into memory
+  const request = store.openCursor();
+  const counts = { unsynced: 0, synced: 0, processed: 0, totalSize: 0 };
   return new Promise((resolve, reject) => {
     request.onsuccess = () => {
-      const photos = request.result;
-      const counts = { unsynced: 0, synced: 0, processed: 0, totalSize: 0 };
-      for (const p of photos) {
+      const cursor = request.result;
+      if (cursor) {
+        const p = cursor.value;
         counts[p.syncStatus] = (counts[p.syncStatus] || 0) + 1;
         if (p.blob) counts.totalSize += p.blob.size || 0;
+        cursor.continue();
+      } else {
+        resolve(counts);
       }
-      resolve(counts);
     };
     request.onerror = (e) => reject(e.target.error);
   });
