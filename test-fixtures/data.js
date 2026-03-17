@@ -145,13 +145,25 @@ function buildFixtures() {
 
   const regimen = {
     weeklySchedule: [
-      { day: 'monday', type: 'cardio', exercises: [{ name: 'Elliptical', duration: '25 min' }] },
-      { day: 'tuesday', type: 'strength', exercises: [{ name: 'Upper body', sets: 3 }] },
-      { day: 'wednesday', type: 'rest' },
-      { day: 'thursday', type: 'cardio', exercises: [{ name: 'Running', duration: '30 min' }] },
-      { day: 'friday', type: 'strength', exercises: [{ name: 'Lower body', sets: 3 }] },
-      { day: 'saturday', type: 'rest' },
-      { day: 'sunday', type: 'rest' },
+      { day: 'monday', type: 'cardio', description: 'Cardio day', exercises: [
+        { name: '25-min elliptical', sets: 1, reps: '25 min', section: 'main', formCue: 'Conversational pace' },
+      ] },
+      { day: 'tuesday', type: 'strength', description: 'Upper body push', exercises: [
+        { name: 'Push-ups', sets: 3, reps: '12', section: 'main', formCue: 'Elbows at 45 degrees' },
+        { name: 'Dumbbell Overhead Press', sets: 3, reps: '10', section: 'main', formCue: 'Brace core tight' },
+        { name: 'Plank', sets: 3, reps: '30s', section: 'core', formCue: 'Squeeze glutes' },
+      ] },
+      { day: 'wednesday', type: 'rest', description: 'Rest and recover', exercises: [] },
+      { day: 'thursday', type: 'cardio', description: 'Cardio day', exercises: [
+        { name: '30-min jog', sets: 1, reps: '30 min', section: 'main', formCue: 'Easy pace' },
+      ] },
+      { day: 'friday', type: 'strength', description: 'Lower body', exercises: [
+        { name: 'Goblet Squats', sets: 3, reps: '12', section: 'main', formCue: 'Hips below knees' },
+        { name: 'Romanian Deadlifts', sets: 3, reps: '10', section: 'main', formCue: 'Push hips back' },
+        { name: 'Dead Bugs', sets: 3, reps: '10', section: 'core', formCue: 'Lower back stays flat' },
+      ] },
+      { day: 'saturday', type: 'rest', description: 'Rest and recover', exercises: [] },
+      { day: 'sunday', type: 'rest', description: 'Rest and recover', exercises: [] },
     ],
   };
 

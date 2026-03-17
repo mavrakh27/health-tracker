@@ -113,7 +113,34 @@ const Fitness = {
     },
   },
 
-  // Parse a workout description string into individual exercises
+  // Get exercise list from a day plan — supports structured (exercises array) and legacy (description text)
+  getExerciseList(todayPlan) {
+    if (!todayPlan) return [];
+    // New structured format: exercises array with name, sets, reps, formCue
+    if (todayPlan.exercises && Array.isArray(todayPlan.exercises) && todayPlan.exercises.length > 0) {
+      return todayPlan.exercises.map(ex => {
+        const setsReps = ex.sets && ex.reps ? `${ex.sets}x${ex.reps}` : '';
+        const dbKey = Object.keys(Fitness.exercises).find(k =>
+          ex.name.toLowerCase().includes(k) || k.includes(ex.name.toLowerCase())
+        );
+        return {
+          name: ex.name,
+          setsReps,
+          extra: ex.formCue || '',
+          isCore: (ex.section || '').toLowerCase() === 'core',
+          details: dbKey ? Fitness.exercises[dbKey] : null,
+        };
+      });
+    }
+    // Cardio day — single exercise
+    if (todayPlan.type === 'cardio') {
+      return [{ name: 'cardio', setsReps: '', extra: todayPlan.description || '', isCore: false, details: null }];
+    }
+    // Legacy text-based format
+    return Fitness.parseExercises(todayPlan.description);
+  },
+
+  // Parse a workout description string into individual exercises (legacy format)
   parseExercises(description) {
     if (!description) return [];
     // Split on || for section breaks (e.g., "...exercises || Core: ...")
@@ -150,72 +177,29 @@ const Fitness = {
     return exercises;
   },
 
-  // Render the interactive workout checklist
+  // Render the interactive workout checklist (individual exercise cards)
   async render(regimen, date) {
     const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const todayPlan = regimen.weeklySchedule?.find(d => d.day === dayName);
-    const isRest = !todayPlan || todayPlan.type === 'rest' || todayPlan.type === 'active_rest';
+    const isRest = !todayPlan || todayPlan.type === 'rest' || todayPlan.type === 'active_rest' || todayPlan.type === 'active_recovery';
+    const notes = await Fitness.getWorkoutNotes(date);
+    const checked = await Fitness.getCheckedExercises(date);
 
     if (isRest) {
-      const notes = await Fitness.getWorkoutNotes(date);
-      let html = `<div class="card" style="text-align:center; padding:var(--space-lg);">
-        <div style="font-weight:600; margin-bottom:4px;">Rest Day</div>
-        <div style="font-size:var(--text-sm); color:var(--text-muted);">${todayPlan ? UI.escapeHtml(todayPlan.description) : 'Recover and recharge.'}</div>
-      </div>`;
-      html += `<div style="margin-top:var(--space-md);">
-        <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Notes</div>
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
-        <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
-      </div>`;
-      return html;
+      return `
+        <div class="card" style="text-align:center; padding:var(--space-md); margin-top:var(--space-sm);">
+          <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; font-weight:600;">Rest Day</div>
+          <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-top:2px;">${todayPlan ? UI.escapeHtml(todayPlan.description) : 'Recover and recharge.'}</div>
+        </div>
+        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1" style="margin-top:var(--space-sm);">${UI.escapeHtml(notes || '')}</textarea>
+        <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%;">Save Notes</button>
+      `;
     }
 
-    const isCardio = todayPlan.type === 'cardio';
-    const exercises = isCardio ? [] : Fitness.parseExercises(todayPlan.description);
-    const checked = await Fitness.getCheckedExercises(date);
-    const notes = await Fitness.getWorkoutNotes(date);
-
+    const exercises = Fitness.getExerciseList(todayPlan);
     let html = '';
 
-    // Cardio days — simple card with description + done checkbox
-    if (isCardio) {
-      const isDone = checked.has('cardio');
-      html += `<div class="card" style="margin-bottom:var(--space-sm);">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div>
-            <div style="font-weight:600; text-transform:capitalize;">${dayName}'s Workout</div>
-            <div style="font-size:var(--text-xs); color:var(--accent-green); text-transform:uppercase;">Cardio</div>
-          </div>
-          <button class="fitness-check${isDone ? ' checked' : ''}" data-name="cardio" style="width:36px; height:36px; min-width:36px; font-size:20px;">
-            ${isDone ? '&#x2713;' : ''}
-          </button>
-        </div>
-        <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-top:var(--space-sm);">${UI.escapeHtml(todayPlan.description)}</div>
-      </div>`;
-      html += `<div style="margin-top:var(--space-md);">
-        <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Workout Notes</div>
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="What did you do, how did it feel..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
-        <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
-      </div>`;
-      if (regimen.weeklyReview) {
-        html += `<div class="card" style="margin-top:var(--space-sm);"><div style="font-size:var(--text-xs); color:var(--text-muted);">${UI.escapeHtml(regimen.weeklyReview)}</div></div>`;
-      }
-      return html;
-    }
-
-    // Workout header
-    const typeLabel = todayPlan.type || '';
-    html += `<div class="card" style="margin-bottom:var(--space-sm);">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <div style="font-weight:600; text-transform:capitalize;">${dayName}'s Workout</div>
-          <div style="font-size:var(--text-xs); color:var(--accent-green); text-transform:uppercase;">${UI.escapeHtml(typeLabel)}</div>
-        </div>
-        <div style="font-size:var(--text-xs); color:var(--text-muted);">${checked.size} / ${exercises.length} done</div>
-      </div>
-    </div>`;
-
-    // Exercise checklist
+    // Each exercise as its own card
     for (let i = 0; i < exercises.length; i++) {
       const ex = exercises[i];
       const isDone = checked.has(ex.name);
@@ -265,21 +249,11 @@ const Fitness = {
       `;
     }
 
-    // Free-form notes + save button
+    // Notes
     html += `
-      <div style="margin-top:var(--space-md);">
-        <div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:var(--space-xs);">Workout Notes</div>
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Did extra cardio, hip felt tight, modified an exercise..." rows="1">${UI.escapeHtml(notes || '')}</textarea>
-        <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-sm); width:100%;">Save Notes</button>
-      </div>
+      <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Extra cardio, felt tight, modified an exercise..." rows="1" style="margin-top:var(--space-sm);">${UI.escapeHtml(notes || '')}</textarea>
+      <button class="btn btn-secondary" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%;">Save Notes</button>
     `;
-
-    // Regimen context
-    if (regimen.weeklyReview) {
-      html += `<div class="card" style="margin-top:var(--space-sm);">
-        <div style="font-size:var(--text-xs); color:var(--text-muted);">${UI.escapeHtml(regimen.weeklyReview)}</div>
-      </div>`;
-    }
 
     return html;
   },

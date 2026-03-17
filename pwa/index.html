@@ -80,74 +80,97 @@
 
     <!-- Screen: Settings (was Profile) -->
     <main id="screen-settings" class="screen">
-      <!-- Daily Goals Editor -->
-      <div class="s-card s-card--accent">
-        <div class="s-card-row">
-          <div class="s-card-body">
-            <h3 class="s-title">Daily Targets</h3>
-            <p class="s-subtitle" id="goals-summary">Loading...</p>
+
+      <!-- Section: Your Plan -->
+      <p class="s-section-label">Your Plan</p>
+
+      <div class="s-group">
+        <!-- Daily Targets -->
+        <div class="s-card s-card--accent s-card--first">
+          <div class="s-card-row">
+            <div class="s-card-body">
+              <h3 class="s-title">Daily Targets</h3>
+              <p class="s-subtitle" id="goals-summary">Loading...</p>
+            </div>
+            <button class="s-action-btn" onclick="App.showGoalSetup()">Edit</button>
           </div>
-          <button class="s-action-btn" onclick="App.showGoalSetup()">Edit</button>
+        </div>
+
+        <!-- Dailies -->
+        <div class="s-card s-card--last">
+          <div class="s-card-row">
+            <div class="s-card-body">
+              <h3 class="s-title">Dailies</h3>
+              <p class="s-subtitle">Supplements, vitamins, and daily items</p>
+            </div>
+            <button class="s-action-btn" onclick="QuickLog.showDailiesManager()">Manage</button>
+          </div>
         </div>
       </div>
 
-      <!-- Dailies -->
-      <div class="s-card">
-        <div class="s-card-row">
-          <div class="s-card-body">
-            <h3 class="s-title">Dailies</h3>
-            <p class="s-subtitle">Supplements, vitamins, and daily items</p>
+      <!-- Section: Sync -->
+      <p class="s-section-label">Sync</p>
+
+      <div class="s-group">
+        <div class="s-card s-card--accent s-card--only">
+          <!-- Status row -->
+          <div class="s-card-row">
+            <div class="s-card-body">
+              <h3 class="s-title">Cloud Sync</h3>
+              <p class="s-subtitle" id="cloud-sync-status">Not configured</p>
+            </div>
+            <button class="s-action-btn" onclick="CloudRelay.showSetup()">Setup</button>
           </div>
-          <button class="s-action-btn" onclick="QuickLog.showDailiesManager()">Manage</button>
+          <!-- Sync actions -->
+          <div class="s-sync-actions">
+            <button class="s-sync-btn s-sync-btn--primary" id="profile-sync-now" onclick="App.syncNow()">
+              <svg class="s-sync-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c-2.5 0-4.5-4-4.5-9s2-9 4.5-9m-9 9a9 9 0 019-9"/></svg>
+              Sync Now
+            </button>
+            <button class="s-sync-btn" onclick="App.checkResults()">Check Results</button>
+            <button class="s-sync-btn s-sync-btn--ghost" onclick="CloudRelay.resyncAll()">Re-sync All</button>
+          </div>
         </div>
       </div>
 
-      <!-- Sync Now — primary sync action -->
-      <button class="btn btn-primary btn-block btn-lg" id="profile-sync-now" onclick="App.syncNow()" style="margin-bottom: var(--space-md);">Sync Now</button>
+      <!-- Section: App -->
+      <p class="s-section-label">App</p>
 
-      <!-- Cloud Sync -->
-      <div class="s-card s-card--accent">
-        <div class="s-card-row">
-          <div class="s-icon">&#9729;</div>
-          <div class="s-card-body">
-            <h3 class="s-title">Cloud Sync</h3>
-            <p class="s-subtitle" id="cloud-sync-status">Not configured</p>
+      <div class="s-group">
+        <!-- Storage -->
+        <div class="s-card s-card--first">
+          <div class="s-card-row">
+            <div class="s-card-body">
+              <h3 class="s-title">Storage</h3>
+              <p class="s-subtitle" id="storage-info">Loading...</p>
+            </div>
+            <button class="btn btn-danger s-inline-danger" id="clear-photos-btn" onclick="Settings.clearPhotos()" style="display:none;">Clear</button>
           </div>
-          <button class="s-action-btn" onclick="CloudRelay.showSetup()">Setup</button>
         </div>
-        <div class="s-btn-row" style="margin-top: var(--space-sm);">
-          <button class="btn btn-secondary" onclick="App.checkResults()">Check Results</button>
-          <button class="btn btn-ghost" onclick="CloudRelay.resyncAll()" style="font-size: var(--text-xs);">Re-sync All</button>
+
+        <!-- Setup Guide -->
+        <div class="s-card">
+          <div class="s-card-row">
+            <div class="s-card-body">
+              <h3 class="s-title">Setup Guide</h3>
+              <p class="s-subtitle">AI processing setup for your computer</p>
+            </div>
+            <a class="s-action-btn" href="https://github.com/nEmily/health-tracker/blob/main/docs/getting-started.md" target="_blank" rel="noopener" style="text-decoration:none;">View</a>
+          </div>
+        </div>
+
+        <!-- Update + Version -->
+        <div class="s-card s-card--last">
+          <div class="s-card-row">
+            <div class="s-card-body">
+              <h3 class="s-title">Update App</h3>
+              <p class="s-subtitle">Coach <span id="app-version" class="s-version-badge"></span></p>
+            </div>
+            <button class="s-action-btn" id="update-app-btn">Update</button>
+          </div>
         </div>
       </div>
 
-      <!-- Setup Guide -->
-      <div class="s-card">
-        <div class="s-card-row">
-          <div class="s-icon">&#128218;</div>
-          <div class="s-card-body">
-            <h3 class="s-title">Setup Guide</h3>
-            <p class="s-subtitle">Set up AI processing on your computer</p>
-          </div>
-          <a class="s-action-btn" href="https://github.com/nEmily/health-tracker/blob/main/docs/getting-started.md" target="_blank" rel="noopener" style="text-decoration:none;">View</a>
-        </div>
-      </div>
-
-      <!-- Storage -->
-      <div class="s-card">
-        <div class="s-card-row">
-          <div class="s-card-body">
-            <p class="s-subtitle" id="storage-info">Loading...</p>
-          </div>
-        </div>
-        <div class="s-btn-row">
-          <button class="btn btn-danger" id="clear-photos-btn" onclick="Settings.clearPhotos()">Clear Photos</button>
-          <button class="btn btn-secondary" id="update-app-btn">Update App</button>
-        </div>
-        <div style="text-align:center; padding:var(--space-md); margin-top:var(--space-xs);">
-          <span style="font-size:var(--text-xs); color:var(--text-muted);">Coach <span id="app-version" class="s-version-badge"></span></span>
-        </div>
-      </div>
     </main>
 
     <!-- Bottom Navigation (4 tabs) -->

@@ -705,52 +705,15 @@ const App = {
       } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
     }
 
-    // Workout card (collapsible)
+    // Workout exercises (individual cards, no collapsible wrapper)
     const workoutEl = document.getElementById('today-workout');
     if (workoutEl) {
       try {
         const regimen = await DB.getRegimen();
         if (regimen?.weeklySchedule) {
-          const reg = regimen;
-          const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' });
-          const todayPlan = reg.weeklySchedule?.find(d => d.day === dayName.toLowerCase());
-          const isRest = !todayPlan || todayPlan.type === 'rest' || todayPlan.type === 'active_rest' || todayPlan.type === 'active_recovery';
-          const checked = await Fitness.getCheckedExercises(date);
-          const exercises = (!isRest && todayPlan.type !== 'cardio') ? Fitness.parseExercises(todayPlan.description) : [];
-          const total = todayPlan?.type === 'cardio' ? 1 : exercises.length;
-          const done = todayPlan?.type === 'cardio' ? (checked.has('cardio') ? 1 : 0) : exercises.filter(e => checked.has(e.name)).length;
-          const allDone = total > 0 && done === total;
-
-          const fitnessHtml = await Fitness.render(reg, date);
-          const typeLabel = isRest ? 'Rest Day' : (todayPlan.type || 'Workout');
-          workoutEl.innerHTML = `
-            <div class="collapsible-section" style="margin-top:var(--space-md);">
-              <div class="collapsible-header" id="workout-collapse-header">
-                <div style="display:flex; align-items:center; gap:var(--space-sm);">
-                  <span style="font-weight:600;">${dayName}</span>
-                  <span style="font-size:var(--text-xs); color:var(--accent-green); text-transform:uppercase;">${UI.escapeHtml(typeLabel)}</span>
-                </div>
-                <div style="display:flex; align-items:center; gap:var(--space-sm);">
-                  ${!isRest ? `<span class="collapsible-badge">${done}/${total}</span>` : ''}
-                  <span class="collapsible-chevron${allDone ? '' : ' open'}">&#9660;</span>
-                </div>
-              </div>
-              <div class="collapsible-body${allDone ? ' collapsed' : ''}" id="workout-collapse-body">
-                ${fitnessHtml}
-              </div>
-            </div>
-          `;
-          // Bind fitness events scoped to this container
+          const fitnessHtml = await Fitness.render(regimen, date);
+          workoutEl.innerHTML = fitnessHtml;
           Fitness.bindEvents(date, workoutEl);
-          // Collapsible toggle
-          document.getElementById('workout-collapse-header')?.addEventListener('click', () => {
-            const body = document.getElementById('workout-collapse-body');
-            const chevron = workoutEl.querySelector('.collapsible-chevron');
-            if (body) {
-              body.classList.toggle('collapsed');
-              chevron?.classList.toggle('open');
-            }
-          });
         } else {
           workoutEl.innerHTML = '';
         }
@@ -1167,10 +1130,30 @@ const App = {
     if (!statsEl) return;
 
     let foodCount = entries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
-    let workoutMin = entries.filter(e => e.type === 'workout').reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
     let waterOz = summary.water_oz || 0;
     let weightVal = summary.weight ? summary.weight.value : null;
     let weightUnit = summary.weight ? summary.weight.unit : '';
+
+    // Workout progress from regimen + checked exercises
+    let workoutDone = 0;
+    let workoutTotal = 0;
+    let workoutLabel = 'Workout';
+    try {
+      const regimen = await DB.getRegimen();
+      if (regimen?.weeklySchedule) {
+        const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        const todayPlan = regimen.weeklySchedule?.find(d => d.day === dayName);
+        const isRest = !todayPlan || todayPlan.type === 'rest' || todayPlan.type === 'active_rest' || todayPlan.type === 'active_recovery';
+        if (isRest) {
+          workoutLabel = 'Rest Day';
+        } else {
+          const checked = await Fitness.getCheckedExercises(date);
+          const exercises = Fitness.getExerciseList(todayPlan);
+          workoutTotal = exercises.length;
+          workoutDone = exercises.filter(e => checked.has(e.name)).length;
+        }
+      }
+    } catch (e) { /* no regimen */ }
 
     // Fall back to analysis data when entries are empty (e.g. after reinstall)
     if (entries.length === 0 && date) {
@@ -1178,13 +1161,14 @@ const App = {
       if (analysis) {
         const aEntries = analysis.entries || [];
         foodCount = aEntries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
-        workoutMin = aEntries.filter(e => e.type === 'workout').reduce((sum, w) => sum + (w.duration_minutes || 0), 0);
         waterOz = analysis.water_oz || waterOz;
         if (analysis.weight) { weightVal = analysis.weight.value || analysis.weight; weightUnit = analysis.weight.unit || 'lbs'; }
       }
     }
 
     const zc = (val) => val === 0 || val === null ? ' stat-value--zero' : '';
+    const workoutDisplay = workoutTotal > 0 ? `${workoutDone}/${workoutTotal}` : (workoutLabel === 'Rest Day' ? 'Rest' : '--');
+    const workoutZero = workoutTotal === 0 && workoutLabel !== 'Rest Day';
     statsEl.innerHTML = `
       <div class="stat-card stat-card--tap" data-stat-action="water">
         <div class="stat-value${zc(waterOz)}" style="color: var(--color-water)">${waterOz}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> oz</span></div>
@@ -1194,9 +1178,9 @@ const App = {
         <div class="stat-value${zc(foodCount)}" style="color: var(--color-meal)">${foodCount}</div>
         <div class="stat-label">Food logged</div>
       </div>
-      <div class="stat-card stat-card--tap" data-stat-action="exercise">
-        <div class="stat-value${zc(workoutMin)}" style="color: var(--color-workout)">${workoutMin}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> min</span></div>
-        <div class="stat-label">Exercise</div>
+      <div class="stat-card stat-card--tap" data-stat-action="workout">
+        <div class="stat-value${workoutZero ? ' stat-value--zero' : ''}" style="color: var(--color-workout)">${workoutDisplay}</div>
+        <div class="stat-label">${UI.escapeHtml(workoutLabel)}</div>
       </div>
       <div class="stat-card stat-card--tap" data-stat-action="weight">
         <div class="stat-value${zc(weightVal)}" style="color: var(--color-weight)">${weightVal || '--'}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> ${weightVal ? weightUnit : ''}</span></div>
@@ -1211,11 +1195,9 @@ const App = {
         if (action === 'water') QuickLog.showWaterPicker();
         else if (action === 'food') QuickLog.snapFood();
         else if (action === 'weight') QuickLog.showWeightEntry();
-        else if (action === 'exercise') {
-          Log._gridId = 'log-type-grid-inline';
-          Log._formId = null;
-          Log._formContentId = 'log-form-content-inline';
-          Log.selectType('workout');
+        else if (action === 'workout') {
+          const el = document.getElementById('today-workout');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       });
     });

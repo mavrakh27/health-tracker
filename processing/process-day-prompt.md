@@ -82,10 +82,10 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
    - Note any deviations or progressions
    - If the user did EXTRA work beyond what was scheduled (e.g., core work on a cardio-only day), celebrate the initiative — never criticize the volume of voluntary bonus effort. Only compare rep counts/sets against targets on days where that exercise was actually programmed.
 
-4. **Handle alcohol/vice entries:**
-   - Vice entries have `type: 'vice'`, `subtype` (beer/wine/cocktail/shot/etc.), `quantity`, and `calories_est`
+4. **Handle alcohol/custom entries:**
+   - Custom entries have `type: 'custom'`, `subtype` (beer/wine/cocktail/shot/etc.), `quantity`, and `calories_est`
    - Include in calorie totals
-   - Note impact on daily score and goals (alcohol calories are "empty" — no protein/useful macros)
+   - Note impact on daily score and goals (alcohol calories are "empty" -- no protein/useful macros)
 
 5. **Calculate daily totals:**
    - Sum calories and macros from all meals AND vice entries
@@ -107,11 +107,13 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
    - Prioritize hitting protein target within the calorie budget
 
 7. **Generate/update workout regimen:**
-   - **Read `regimen.json` first** — it has the full program (phases, equipment, weekly schedule). Preserve the structure.
-   - Workout descriptions must be **comprehensive**: list every exercise with sets x reps, using the user's actual equipment
-   - Format: "Exercise 3x12 | Exercise 3x10 | ..." — not vague labels like "Full-body strength"
-   - Include a `weeklyReview` noting how this day's workout compared to the plan
-   - The regimen should cover all 7 days (including rest days)
+   - **Read `regimen.json` first** -- it has the full program (phases, equipment, weekly schedule). Preserve the structure.
+   - Each day's `exercises` array must list every exercise as a **structured object** with `name`, `sets`, `reps`, `section` (main/core/warmup), and `formCue` (one-line reminder).
+   - The `description` field is a brief summary (e.g. "Upper body push + core"). The `exercises` array is what the app renders as individual checkable cards.
+   - For cardio days: single exercise entry like `{ "name": "30-min walk/jog", "sets": 1, "reps": "30 min", "section": "main", "formCue": "Conversational pace" }`.
+   - For rest days: empty `exercises` array.
+   - Include a `weeklyReview` noting how this day's workout compared to the plan.
+   - The regimen should cover all 7 days (including rest days).
 
 8. **Skip body/face photos** — note their existence but do NOT analyze, describe, or comment on them. They are private progress photos.
 
@@ -167,8 +169,20 @@ Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing eve
   "regimen": {
     "description": "Brief description of the workout plan",
     "weeklySchedule": [
-      { "day": "monday", "type": "strength|cardio|rest|active_recovery", "description": "What to do" },
-      { "day": "tuesday", "type": "...", "description": "..." }
+      {
+        "day": "monday",
+        "type": "strength|cardio|rest|active_recovery",
+        "description": "Brief summary of the day",
+        "exercises": [
+          {
+            "name": "Goblet Squats",
+            "sets": 3,
+            "reps": "12",
+            "section": "main|core|warmup",
+            "formCue": "One-line form reminder"
+          }
+        ]
+      }
     ],
     "weeklyReview": "Optional note on how this week's workouts went vs plan"
   },
