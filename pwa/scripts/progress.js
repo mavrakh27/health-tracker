@@ -360,7 +360,7 @@ const ProgressView = {
     const water = analysis.goals?.water?.actual_oz || 0;
     const hasWorkout = (analysis.entries || []).some(e => e.type === 'workout');
     const hasMeals = (analysis.entries || []).some(e => e.type === 'meal' || e.type === 'drink' || e.type === 'snack');
-    const viceCount = (analysis.entries || []).filter(e => e.type === 'vice').reduce((s, e) => s + (e.quantity || 1), 0);
+    const viceCount = (analysis.entries || []).filter(e => e.type === 'custom').reduce((s, e) => s + (e.quantity || 1), 0);
 
     const dayName = new Date(analysis.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const dayPlan = regimen?.weeklySchedule?.find(d => d.day === dayName);

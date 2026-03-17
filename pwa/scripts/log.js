@@ -43,7 +43,7 @@ const Log = {
       { type: 'meal', icon: UI.svg.meal, label: 'Food', color: 'var(--color-meal)' },
       { type: 'workout', icon: UI.svg.workout, label: 'Workout', color: 'var(--color-workout)' },
       { type: 'water', icon: UI.svg.water, label: 'Water', color: 'var(--color-water)' },
-      { type: 'vice', icon: UI.svg.vice, label: 'Alcohol', color: 'var(--accent-red)' },
+      { type: 'custom', icon: UI.svg.vice, label: 'Alcohol', color: 'var(--accent-red)' },
       { type: 'weight', icon: UI.svg.weight, label: 'Weight', color: 'var(--color-weight)' },
       { type: 'bodyPhoto', icon: UI.svg.bodyPhoto, label: 'Body Photo', color: 'var(--color-body-photo)' },
     ];
@@ -116,8 +116,8 @@ const Log = {
       case 'bodyPhoto':
         formContent.appendChild(Log.buildBodyPhotoForm());
         break;
-      case 'vice':
-        formContent.appendChild(Log.buildViceForm());
+      case 'custom':
+        formContent.appendChild(Log.buildCustomForm());
         break;
     }
 
@@ -142,9 +142,6 @@ const Log = {
       const logGrid = document.getElementById(Log._gridId);
       if (logGrid) logGrid.style.display = 'none';
       Log.hideForm();
-      // Close the More panel after saving
-      const moreEl = document.getElementById('more-entry-types');
-      if (moreEl) moreEl.style.display = 'none';
       App.loadDayView();
     } else {
       Log.init();
@@ -487,8 +484,8 @@ const Log = {
     return wrapper;
   },
 
-  // --- Vice/Alcohol Form ---
-  buildViceForm() {
+  // --- Custom/Alcohol Form ---
+  buildCustomForm() {
     const wrapper = UI.createElement('div');
 
     const drinks = [
@@ -515,9 +512,9 @@ const Log = {
     qtyGroup.innerHTML = `
       <label class="form-label">How many?</label>
       <div class="number-input" style="justify-content:center;">
-        <button class="btn btn-secondary" id="vice-minus">\u2212</button>
-        <input type="number" class="form-input" id="vice-qty" value="1" min="1" max="10" inputmode="numeric" style="text-align:center; max-width:80px;">
-        <button class="btn btn-secondary" id="vice-plus">+</button>
+        <button class="btn btn-secondary" id="custom-minus">\u2212</button>
+        <input type="number" class="form-input" id="custom-qty" value="1" min="1" max="10" inputmode="numeric" style="text-align:center; max-width:80px;">
+        <button class="btn btn-secondary" id="custom-plus">+</button>
       </div>
     `;
     wrapper.appendChild(qtyGroup);
@@ -530,7 +527,7 @@ const Log = {
     saveArea.style.marginTop = 'var(--space-md)';
     const saveBtn = UI.createElement('button', 'btn btn-primary btn-block btn-lg');
     saveBtn.textContent = 'Log Drink';
-    saveBtn.addEventListener('click', () => Log.saveVice());
+    saveBtn.addEventListener('click', () => Log.saveCustom());
     saveArea.appendChild(saveBtn);
     wrapper.appendChild(saveArea);
 
@@ -542,15 +539,15 @@ const Log = {
           wrapper.querySelectorAll('.supplement-pick').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           selectedDrink = { label: btn.dataset.drink, cal: parseInt(btn.dataset.cal) };
-          Log._pendingVice = selectedDrink;
+          Log._pendingCustom = selectedDrink;
         });
       });
 
-      const qtyInput = document.getElementById('vice-qty');
-      document.getElementById('vice-minus')?.addEventListener('click', () => {
+      const qtyInput = document.getElementById('custom-qty');
+      document.getElementById('custom-minus')?.addEventListener('click', () => {
         qtyInput.value = Math.max(1, parseInt(qtyInput.value || 1) - 1);
       });
-      document.getElementById('vice-plus')?.addEventListener('click', () => {
+      document.getElementById('custom-plus')?.addEventListener('click', () => {
         qtyInput.value = Math.min(10, parseInt(qtyInput.value || 1) + 1);
       });
     });
@@ -558,22 +555,22 @@ const Log = {
     return wrapper;
   },
 
-  _pendingVice: null,
+  _pendingCustom: null,
 
-  async saveVice() {
-    const vice = Log._pendingVice;
+  async saveCustom() {
+    const vice = Log._pendingCustom;
     if (!vice) {
       UI.toast('Select a drink type', 'error');
       return;
     }
 
-    const qty = parseInt(document.getElementById('vice-qty')?.value) || 1;
+    const qty = parseInt(document.getElementById('custom-qty')?.value) || 1;
     const notes = document.getElementById('log-notes')?.value?.trim() || '';
     const date = App.selectedDate;
 
     const entry = {
-      id: UI.generateId('vice'),
-      type: 'vice',
+      id: UI.generateId('custom'),
+      type: 'custom',
       subtype: vice.label.toLowerCase(),
       date,
       timestamp: new Date().toISOString(),
@@ -588,10 +585,10 @@ const Log = {
       await DB.addEntry(entry);
       UI.toast(`${qty}x ${vice.label} logged (~${vice.cal * qty} cal)`);
       CloudRelay.queueUpload(date);
-      Log._pendingVice = null;
+      Log._pendingCustom = null;
       Log._afterSave();
     } catch (err) {
-      console.error('Save vice failed:', err);
+      console.error('Save custom failed:', err);
       UI.toast('Failed to save', 'error');
     }
   },

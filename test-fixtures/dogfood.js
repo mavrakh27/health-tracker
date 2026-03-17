@@ -316,15 +316,16 @@ async function runDogfood(existingBrowser) {
     // Step 5: Log weight
     // ================================================================
     console.log('\n--- Step 5: Log Weight ---');
-    const weightQuickBtn = await page.$('#quick-weight-btn');
-    assert(!!weightQuickBtn, 'Weight quick-action button exists');
+    // Weight is now in the More sheet, or tap the Weight stat card
+    const weightStatCard = await page.$('[data-stat-action="weight"]');
+    assert(!!weightStatCard, 'Weight stat card exists (tappable)');
 
-    if (weightQuickBtn) {
-      await weightQuickBtn.click();
+    if (weightStatCard) {
+      await weightStatCard.click();
       await page.waitForTimeout(400);
 
       const weightModal = await page.$('.modal-overlay');
-      assert(!!weightModal, 'Weight entry modal/form opens');
+      assert(!!weightModal, 'Weight entry modal opens');
       await screenshot(page, 'weight-open');
 
       // Look for weight input field (#qw-weight)
@@ -333,24 +334,11 @@ async function runDogfood(existingBrowser) {
         await weightInput.fill('145');
         assert(true, 'Entered weight: 145');
 
-        // Save via the specific weight save button
         const saveBtn = await page.$('#qw-save');
         if (saveBtn) {
           await saveBtn.click();
           await page.waitForTimeout(500);
           assert(true, 'Weight saved');
-        }
-      } else {
-        // Fallback: generic input selector
-        const genericInput = await page.$('.modal-overlay input[type="number"], .modal-overlay input[inputmode="decimal"]');
-        if (genericInput) {
-          await genericInput.fill('145');
-          const saveBtn = await page.$('.modal-overlay .btn-primary');
-          if (saveBtn) {
-            await saveBtn.click();
-            await page.waitForTimeout(500);
-            assert(true, 'Weight saved (generic selector)');
-          }
         }
       }
 

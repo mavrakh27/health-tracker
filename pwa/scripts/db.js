@@ -327,6 +327,9 @@ async function importAnalysis(dateStr, data) {
     if (data.pwaProfile.bodyPhotoTypes) {
       profileStore.put({ key: 'bodyPhotoTypes', value: data.pwaProfile.bodyPhotoTypes });
     }
+    if (data.pwaProfile.moreOptions) {
+      profileStore.put({ key: 'moreOptions', value: data.pwaProfile.moreOptions });
+    }
   }
 
   // Archive existing analysis before overwriting (v2+)

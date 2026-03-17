@@ -5,49 +5,69 @@ const QuickLog = {
   init() {
     document.getElementById('quick-photo-btn')?.addEventListener('click', () => QuickLog.snapFood());
     document.getElementById('quick-water-btn')?.addEventListener('click', () => QuickLog.showWaterPicker());
-    document.getElementById('quick-weight-btn')?.addEventListener('click', () => QuickLog.showWeightEntry());
     document.getElementById('quick-supplement-btn')?.addEventListener('click', () => QuickLog.showSupplementPicker());
-    document.getElementById('quick-more-btn')?.addEventListener('click', () => QuickLog.toggleMoreTypes());
+    document.getElementById('quick-more-btn')?.addEventListener('click', () => QuickLog.showMoreSheet());
   },
 
-  toggleMoreTypes() {
-    const moreEl = document.getElementById('more-entry-types');
-    if (!moreEl) return;
-    const isShowing = moreEl.style.display !== 'none';
-    if (isShowing) {
-      moreEl.style.display = 'none';
-      // Also hide any open form
-      const logGrid = document.getElementById('log-type-grid-inline');
-      const logForm = document.getElementById('log-form-inline');
-      if (logGrid) logGrid.style.display = 'none';
-      if (logForm) logForm.style.display = 'none';
-      return;
-    }
-    moreEl.style.display = 'flex';
-    moreEl.innerHTML = `
-      <button class="quick-action" data-more-type="workout" style="--type-color: var(--color-workout);">
-        <span class="qa-icon">${UI.svg.workout}</span>
-        Workout
-      </button>
-      <button class="quick-action" data-more-type="vice" style="--type-color: var(--accent-red);">
-        <span class="qa-icon">${UI.svg.vice}</span>
-        Alcohol
-      </button>
-      <button class="quick-action" data-more-type="bodyPhoto" style="--type-color: var(--color-body-photo, var(--accent-primary));">
-        <span class="qa-icon">${UI.svg.bodyPhoto}</span>
-        Body Photo
-      </button>
+  async showMoreSheet() {
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.style.maxHeight = '50dvh';
+
+    // Built-in options (universal)
+    const builtIn = [
+      { type: 'workout', icon: UI.svg.workout, label: 'Workout', color: 'var(--color-workout)', desc: 'Log a gym session' },
+      { type: 'weight', icon: UI.svg.weight, label: 'Weight', color: 'var(--color-weight)', desc: 'Record today\'s weight' },
+      { type: 'bodyPhoto', icon: UI.svg.bodyPhoto, label: 'Body Photo', color: 'var(--color-body-photo, var(--accent-primary))', desc: 'Progress photos' },
+    ];
+
+    // User-specific options (added by relay/coach processing)
+    const custom = await DB.getProfile('moreOptions') || [];
+    const options = [...builtIn, ...custom.map(o => ({
+      ...o,
+      icon: (o.icon && UI.svg[o.icon]) ? UI.svg[o.icon] : UI.svg.meal,
+    }))];
+
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title">Log Entry</span>
+        <button class="modal-close" id="more-close">&times;</button>
+      </div>
+      <div class="more-sheet-options">
+        ${options.map(o => `
+          <button class="more-sheet-option" data-more-type="${o.type}" ${o.subtype ? `data-more-subtype="${UI.escapeHtml(o.subtype)}"` : ''}>
+            <span class="more-sheet-icon" style="color: ${o.color || 'var(--text-secondary)'}">${o.icon}</span>
+            <div class="more-sheet-text">
+              <span class="more-sheet-label">${UI.escapeHtml(o.label)}</span>
+              <span class="more-sheet-desc">${UI.escapeHtml(o.desc || '')}</span>
+            </div>
+          </button>
+        `).join('')}
+      </div>
     `;
-    moreEl.querySelectorAll('[data-more-type]').forEach(btn => {
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    document.getElementById('more-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    sheet.querySelectorAll('[data-more-type]').forEach(btn => {
       btn.addEventListener('click', () => {
         const type = btn.dataset.moreType;
-        // Show inline form for this type
-        const logGrid = document.getElementById('log-type-grid-inline');
-        if (logGrid) logGrid.style.display = 'none'; // hide grid, go straight to form
-        Log._gridId = 'log-type-grid-inline';
-        Log._formId = null;
-        Log._formContentId = 'log-form-content-inline';
-        Log.selectType(type);
+        closeModal();
+        if (type === 'weight') {
+          QuickLog.showWeightEntry();
+        } else {
+          // Show inline form for this type
+          const logGrid = document.getElementById('log-type-grid-inline');
+          if (logGrid) logGrid.style.display = 'none';
+          Log._gridId = 'log-type-grid-inline';
+          Log._formId = null;
+          Log._formContentId = 'log-form-content-inline';
+          Log.selectType(type);
+        }
       });
     });
   },
@@ -1166,23 +1186,39 @@ const App = {
 
     const zc = (val) => val === 0 || val === null ? ' stat-value--zero' : '';
     statsEl.innerHTML = `
-      <div class="stat-card">
+      <div class="stat-card stat-card--tap" data-stat-action="water">
         <div class="stat-value${zc(waterOz)}" style="color: var(--color-water)">${waterOz}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> oz</span></div>
         <div class="stat-label">Water</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card--tap" data-stat-action="food">
         <div class="stat-value${zc(foodCount)}" style="color: var(--color-meal)">${foodCount}</div>
         <div class="stat-label">Food logged</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card--tap" data-stat-action="exercise">
         <div class="stat-value${zc(workoutMin)}" style="color: var(--color-workout)">${workoutMin}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> min</span></div>
         <div class="stat-label">Exercise</div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card--tap" data-stat-action="weight">
         <div class="stat-value${zc(weightVal)}" style="color: var(--color-weight)">${weightVal || '--'}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> ${weightVal ? weightUnit : ''}</span></div>
         <div class="stat-label">Weight</div>
       </div>
     `;
+
+    // Make stat cards tappable
+    statsEl.querySelectorAll('[data-stat-action]').forEach(card => {
+      card.addEventListener('click', () => {
+        const action = card.dataset.statAction;
+        if (action === 'water') QuickLog.showWaterPicker();
+        else if (action === 'food') QuickLog.snapFood();
+        else if (action === 'weight') QuickLog.showWeightEntry();
+        else if (action === 'exercise') {
+          Log._gridId = 'log-type-grid-inline';
+          Log._formId = null;
+          Log._formContentId = 'log-form-content-inline';
+          Log.selectType('workout');
+        }
+      });
+    });
   },
 };
 

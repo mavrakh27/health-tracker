@@ -182,8 +182,9 @@ Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing eve
 ```
 
 10. **Echo PWA profile for round-trip restore:**
-   - If `profile/pwa-profile.json` exists in the extracted data, read it and include it verbatim as the `pwaProfile` field in the output JSON. Do not modify it.
-   - This allows the phone to restore goals and dailies after a reinstall or cache clear.
+   - If `profile/pwa-profile.json` exists in the extracted data, read it and include as the `pwaProfile` field in the output JSON.
+   - Also check `profile/preferences.json` for a `pwa.moreOptions` array. If present, merge it into `pwaProfile.moreOptions` (preferences take precedence over what the phone sent). This lets the coach configure custom entry types per user.
+   - This allows the phone to restore goals, dailies, and custom options after a reinstall or cache clear.
 
 9. **Coach Chat — respond to user messages:**
    - Check `log.json` for a `coachChat` array. If present, it contains messages from the user to their coach.

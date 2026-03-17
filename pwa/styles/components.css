@@ -1,14 +1,9 @@
 /* Quick Actions */
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-sm);
   margin-top: var(--space-sm);
-}
-
-#more-entry-types {
-  grid-template-columns: repeat(3, 1fr);
-  margin-top: 0;
 }
 
 .quick-action {
@@ -84,6 +79,64 @@
 
 .quick-action-more {
   border-color: var(--text-muted);
+  color: var(--text-muted);
+}
+
+/* More Sheet (bottom sheet for additional entry types) */
+.more-sheet-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.more-sheet-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all var(--transition-fast);
+  text-align: left;
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+}
+
+.more-sheet-option:active {
+  transform: scale(0.97);
+  background: var(--bg-hover);
+}
+
+.more-sheet-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.more-sheet-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.more-sheet-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.more-sheet-label {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.more-sheet-desc {
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
@@ -655,6 +708,7 @@ input[type="range"]::-webkit-slider-thumb {
 .entry-item[data-type="weight"] { --entry-color: var(--color-weight); }
 .entry-item[data-type="bodyPhoto"] { --entry-color: var(--color-body-photo); }
 .entry-item[data-type="sleep"] { --entry-color: var(--color-sleep); }
+.entry-item[data-type="custom"] { --entry-color: var(--accent-red); }
 
 .entry-icon {
   flex-shrink: 0;
@@ -788,6 +842,17 @@ input[type="range"]::-webkit-slider-thumb {
 .stat-card:nth-child(2) { animation-delay: 0.05s; }
 .stat-card:nth-child(3) { animation-delay: 0.1s; }
 .stat-card:nth-child(4) { animation-delay: 0.15s; }
+
+.stat-card--tap {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: all var(--transition-fast);
+}
+
+.stat-card--tap:active {
+  transform: scale(0.95);
+  background: var(--bg-hover);
+}
 
 .stat-value {
   font-size: var(--text-lg);

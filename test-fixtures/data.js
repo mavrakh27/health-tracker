@@ -54,8 +54,8 @@ function buildFixtures() {
     // Day 5: Vice day (penalty scoring) — lunch has photo
     { id: `meal_${ts(day5,12,0)}_test13`, date: day5, type: 'meal', subtype: 'lunch', timestamp: ts(day5,12,0), notes: 'Pizza slice', photo: true },
     { id: `meal_${ts(day5,19,0)}_test14`, date: day5, type: 'meal', subtype: 'dinner', timestamp: ts(day5,19,0), notes: 'Burger and fries', photo: true },
-    { id: `vice_${ts(day5,20,0)}_test15`, date: day5, type: 'vice', timestamp: ts(day5,20,0), notes: 'Beer x2', quantity: 2 },
-    { id: `vice_${ts(day5,21,0)}_test16`, date: day5, type: 'vice', timestamp: ts(day5,21,0), notes: 'Cocktail', quantity: 1 },
+    { id: `custom_${ts(day5,20,0)}_test15`, date: day5, type: 'custom', timestamp: ts(day5,20,0), notes: 'Beer x2', quantity: 2 },
+    { id: `custom_${ts(day5,21,0)}_test16`, date: day5, type: 'custom', timestamp: ts(day5,21,0), notes: 'Cocktail', quantity: 1 },
   ];
 
   // --- DAILY SUMMARIES ---
@@ -117,8 +117,8 @@ function buildFixtures() {
       entries: [
         { id: `meal_${ts(day5,12,0)}_test13`, type: 'meal', subtype: 'lunch', description: 'Pizza slice', calories: 450, protein: 18, carbs: 48, fat: 20, confidence: 'medium' },
         { id: `meal_${ts(day5,19,0)}_test14`, type: 'meal', subtype: 'dinner', description: 'Burger and fries', calories: 950, protein: 35, carbs: 65, fat: 48, confidence: 'medium' },
-        { id: `vice_${ts(day5,20,0)}_test15`, type: 'vice', description: 'Beer x2', calories: 300, quantity: 2 },
-        { id: `vice_${ts(day5,21,0)}_test16`, type: 'vice', description: 'Cocktail', calories: 200, quantity: 1 },
+        { id: `custom_${ts(day5,20,0)}_test15`, type: 'custom', description: 'Beer x2', calories: 300, quantity: 2 },
+        { id: `custom_${ts(day5,21,0)}_test16`, type: 'custom', description: 'Cocktail', calories: 200, quantity: 1 },
       ],
       totals: { calories: 1900, protein: 53, carbs: 113, fat: 68 },
       goals: { water: { target_oz: 64, actual_oz: 24 } },

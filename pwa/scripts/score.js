@@ -29,7 +29,7 @@ const DayScore = {
     const didWorkout = workoutEntries.length > 0 || fitnessChecked.length > 0;
 
     // Vices
-    const vices = entries.filter(e => e.type === 'vice');
+    const vices = entries.filter(e => e.type === 'custom');
     const drinkCount = vices.reduce((sum, v) => sum + (v.quantity || 1), 0);
 
     // Meal logging

@@ -228,7 +228,7 @@ async function testTodayScreen(page, fixtures) {
 
   // Quick action buttons exist
   const quickActions = await page.$$('.quick-action');
-  assert(quickActions.length >= 5, `5+ quick-action buttons (got ${quickActions.length})`);
+  assert(quickActions.length >= 4, `4+ quick-action buttons (got ${quickActions.length})`);
 
   // Entry list has items from today's fixture data
   const entryItems = await page.$$('.entry-item');
@@ -475,7 +475,7 @@ async function testScoring(page, fixtures) {
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]);
   await page.waitForTimeout(600);
   const day5Score = await page.$eval('.score-number', el => parseInt(el.textContent.trim())).catch(() => 0);
-  assert(day5Score < 100, `Vice day score penalized: ${day5Score}`);
+  assert(day5Score < 100, `Custom entry day score penalized: ${day5Score}`);
 
   // Verify workout chip label logic — find a rest day dynamically
   // The regimen has rest days on Wed/Sat/Sun
@@ -525,7 +525,7 @@ async function testEntryTypes(page, fixtures) {
   await page.waitForTimeout(600);
   const day5Types = await page.$$eval('.entry-type', els => els.map(e => e.textContent.trim()));
   const hasVice = day5Types.some(t => t.toLowerCase().includes('alcohol'));
-  assert(hasVice || day5Types.length > 0, 'Vice entries render');
+  assert(hasVice || day5Types.length > 0, 'Custom entries render');
 }
 
 async function testPhotos(page, fixtures) {
@@ -644,18 +644,17 @@ async function testUserFlows(page, fixtures) {
   await page.click('nav button:has-text("Today")');
   await page.waitForTimeout(500);
 
-  // Click More (+) button to show additional entry types
+  // Click More button to show bottom sheet
   const moreBtn1 = await page.$('#quick-more-btn');
   if (moreBtn1) {
     await moreBtn1.click();
     await page.waitForTimeout(400);
 
-    // More types panel should be visible
-    const morePanel = await page.$('#more-entry-types');
-    const morePanelDisplay = morePanel ? await morePanel.evaluate(el => el.style.display) : 'none';
-    assert(morePanelDisplay !== 'none', 'Flow 1: Log type grid appears after clicking + Add Entry');
+    // More sheet modal should be visible
+    const moreModal = await page.$('.modal-overlay');
+    assert(!!moreModal, 'Flow 1: More sheet modal opens');
 
-    // Click a workout type button to open its form
+    // Click workout option to open its form
     const workoutBtn = await page.$('[data-more-type="workout"]');
     if (workoutBtn) {
       await workoutBtn.click();
@@ -671,12 +670,9 @@ async function testUserFlows(page, fixtures) {
       await screenshot(page, 'flow1-workout-logging-ui');
     }
 
-    // Cancel — click More again to close
-    await moreBtn1.click();
-    await page.waitForTimeout(300);
-
-    const morePanelAfter = morePanel ? await morePanel.evaluate(el => el.style.display) : 'none';
-    assert(morePanelAfter === 'none', 'Flow 1: Log type grid hidden after cancel');
+    // Verify modal closed after selecting a type
+    const modalAfter = await page.$('.modal-overlay');
+    assert(!modalAfter, 'Flow 1: More sheet closes after selection');
   } else {
     assert(false, 'Flow 1: More button found on Today');
   }
