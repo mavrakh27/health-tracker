@@ -183,3 +183,6 @@ echo "    2. Install the PWA on your phone: https://nemily.github.io/health-trac
 echo "    3. Configure Cloud Sync in the app with your relay URL + key"
 echo "    4. Start logging!"
 echo ""
+echo "  Want to contribute? https://github.com/nEmily/health-tracker"
+echo "    Fork the repo, run /contribute in Claude for the contributor guide."
+echo ""
