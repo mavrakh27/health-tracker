@@ -32,6 +32,15 @@ const CoachChat = {
 
     let html = '<div class="coach-chat">';
 
+    if (timeline.length === 0 && isToday) {
+      // Welcome message when no conversation exists yet
+      html += `<div class="coach-messages" id="coach-messages">
+        <div class="chat-bubble chat-coach">
+          <div class="chat-text">Hey! I'm your coach. Ask me anything about your diet, workouts, or goals. I check in every ~30 minutes when you sync -- so send a message and I'll get back to you soon.</div>
+        </div>
+      </div>`;
+    }
+
     if (timeline.length > 0) {
       html += '<div class="coach-messages" id="coach-messages">';
       for (const msg of timeline) {
@@ -57,6 +66,7 @@ const CoachChat = {
           <textarea class="coach-input" id="coach-input" placeholder="Ask your coach..." rows="1"></textarea>
           <button class="coach-send" id="coach-send">Send</button>
         </div>
+        <div style="text-align:right; font-size:var(--text-xs); color:var(--text-muted); margin-top:2px;">~30 min reply</div>
       `;
     }
 

@@ -803,14 +803,36 @@ const App = {
       } catch (e) { inboxEl.innerHTML = ''; }
     }
 
-    // In-depth analysis
+    // In-depth analysis + versioning
     const analysisEl = document.getElementById('coach-analysis');
     if (analysisEl) {
       const analysis = await DB.getAnalysis(date);
       if (analysis) {
         const goals = await DB.getProfile('goals') || {};
-        analysisEl.innerHTML = GoalsView.renderRemainingBudget(analysis, goals) +
+        let analysisHtml = GoalsView.renderRemainingBudget(analysis, goals) +
           GoalsView.renderAnalysisSummary(analysis, goals);
+
+        // Analysis version history
+        try {
+          const history = await DB.getAnalysisHistory(date);
+          if (history.length > 0) {
+            analysisHtml += '<h2 class="section-header">Previous Analyses</h2>';
+            for (const h of history.sort((a, b) => (b.importedAt || 0) - (a.importedAt || 0))) {
+              const time = h.importedAt ? new Date(h.importedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Unknown';
+              const d = h.data || {};
+              const cal = d.totals?.calories || '?';
+              const pro = d.totals?.protein || '?';
+              analysisHtml += `<div class="card" style="margin-bottom:var(--space-xs); opacity:0.7;">
+                <div style="display:flex; justify-content:space-between; font-size:var(--text-sm);">
+                  <span style="color:var(--text-muted);">${time}</span>
+                  <span>${cal} cal - ${pro}g P</span>
+                </div>
+              </div>`;
+            }
+          }
+        } catch (e) { /* no history store yet */ }
+
+        analysisEl.innerHTML = analysisHtml;
       } else {
         analysisEl.innerHTML = `<div class="card" style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">
           <div style="font-size:var(--text-sm);">No analysis for ${UI.formatDate(date)} yet.</div>

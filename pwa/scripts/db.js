@@ -324,6 +324,9 @@ async function importAnalysis(dateStr, data) {
     if (data.pwaProfile.supplements) {
       profileStore.put({ key: 'supplements', value: data.pwaProfile.supplements });
     }
+    if (data.pwaProfile.bodyPhotoTypes) {
+      profileStore.put({ key: 'bodyPhotoTypes', value: data.pwaProfile.bodyPhotoTypes });
+    }
   }
 
   // Archive existing analysis before overwriting (v2+)
@@ -473,16 +476,18 @@ async function exportDay(dateStr) {
     }
   }
 
-  // Body photos — stored under progress/ path, numbered for multiple per day
+  // Body photos — stored under progress/ path, numbered by subtype
   const bodyPhotos = await getBodyPhotos(dateStr);
-  let faceIdx = 0, bodyIdx = 0;
+  const bpCounts = {};
   for (const bp of bodyPhotos) {
     if (bp.blob) {
-      const isFace = bp.entryId?.includes('face') || bp.id?.includes('face');
-      const idx = isFace ? ++faceIdx : ++bodyIdx;
-      const suffix = idx > 1 ? `_${idx}` : '';
+      // Detect subtype from entry ID (e.g., bodyPhoto_face_123 or bodyPhoto_arms_123)
+      const subtypeMatch = (bp.entryId || bp.id || '').match(/bodyPhoto_([^_]+)/);
+      const subtype = subtypeMatch ? subtypeMatch[1] : 'body';
+      bpCounts[subtype] = (bpCounts[subtype] || 0) + 1;
+      const suffix = bpCounts[subtype] > 1 ? `_${bpCounts[subtype]}` : '';
       photoFiles.push({
-        name: isFace ? `body/face${suffix}.jpg` : `body/body${suffix}.jpg`,
+        name: `body/${subtype}${suffix}.jpg`,
         blob: bp.blob,
       });
     }

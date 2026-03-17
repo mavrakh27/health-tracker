@@ -36,6 +36,7 @@ const Sync = {
       const pwaProfile = {
         goals,
         supplements: await DB.getProfile('supplements'),
+        bodyPhotoTypes: await DB.getProfile('bodyPhotoTypes'),
       };
       files.push({ name: `profile/pwa-profile.json`, data: new TextEncoder().encode(JSON.stringify(pwaProfile, null, 2)) });
     }

@@ -20,7 +20,7 @@ On first launch, the app walks you through a quick onboarding:
 - Set calorie and protein targets
 - Add workouts to your regimen
 
-You can update goals anytime via the **Goals** tab.
+You can update goals anytime via the **Settings** tab.
 
 ---
 

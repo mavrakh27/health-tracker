@@ -130,3 +130,38 @@ Get-Content "$env:HEALTH_DATA_DIR\logs\$(Get-Date -Format yyyy-MM-dd).log" -Wait
 **Claude Code exits with error** — check the log file. Common causes: Claude isn't authenticated (`claude login`), or the prompt file is missing (`processing/process-day-prompt.md`).
 
 **Analysis not appearing on phone** — open the app, go to Settings → Cloud Sync → Check for Results.
+
+---
+
+## Manual Processing with Claude Code
+
+You can also process a day manually using the `/process-day` Claude skill:
+
+```bash
+cd /path/to/health-tracker
+claude
+# Then type: /process-day
+# Or for a specific date: /process-day 2026-03-15
+```
+
+The skill reads `processing/process-day-prompt.md` for all processing rules. It handles downloading from the relay, analyzing photos, estimating calories, generating meal plans and workout regimen, and uploading results back.
+
+---
+
+## What Gets Synced
+
+The phone uploads a ZIP for each day containing:
+
+- `daily/{date}/log.json` — all entries (meals, workouts, water, weight, supplements, vices)
+- `daily/{date}/photos/` — meal photos for AI analysis
+- `progress/{date}/` — body progress photos (face, body, arms, etc.)
+- `profile/goals.json` — calorie/macro/water targets
+- `profile/pwa-profile.json` — full profile (goals, supplements, body photo types)
+
+The processor outputs a single `analysis/{date}.json` that syncs back to the phone with:
+- Calorie/macro estimates for each meal
+- Daily totals vs goals
+- Highlights and forward-looking tips
+- 3-day meal plan
+- Workout regimen with weekly review
+- Coach responses to user messages
