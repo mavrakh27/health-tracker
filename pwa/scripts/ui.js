@@ -109,7 +109,7 @@ const UI = {
     const labels = {
       meal: 'Food', snack: 'Food', drink: 'Food',
       workout: 'Workout', water: 'Water', weight: 'Weight',
-      bodyPhoto: 'Body Photo', custom: 'Alcohol', sleep: 'Sleep',
+      bodyPhoto: 'Body Photo', custom: 'Alcohol', vice: 'Alcohol', sleep: 'Sleep',
       supplement: 'Supplement',
     };
     return labels[type] || type;

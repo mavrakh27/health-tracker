@@ -35,8 +35,8 @@ const QuickLog = {
       </div>
       <div class="more-sheet-options">
         ${options.map(o => `
-          <button class="more-sheet-option" data-more-type="${o.type}" ${o.subtype ? `data-more-subtype="${UI.escapeHtml(o.subtype)}"` : ''}>
-            <span class="more-sheet-icon" style="color: ${o.color || 'var(--text-secondary)'}">${o.icon}</span>
+          <button class="more-sheet-option" data-more-type="${UI.escapeHtml(o.type)}" ${o.subtype ? `data-more-subtype="${UI.escapeHtml(o.subtype)}"` : ''}>
+            <span class="more-sheet-icon" style="color: ${UI.escapeHtml(o.color || 'var(--text-secondary)')}">${o.icon}</span>
             <div class="more-sheet-text">
               <span class="more-sheet-label">${UI.escapeHtml(o.label)}</span>
               <span class="more-sheet-desc">${UI.escapeHtml(o.desc || '')}</span>
