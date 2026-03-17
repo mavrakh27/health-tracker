@@ -41,11 +41,25 @@ You need a relay URL and a sync key (a UUID you generate once).
 
 ---
 
-## Step 4 (Optional): Set Up Processing on Your Computer
+## Step 4 (Optional): Install the Coach Plugin
 
-Processing runs Claude Code on your PC/Mac every 30 minutes. It downloads new data from the relay, analyzes food photos (calories, macros, AI description), generates meal plans, and syncs results back to your phone.
+The coach plugin adds AI-powered processing to your computer. It analyzes food photos, estimates calories/macros, generates meal plans, and gives you a 1:1 coaching experience -- all powered by your own Claude Code subscription.
 
-See [processing-setup.md](processing-setup.md) for full setup instructions.
+**One-line install:**
+
+```bash
+# Mac/Linux
+curl -sL https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.sh | bash
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.ps1 | iex
+```
+
+This installs Claude skills (`/coach`, `/process-day`) and sets up the data directory. No repo fork needed.
+
+After installing, run `claude` and type `/coach` to set up your profile interactively.
+
+See [processing-setup.md](processing-setup.md) for manual setup or advanced configuration.
 
 ---
 
