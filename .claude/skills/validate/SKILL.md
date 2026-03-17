@@ -1,6 +1,6 @@
 # /validate — Health Tracker
 
-End-to-end verification that the PWA works correctly. Three phases: static checks, Playwright data injection tests, and interactive dogfood loop.
+End-to-end verification that the PWA works correctly. Four phases: static checks, Playwright data injection tests, interactive dogfood loop, and chaos testing.
 
 ## Quick Run
 
@@ -18,6 +18,11 @@ cd .. && node test-fixtures/run-tests.js --screenshots
 # Phase 2 + Phase 3: Full validation including interactive dogfood
 cd pwa && python -m http.server 8080 &
 cd .. && node test-fixtures/run-tests.js --screenshots --dogfood
+# Kill server after
+
+# Phase 4: Chaos testing (random user actions, invariant checks)
+cd pwa && python -m http.server 8080 &
+cd .. && node test-fixtures/chaos.js --rounds 50 --screenshots
 # Kill server after
 ```
 

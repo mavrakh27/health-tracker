@@ -634,6 +634,12 @@ const App = {
     const date = App.selectedDate;
     App.updateHeaderDate();
 
+    // Close any open inline forms (prevents stale form after day navigation)
+    const logGrid = document.getElementById('log-type-grid-inline');
+    const logForm = document.getElementById('log-form-inline');
+    if (logGrid) logGrid.style.display = 'none';
+    if (logForm) logForm.style.display = 'none';
+
     // Load entries
     const entries = await DB.getEntriesByDate(date);
     const entryList = document.getElementById('today-entries');
