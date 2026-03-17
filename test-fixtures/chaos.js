@@ -140,6 +140,43 @@ const actions = [
     await page.click('#quick-water-btn').catch(() => {});
     await page.click('#quick-water-btn').catch(() => {});
   }},
+
+  // --- Interrupt scenarios: open form then immediately navigate ---
+  // These target the exact class of bug where async UI state goes stale
+  { name: 'interrupt-body-photo-nav', weight: 4, fn: async (page) => {
+    await page.click('nav button[data-screen="today"]').catch(() => {});
+    await page.waitForTimeout(200);
+    await page.click('#quick-more-btn').catch(() => {});
+    await page.waitForTimeout(300);
+    const bp = await page.$('[data-more-type="bodyPhoto"]');
+    if (bp) { await bp.click().catch(() => {}); await page.waitForTimeout(300); }
+    await page.click('#header-prev').catch(() => {});
+  }},
+  { name: 'interrupt-workout-nav', weight: 4, fn: async (page) => {
+    await page.click('nav button[data-screen="today"]').catch(() => {});
+    await page.waitForTimeout(200);
+    await page.click('#quick-more-btn').catch(() => {});
+    await page.waitForTimeout(300);
+    const wk = await page.$('[data-more-type="workout"]');
+    if (wk) { await wk.click().catch(() => {}); await page.waitForTimeout(300); }
+    await page.click('#header-prev').catch(() => {});
+  }},
+  { name: 'interrupt-form-tab-switch', weight: 3, fn: async (page) => {
+    await page.click('nav button[data-screen="today"]').catch(() => {});
+    await page.waitForTimeout(200);
+    await page.click('#quick-more-btn').catch(() => {});
+    await page.waitForTimeout(300);
+    const bp = await page.$('[data-more-type="bodyPhoto"]');
+    if (bp) { await bp.click().catch(() => {}); await page.waitForTimeout(300); }
+    // Switch to another tab while form is open
+    await page.click('nav button[data-screen="progress"]').catch(() => {});
+  }},
+  { name: 'interrupt-water-modal-nav', weight: 3, fn: async (page) => {
+    await page.click('#quick-water-btn').catch(() => {});
+    await page.waitForTimeout(200);
+    // Navigate while water modal is open
+    await page.click('#header-prev').catch(() => {});
+  }},
 ];
 
 // Weighted random selection
@@ -170,16 +207,35 @@ async function checkInvariants(page, actionName, round) {
     issues.push(`${overlayCount} modal overlays stacked`);
   }
 
-  // 3. Inline form not visible on non-today screens
-  const currentScreen = await page.evaluate(() => App.currentScreen).catch(() => 'unknown');
-  if (currentScreen !== 'today') {
-    const formVisible = await page.evaluate(() => {
-      const f = document.getElementById('log-form-inline');
-      return f && f.style.display !== 'none' && f.offsetHeight > 0;
-    }).catch(() => false);
-    if (formVisible) {
-      issues.push(`Inline form visible on ${currentScreen} screen`);
+  // 3. Inline form should not be visible after day navigation or on non-today screens
+  const formState = await page.evaluate(() => {
+    const f = document.getElementById('log-form-inline');
+    const g = document.getElementById('log-type-grid-inline');
+    const formVisible = f && f.style.display !== 'none' && f.offsetHeight > 0;
+    const gridVisible = g && g.style.display !== 'none' && g.offsetHeight > 0;
+    return {
+      formVisible,
+      gridVisible,
+      screen: App.currentScreen,
+      date: App.selectedDate,
+      isToday: App.selectedDate === UI.today(),
+    };
+  }).catch(() => ({ formVisible: false, gridVisible: false, screen: 'unknown', isToday: true }));
+
+  // Form visible on non-today screen = always bad
+  if (formState.screen !== 'today' && (formState.formVisible || formState.gridVisible)) {
+    issues.push(`Inline form/grid visible on ${formState.screen} screen`);
+  }
+  // Form visible but the date changed since it was opened = stale form
+  // Track which date the form was opened on
+  if (formState.formVisible && formState.screen === 'today') {
+    if (!checkInvariants._formOpenDate) {
+      checkInvariants._formOpenDate = formState.date;
+    } else if (checkInvariants._formOpenDate !== formState.date) {
+      issues.push(`Stale form visible on ${formState.date} (opened on ${checkInvariants._formOpenDate})`);
     }
+  } else {
+    checkInvariants._formOpenDate = null;
   }
 
   // 4. Nav has exactly 4 buttons, all visible
@@ -262,7 +318,7 @@ async function run() {
     try {
       await Promise.race([
         action.fn(page),
-        page.waitForTimeout(3000), // 3s timeout per action
+        page.waitForTimeout(5000), // 5s timeout per action (interrupt actions need ~1.5s)
       ]);
     } catch (err) {
       // Action itself failed — that's fine, we just want to see if the app breaks
