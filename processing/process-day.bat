@@ -110,13 +110,22 @@ xcopy "%DATA_DIR%\analysis\*.json" "%BACKUP_DIR%\analysis\" /Y /Q >nul 2>&1
 xcopy "%DATA_DIR%\corrections\*.json" "%BACKUP_DIR%\corrections\" /Y /Q >nul 2>&1
 
 REM --- Upload results back to cloud relay ---
-REM Upload analysis files that haven't been uploaded yet (.uploaded marker tracks this).
-REM Catches results from crashed previous runs that never uploaded.
+REM Upload analysis files that are new or modified since last upload.
+REM Uses .uploaded marker files to track state. Catches crashed runs.
 echo [%TODAY%] Uploading analysis results to cloud relay...
 set UPLOAD_COUNT=0
-for %%f in ("%DATA_DIR%\analysis\2026-*.json") do (
+for %%f in ("%DATA_DIR%\analysis\????-??-??.json") do (
     set "ADATE=%%~nf"
+    set "NEED_UPLOAD=0"
     if not exist "%%f.uploaded" (
+        set "NEED_UPLOAD=1"
+    ) else (
+        REM Re-upload if analysis was modified after the upload marker (corrections)
+        for %%u in ("%%f.uploaded") do for %%a in ("%%f") do (
+            if "%%~ta" gtr "%%~tu" set "NEED_UPLOAD=1"
+        )
+    )
+    if "!NEED_UPLOAD!"=="1" (
         echo [%TODAY%] Uploading analysis for !ADATE!...
         curl -sf -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%%f" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/!ADATE!/done"
         if not errorlevel 1 (
@@ -131,8 +140,10 @@ for %%f in ("%DATA_DIR%\analysis\2026-*.json") do (
 if !UPLOAD_COUNT! gtr 0 (
     echo [%TODAY%] Uploaded !UPLOAD_COUNT! analysis files.
 ) else (
-    echo [%TODAY%] All analysis files already uploaded.
+    echo [%TODAY%] All analysis files up to date.
 )
+REM Clean up old upload markers (>30 days)
+forfiles /p "%DATA_DIR%\analysis" /m "*.uploaded" /d -30 /c "cmd /c del @path" 2>nul
 
 REM --- Clean up extracted data ---
 rmdir /s /q "%EXTRACT_DIR%" 2>nul

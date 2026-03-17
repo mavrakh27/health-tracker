@@ -7,18 +7,43 @@ if ($hour -ge 0 -and $hour -lt 8) {
     exit 0
 }
 
-# Lock file to prevent concurrent processing
+# Atomic lock file — prevents concurrent processing (TOCTOU-safe)
 $dataDir = if ($env:HEALTH_DATA_DIR) { $env:HEALTH_DATA_DIR } else { "$env:USERPROFILE\HealthTracker" }
 $lockFile = "$dataDir\processing.lock"
-if (Test-Path $lockFile) {
+
+# Try to acquire lock atomically (CreateNew fails if file exists)
+$lockAcquired = $false
+try {
+    $fs = [System.IO.File]::Open($lockFile, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write)
+    $writer = New-Object System.IO.StreamWriter($fs)
+    $writer.WriteLine("$PID $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')")
+    $writer.Close()
+    $fs.Close()
+    $lockAcquired = $true
+} catch [System.IO.IOException] {
+    # Lock exists — check if stale (>60 min)
     $lockAge = (Get-Date) - (Get-Item $lockFile).LastWriteTime
     if ($lockAge.TotalMinutes -lt 60) {
-        Write-Output "[watcher] Processing already in progress (lock file age: $([int]$lockAge.TotalMinutes) min). Exiting."
+        Write-Output "[watcher] Processing already in progress (lock age: $([int]$lockAge.TotalMinutes) min). Exiting."
         exit 0
     }
-    # Stale lock (>60 min) — remove it
+    # Stale lock — check if the PID is still alive
+    $lockContent = Get-Content $lockFile -ErrorAction SilentlyContinue
+    $lockPid = if ($lockContent -match '^\d+') { [int]$Matches[0] } else { 0 }
+    if ($lockPid -and (Get-Process -Id $lockPid -ErrorAction SilentlyContinue)) {
+        Write-Output "[watcher] Stale lock but PID $lockPid is still running. Killing."
+        Stop-Process -Id $lockPid -Force -ErrorAction SilentlyContinue
+    }
     Write-Output "[watcher] Removing stale lock file (age: $([int]$lockAge.TotalMinutes) min)."
     Remove-Item $lockFile -Force
+    # Re-acquire
+    Get-Date -Format 'yyyy-MM-dd HH:mm:ss' | Out-File $lockFile -Encoding ascii
+    $lockAcquired = $true
+}
+
+if (-not $lockAcquired) {
+    Write-Output "[watcher] Failed to acquire lock. Exiting."
+    exit 1
 }
 
 $syncUrl = [System.Environment]::GetEnvironmentVariable('HEALTH_SYNC_URL', 'User')
@@ -26,6 +51,7 @@ $syncKey = [System.Environment]::GetEnvironmentVariable('HEALTH_SYNC_KEY', 'User
 
 if (-not $syncUrl -or -not $syncKey) {
     Write-Output "[watcher] HEALTH_SYNC_URL or HEALTH_SYNC_KEY not set. Exiting."
+    if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
     exit 0
 }
 
@@ -37,25 +63,28 @@ try {
 
     if (-not $pending -or $pending.Count -eq 0) {
         Write-Output "[watcher] No pending data. Exiting."
+        if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
         exit 0
     }
 
     Write-Output "[watcher] Pending dates: $($pending -join ', '). Launching processing..."
 
-    # Create lock file — watcher owns the lifecycle (try/finally ensures cleanup)
-    Get-Date -Format 'yyyy-MM-dd HH:mm:ss' | Out-File $lockFile -Encoding ascii
     try {
         $batPath = Join-Path $PSScriptRoot 'process-day.bat'
-        # Ensure nested Claude session check doesn't block processing
         $env:CLAUDECODE = $null
-        $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`"" -Wait -PassThru -NoNewWindow
+        $env:WATCHER_OWNS_LOCK = "1"
+        $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`"" -PassThru -NoNewWindow
+        # 60-minute timeout — kill if hung
+        if (-not $proc.WaitForExit(3600000)) {
+            Write-Output "[watcher] Processing timed out after 60 min. Killing."
+            $proc | Stop-Process -Force
+        }
         Write-Output "[watcher] Processing finished with exit code $($proc.ExitCode)."
     } finally {
-        # Always remove lock — even if processing crashes
         if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
     }
 } catch {
-    Write-Output "[watcher] Error checking relay: $_"
+    Write-Output "[watcher] Error: $_"
     if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
     exit 1
 }
