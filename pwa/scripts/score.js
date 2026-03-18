@@ -1,13 +1,17 @@
 // score.js — Daily score calculation (0-100) showing goal alignment
 
 const DayScore = {
-  // Calculate score from available data (works with or without analysis)
-  async calculate(date) {
-    const goals = await DB.getProfile('goals') || {};
-    const summary = await DB.getDailySummary(date);
-    const entries = await DB.getEntriesByDate(date);
-    const analysis = await DB.getAnalysis(date);
-    const regimen = await DB.getRegimen();
+  // Calculate score from available data (works with or without analysis).
+  // Accepts an optional `preloaded` object with any of:
+  //   { goals, summary, entries, analysis, regimen }
+  // Pre-populated values skip the corresponding DB read, reducing redundant reads
+  // when the caller already has this data. Existing callers can omit the param.
+  async calculate(date, preloaded) {
+    const goals = preloaded?.goals ?? (await DB.getProfile('goals') || {});
+    const summary = preloaded?.summary ?? await DB.getDailySummary(date);
+    const entries = preloaded?.entries ?? await DB.getEntriesByDate(date);
+    const analysis = preloaded?.analysis ?? await DB.getAnalysis(date);
+    const regimen = preloaded?.regimen ?? await DB.getRegimen();
 
     const hc = goals.hardcore || {};
     const moderate = { calories: goals.calories || 2000, protein: goals.protein || 100, water_oz: goals.water_oz || 64 };

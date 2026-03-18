@@ -643,8 +643,17 @@ const App = {
     if (logGrid) logGrid.style.display = 'none';
     if (logForm) logForm.style.display = 'none';
 
-    // Load entries
-    const entries = await DB.getEntriesByDate(date);
+    // Fetch all independent data in parallel to avoid sequential DB round-trips.
+    // analysis and regimen are needed by multiple downstream consumers so we
+    // load them eagerly here and pass them as preloaded to avoid re-reads.
+    const [entries, summary, goals, analysis, regimen] = await Promise.all([
+      DB.getEntriesByDate(date),
+      DB.getDailySummary(date),
+      DB.getProfile('goals').then(g => g || {}),
+      DB.getAnalysis(date).catch(() => null),
+      DB.getRegimen().catch(() => null),
+    ]);
+
     const entryList = document.getElementById('today-entries');
     if (!entryList) return;
 
@@ -660,7 +669,6 @@ const App = {
         entryList.innerHTML = App.renderWelcomeCard();
       } else {
         // Try to show entries from analysis data (recovery after reinstall)
-        const analysis = await DB.getAnalysis(date);
         if (analysis && analysis.entries && analysis.entries.length > 0) {
           analysis.entries.forEach(ae => {
             entryList.appendChild(UI.renderAnalysisEntry(ae));
@@ -679,10 +687,9 @@ const App = {
         }
       }
     } else {
-      // Load analysis to merge AI results into entry cards
+      // Merge AI results into entry cards using the already-loaded analysis
       let analysisMap = {};
       try {
-        const analysis = await DB.getAnalysis(date);
         if (analysis && analysis.entries) {
           const importedAt = analysis.importedAt || 0;
           for (const ae of analysis.entries) {
@@ -690,7 +697,7 @@ const App = {
           }
         }
       } catch (err) {
-        console.warn('Failed to load analysis:', err);
+        console.warn('Failed to process analysis:', err);
       }
 
       // Sort by timestamp
@@ -701,15 +708,16 @@ const App = {
       });
     }
 
-    // Load daily summary stats
-    const summary = await DB.getDailySummary(date);
-    await App.renderDayStats(summary, entries, date);
+    // Render stats and score in parallel — both use preloaded data
+    const preloaded = { goals, summary, entries, analysis, regimen };
+
+    await App.renderDayStats(summary, entries, date, preloaded);
 
     // Day Score (above coach)
     const scoreEl = document.getElementById('today-score');
     if (scoreEl) {
       try {
-        const scoreResult = await DayScore.calculate(date);
+        const scoreResult = await DayScore.calculate(date, preloaded);
         scoreEl.innerHTML = DayScore.render(scoreResult);
       } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
     }
@@ -718,7 +726,6 @@ const App = {
     const workoutEl = document.getElementById('today-workout');
     if (workoutEl) {
       try {
-        const regimen = await DB.getRegimen();
         if (regimen?.weeklySchedule) {
           const fitnessHtml = await Fitness.render(regimen, date);
           workoutEl.innerHTML = fitnessHtml;
@@ -1142,7 +1149,9 @@ const App = {
     });
   },
 
-  async renderDayStats(summary, entries, date) {
+  // preloaded is optional: { regimen, analysis } — avoids redundant DB reads when
+  // the caller already holds these values.
+  async renderDayStats(summary, entries, date, preloaded) {
     const statsEl = document.getElementById('today-stats');
     if (!statsEl) return;
 
@@ -1156,7 +1165,7 @@ const App = {
     let workoutTotal = 0;
     let workoutLabel = 'Workout';
     try {
-      const regimen = await DB.getRegimen();
+      const regimen = preloaded?.regimen ?? await DB.getRegimen();
       if (regimen?.weeklySchedule) {
         const dayName = new Date(date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
         const todayPlan = regimen.weeklySchedule?.find(d => d.day === dayName);
@@ -1174,7 +1183,7 @@ const App = {
 
     // Fall back to analysis data when entries are empty (e.g. after reinstall)
     if (entries.length === 0 && date) {
-      const analysis = await DB.getAnalysis(date);
+      const analysis = preloaded?.analysis ?? await DB.getAnalysis(date);
       if (analysis) {
         const aEntries = analysis.entries || [];
         foodCount = aEntries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
