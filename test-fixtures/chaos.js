@@ -177,6 +177,22 @@ const actions = [
     // Navigate while water modal is open
     await page.click('#header-prev').catch(() => {});
   }},
+
+  // Skincare panel segment switching (Phase 2+)
+  { name: 'tap-skin-segment', weight: 3, fn: async (page) => {
+    await page.click('.today-seg-btn[data-panel="skin"]').catch(() => {});
+  }},
+  { name: 'tap-diet-segment', weight: 3, fn: async (page) => {
+    await page.click('.today-seg-btn[data-panel="diet"]').catch(() => {});
+  }},
+  { name: 'tap-fitness-segment', weight: 3, fn: async (page) => {
+    await page.click('.today-seg-btn[data-panel="fitness"]').catch(() => {});
+  }},
+  { name: 'interrupt-skin-nav', weight: 3, fn: async (page) => {
+    await page.click('.today-seg-btn[data-panel="skin"]').catch(() => {});
+    await page.waitForTimeout(200);
+    await page.click('#header-prev').catch(() => {});
+  }},
 ];
 
 // Weighted random selection
@@ -256,10 +272,10 @@ async function checkInvariants(page, actionName, round) {
 }
 
 // --- Main ---
-async function run() {
-  console.log(`=== Chaos Testing (${ROUNDS} rounds) ===\n`);
+async function runChaos({ rounds = ROUNDS, screenshots = SCREENSHOTS } = {}) {
+  console.log(`=== Chaos Testing (${rounds} rounds) ===\n`);
 
-  if (SCREENSHOTS) {
+  if (screenshots) {
     fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
   }
 
@@ -311,7 +327,7 @@ async function run() {
   const issueLog = [];
   const actionLog = [];
 
-  for (let i = 0; i < ROUNDS; i++) {
+  for (let i = 0; i < rounds; i++) {
     const action = pickAction();
     const before = jsErrors.length;
 
@@ -345,7 +361,7 @@ async function run() {
       issueLog.push(msg);
       totalIssues++;
 
-      if (SCREENSHOTS) {
+      if (screenshots) {
         await page.screenshot({ path: path.join(SCREENSHOT_DIR, `issue-${i + 1}-${action.name}.png`), fullPage: true });
       }
     }
@@ -354,12 +370,12 @@ async function run() {
 
     // Progress indicator every 10 rounds
     if ((i + 1) % 10 === 0) {
-      console.log(`  ... ${i + 1}/${ROUNDS} rounds (${totalIssues} issues so far)`);
+      console.log(`  ... ${i + 1}/${rounds} rounds (${totalIssues} issues so far)`);
     }
   }
 
   // Final screenshot
-  if (SCREENSHOTS) {
+  if (screenshots) {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, 'final-state.png'), fullPage: true });
   }
 
@@ -367,7 +383,7 @@ async function run() {
 
   // Report
   console.log(`\n=== Chaos Results ===`);
-  console.log(`  Rounds: ${ROUNDS}`);
+  console.log(`  Rounds: ${rounds}`);
   console.log(`  Actions: ${actionLog.length}`);
   console.log(`  JS Errors: ${jsErrors.length}`);
   console.log(`  Invariant Violations: ${totalIssues - jsErrors.length}`);
@@ -382,7 +398,13 @@ async function run() {
 
   console.log(`\n${totalIssues === 0 ? 'CHAOS: ALL CLEAR' : 'CHAOS: ISSUES FOUND'}`);
 
-  process.exit(totalIssues > 0 ? 1 : 0);
+  return { rounds, issues: totalIssues, jsErrors: jsErrors.length };
 }
 
-run();
+module.exports = { runChaos };
+
+if (require.main === module) {
+  runChaos().then(result => {
+    process.exit(result.issues > 0 ? 1 : 0);
+  });
+}

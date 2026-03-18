@@ -268,7 +268,58 @@ function buildFixtures() {
     },
   ];
 
-  return { entries, summaries, analyses, goals, regimen, mealPlan, photos, dates: [day1, day2, day3, day4, day5] };
+  // --- SKINCARE PROFILE ---
+  const skincareProfile = {
+    weeklyTemplate: {
+      default: {
+        am: ['cleanser', 'vitamin_c', 'moisturizer', 'sunscreen'],
+        pm: ['cleanser', 'retinol', 'moisturizer']
+      },
+      overrides: {
+        wednesday: { pm: ['cleanser', 'aha', 'moisturizer'] },
+        sunday: { pm: ['cleanser', 'sheet_mask', 'moisturizer'] }
+      }
+    },
+    rotations: [
+      { name: 'PM active rotation', slot: 'pm', position: 1, pattern: 'alternate', items: ['retinol', 'aha'] }
+    ],
+    products: [
+      { key: 'cleanser', name: 'CeraVe Foaming', category: 'cleanser', photo: null },
+      { key: 'vitamin_c', name: 'Vitamin C Serum', category: 'serum', photo: null },
+      { key: 'moisturizer', name: 'CeraVe Moisturizer', category: 'moisturizer', photo: null },
+      { key: 'sunscreen', name: 'Supergoop SPF 40', category: 'spf', photo: null },
+      { key: 'retinol', name: 'Tretinoin 0.025%', category: 'active', photo: null },
+      { key: 'aha', name: 'Glycolic Acid 7%', category: 'active', photo: null },
+      { key: 'sheet_mask', name: 'Sheet Mask', category: 'mask', photo: null },
+    ],
+    categories: ['cleanser', 'toner', 'serum', 'active', 'moisturizer', 'spf', 'mask', 'tool', 'other']
+  };
+
+  // --- SKINCARE DAILY LOGS ---
+  // day1: full AM + PM (100% adherence)
+  // day2: partial AM, skipped PM
+  // day3: skipped everything
+  const skincareLogs = [
+    { date: day1, am: [
+      { key: 'cleanser', checked: true, timestamp: ts(day1, 7, 0) },
+      { key: 'vitamin_c', checked: true, timestamp: ts(day1, 7, 5) },
+      { key: 'moisturizer', checked: true, timestamp: ts(day1, 7, 10) },
+      { key: 'sunscreen', checked: true, timestamp: ts(day1, 7, 15) },
+    ], pm: [
+      { key: 'cleanser', checked: true, timestamp: ts(day1, 21, 0) },
+      { key: 'retinol', checked: true, timestamp: ts(day1, 21, 5) },
+      { key: 'moisturizer', checked: true, timestamp: ts(day1, 21, 10) },
+    ]},
+    { date: day2, am: [
+      { key: 'cleanser', checked: true, timestamp: ts(day2, 7, 0) },
+      { key: 'vitamin_c', checked: false },
+      { key: 'moisturizer', checked: true, timestamp: ts(day2, 7, 10) },
+      { key: 'sunscreen', checked: true, timestamp: ts(day2, 7, 15) },
+    ], pm: [] }, // skipped PM
+    { date: day3, am: [], pm: [] }, // skipped everything
+  ];
+
+  return { entries, summaries, analyses, goals, regimen, mealPlan, photos, skincareProfile, skincareLogs, dates: [day1, day2, day3, day4, day5] };
 }
 
 module.exports = { buildFixtures, generateTestDates };

@@ -564,12 +564,14 @@ const QuickLog = {
 const App = {
   currentScreen: null,
   selectedDate: null,
+  _currentPanel: 'diet',
 
   init() {
     App.selectedDate = UI.today();
     App.updateHeaderDate();
     App.setupNavigation();
     App.setupDateNav();
+    App.initPanels();
     QuickLog.init();
     UI.initKeyboardScroll();
     window.addEventListener('hashchange', () => App.handleRoute());
@@ -664,6 +666,52 @@ const App = {
       Settings.initUpdateButton();
       Settings.loadVersion();
     }
+  },
+
+  // --- Today Panels (Diet / Fitness / Skin) ---
+  initPanels() {
+    // Segment button clicks
+    document.querySelectorAll('.today-seg-btn').forEach(btn => {
+      btn.addEventListener('click', () => App.switchPanel(btn.dataset.panel));
+    });
+
+    // Touch swipe support
+    const panels = document.getElementById('today-panels');
+    if (panels) {
+      let startX = 0;
+      let startY = 0;
+      panels.addEventListener('touchstart', (e) => {
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+      }, { passive: true });
+      panels.addEventListener('touchend', (e) => {
+        const dx = e.changedTouches[0].clientX - startX;
+        const dy = e.changedTouches[0].clientY - startY;
+        // Only trigger if horizontal swipe > 50px and more horizontal than vertical
+        if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+          const order = ['diet', 'fitness', 'skin'];
+          const idx = order.indexOf(App._currentPanel);
+          if (dx < 0 && idx < order.length - 1) App.switchPanel(order[idx + 1]);
+          if (dx > 0 && idx > 0) App.switchPanel(order[idx - 1]);
+        }
+      }, { passive: true });
+    }
+  },
+
+  switchPanel(panel) {
+    App._currentPanel = panel;
+    const order = ['diet', 'fitness', 'skin'];
+    const idx = order.indexOf(panel);
+
+    // Update segment buttons
+    document.querySelectorAll('.today-seg-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.panel === panel);
+    });
+
+    // Slide panels
+    document.querySelectorAll('.today-panel').forEach(p => {
+      p.style.transform = `translateX(-${idx * 100}%)`;
+    });
   },
 
   // --- Navigation ---
@@ -823,6 +871,18 @@ const App = {
           workoutEl.innerHTML = '';
         }
       } catch (e) { console.warn('Workout render error:', e); workoutEl.innerHTML = ''; }
+    }
+
+    // Skincare panel placeholder
+    const skincareEl = document.getElementById('today-skincare');
+    if (skincareEl) {
+      skincareEl.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><path d="M12 2a7 7 0 017 7c0 3-1.5 5.5-3 7.5S12 22 12 22s-2.5-3.5-4-5.5S5 12 5 9a7 7 0 017-7z"/><circle cx="12" cy="9" r="2"/></svg></div>
+          <p>Set up your skincare routine</p>
+          <p style="font-size:var(--text-xs); color:var(--text-muted); margin-top:var(--space-xs);">Use the Coach tab to configure your AM/PM products</p>
+        </div>
+      `;
     }
 
     // Meal suggestion card (collapsible)

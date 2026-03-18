@@ -28,43 +28,55 @@
 
     <!-- Screen: Today (Day View + Logging) -->
     <main id="screen-today" class="screen active">
-      <div class="stats-row" id="today-stats"></div>
-
-      <div class="quick-actions" id="quick-actions">
-        <button class="quick-action quick-action-primary" id="quick-photo-btn">
-          <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="16" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M8.5 5L9.5 3h5l1 2"/></svg></span>
-          Snap food
-        </button>
-        <button class="quick-action quick-action-water" id="quick-water-btn">
-          <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 0-6 7-6 12a6 6 0 0012 0c0-5-6-12-6-12z"/></svg></span>
-          Water
-        </button>
-        <button class="quick-action quick-action-supplement" id="quick-supplement-btn">
-          <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="16" rx="6"/><line x1="6" y1="12" x2="18" y2="12"/></svg></span>
-          Dailies
-        </button>
-        <button class="quick-action quick-action-more" id="quick-more-btn">
-          <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg></span>
-          More
-        </button>
-      </div>
-      <!-- Inline entry form container (used when More sheet opens a type) -->
-
       <div id="today-score"></div>
-      <div id="today-workout"></div>
-      <div id="today-meal-suggestion"></div>
 
-      <!-- Inline entry form (appears when a "More" type is selected) -->
-      <div id="today-log-section" style="margin-top: var(--space-md);">
-        <div id="log-type-grid-inline" class="type-grid" style="display:none;"></div>
-        <div id="log-form-inline" style="display:none;">
-          <div id="log-form-content-inline"></div>
+      <div class="today-segments">
+        <button class="today-seg-btn active" data-panel="diet">Diet</button>
+        <button class="today-seg-btn" data-panel="fitness">Fitness</button>
+        <button class="today-seg-btn" data-panel="skin">Skin</button>
+      </div>
+
+      <div class="today-panels" id="today-panels">
+        <div class="today-panel" id="panel-diet">
+          <div class="stats-row" id="today-stats"></div>
+          <div class="quick-actions" id="quick-actions">
+            <button class="quick-action quick-action-primary" id="quick-photo-btn">
+              <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="16" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M8.5 5L9.5 3h5l1 2"/></svg></span>
+              Snap food
+            </button>
+            <button class="quick-action quick-action-water" id="quick-water-btn">
+              <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c0 0-6 7-6 12a6 6 0 0012 0c0-5-6-12-6-12z"/></svg></span>
+              Water
+            </button>
+            <button class="quick-action quick-action-supplement" id="quick-supplement-btn">
+              <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="12" height="16" rx="6"/><line x1="6" y1="12" x2="18" y2="12"/></svg></span>
+              Dailies
+            </button>
+            <button class="quick-action quick-action-more" id="quick-more-btn">
+              <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5" fill="currentColor"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><circle cx="19" cy="12" r="1.5" fill="currentColor"/></svg></span>
+              More
+            </button>
+          </div>
+          <!-- Inline entry form (appears when a "More" type is selected) -->
+          <div id="today-log-section" style="margin-top: var(--space-md);">
+            <div id="log-type-grid-inline" class="type-grid" style="display:none;"></div>
+            <div id="log-form-inline" style="display:none;">
+              <div id="log-form-content-inline"></div>
+            </div>
+          </div>
+          <div class="entry-list" id="today-entries"></div>
+        </div>
+
+        <div class="today-panel" id="panel-fitness">
+          <div id="today-workout"></div>
+        </div>
+
+        <div class="today-panel" id="panel-skin">
+          <div id="today-skincare"></div>
         </div>
       </div>
 
-      <div class="entry-list" id="today-entries">
-      </div>
-
+      <div id="today-meal-suggestion"></div>
     </main>
 
     <!-- Screen: Coach (Inbox + Analysis) -->
