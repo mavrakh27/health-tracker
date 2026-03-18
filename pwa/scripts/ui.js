@@ -468,6 +468,11 @@ const UI = {
       try {
         await DB.deleteEntry(entry.id);
         UI.toast('Entry deleted');
+        // Offer to delete from relay too
+        const configured = await CloudRelay.isConfigured();
+        if (configured && confirm('Also delete this day from the cloud relay?')) {
+          await CloudRelay.deleteDayFromRelay(entry.date);
+        }
         closeModal();
         App.loadDayView();
       } catch (err) {

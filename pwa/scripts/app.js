@@ -1018,12 +1018,12 @@ const App = {
         }
       } catch (e) { console.warn('AutoRestore: results check failed:', e); }
 
-      // Download pending day ZIPs
+      // Download ALL day ZIPs from relay (full sync — covers pending + already-processed dates)
       try {
-        const resp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/pending`);
-        if (resp.ok) {
-          const { pending } = await resp.json();
-          for (const date of (pending || []).filter(isValidDate)) {
+        const datesResp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/dates`);
+        if (datesResp.ok) {
+          const { dates } = await datesResp.json();
+          for (const date of (dates || []).filter(isValidDate)) {
             try {
               const r = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/day/${date}`);
               if (r.ok) {
@@ -1032,8 +1032,23 @@ const App = {
               }
             } catch (e) { console.warn(`AutoRestore: day ${date}:`, e); }
           }
+        } else {
+          // Fallback to pending-only if /dates endpoint not yet deployed
+          const resp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/pending`);
+          if (resp.ok) {
+            const { pending } = await resp.json();
+            for (const date of (pending || []).filter(isValidDate)) {
+              try {
+                const r = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/day/${date}`);
+                if (r.ok) {
+                  await Sync.restoreFromZipData(new Uint8Array(await r.arrayBuffer()));
+                  resultCount++;
+                }
+              } catch (e) { console.warn(`AutoRestore: day ${date}:`, e); }
+            }
+          }
         }
-      } catch (e) { console.warn('AutoRestore: pending check failed:', e); }
+      } catch (e) { console.warn('AutoRestore: full sync failed:', e); }
 
       await App.ensureDefaultGoals();
       UI.toast(resultCount > 0 ? 'Data restored!' : 'Sync reconnected');
@@ -1288,6 +1303,11 @@ const Settings = {
     if (!confirm('Delete all processed meal photos? Body photos are kept.')) return;
     await Sync.clearProcessedPhotos();
     Settings.loadStorageInfo();
+    // Offer to clear from relay too
+    const configured = await CloudRelay.isConfigured();
+    if (configured && confirm('Also delete photos from the cloud relay?')) {
+      await CloudRelay.deleteAllFromRelay();
+    }
   },
 
   async loadCloudSyncStatus() {
@@ -1324,6 +1344,107 @@ const Settings = {
       }
       // If no cache found (e.g. mid-update), leave the element empty — don't show stale version
     } catch { /* leave empty */ }
+  },
+
+  async deleteAllData() {
+    // Step 1: show confirmation modal with DELETE typed confirmation
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title" style="color:var(--color-danger,#f85149);">Delete All Data</span>
+        <button class="modal-close" id="dad-close">&times;</button>
+      </div>
+      <p style="font-size:var(--text-sm);color:var(--text-primary);margin-bottom:var(--space-sm);">
+        This will permanently delete <strong>everything</strong> stored on this device:
+      </p>
+      <ul style="font-size:var(--text-xs);color:var(--text-secondary);margin:0 0 var(--space-md) var(--space-md);padding:0;line-height:1.8;">
+        <li>All food, workout, and supplement entries</li>
+        <li>All photos (meal and body progress)</li>
+        <li>Analysis, meal plans, and coach data</li>
+        <li>Goals, profile, and sync configuration</li>
+        <li>Service worker caches</li>
+      </ul>
+      <div style="display:flex; align-items:center; gap:var(--space-sm); margin-bottom:var(--space-md); font-size:var(--text-xs); color:var(--text-muted);">
+        <label class="s-toggle" style="flex-shrink:0;">
+          <input type="checkbox" id="dad-relay-too">
+          <span class="s-toggle-track"></span>
+        </label>
+        <span>Also delete data from cloud relay (otherwise you can re-sync later)</span>
+      </div>
+      <div class="form-group" style="margin-bottom:var(--space-md);">
+        <label class="form-label" style="color:var(--color-danger,#f85149);">Type DELETE to confirm</label>
+        <input type="text" class="form-input" id="dad-confirm-input" placeholder="DELETE" autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <button class="btn btn-danger btn-block btn-lg" id="dad-confirm-btn" disabled style="opacity:0.4;cursor:not-allowed;">Delete All Data</button>
+    `;
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    document.getElementById('dad-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    const confirmInput = document.getElementById('dad-confirm-input');
+    const confirmBtn = document.getElementById('dad-confirm-btn');
+
+    confirmInput.addEventListener('input', () => {
+      const ready = confirmInput.value === 'DELETE';
+      confirmBtn.disabled = !ready;
+      confirmBtn.style.opacity = ready ? '1' : '0.4';
+      confirmBtn.style.cursor = ready ? '' : 'not-allowed';
+    });
+
+    confirmBtn.addEventListener('click', async () => {
+      if (confirmInput.value !== 'DELETE') return;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Deleting...';
+
+      try {
+        // 1. Clear all IndexedDB stores, then delete the database entirely
+        const db = await DB.openDB();
+        const storeNames = Array.from(db.objectStoreNames);
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(storeNames, 'readwrite');
+          storeNames.forEach(name => tx.objectStore(name).clear());
+          tx.oncomplete = resolve;
+          tx.onerror = (e) => reject(e.target.error);
+        });
+        db.close();
+        await new Promise((resolve) => {
+          const req = indexedDB.deleteDatabase('health-tracker');
+          req.onsuccess = resolve;
+          req.onerror = resolve; // best-effort
+          req.onblocked = resolve;
+        });
+
+        // 2. Delete from relay if checkbox was checked
+        const deleteRelay = document.getElementById('dad-relay-too')?.checked;
+        if (deleteRelay) {
+          try { await CloudRelay.deleteAllFromRelay(); } catch (e) { console.warn('Relay delete failed:', e); }
+        }
+
+        // 3. Clear localStorage (relay config and anything else)
+        localStorage.clear();
+
+        // 3. Clear all service worker caches
+        try {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        } catch { /* ignore if caches API unavailable */ }
+
+        overlay.remove();
+        UI.toast('All data deleted');
+        setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        console.error('Delete all data failed:', err);
+        UI.toast('Delete failed — try again', 'error');
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Delete All Data';
+        confirmBtn.style.opacity = '1';
+        confirmBtn.style.cursor = '';
+      }
+    });
   },
 
   _updateBound: false,

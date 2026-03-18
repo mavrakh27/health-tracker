@@ -663,6 +663,123 @@ const CloudRelay = {
     }
   },
 
+  // Full sync — download ALL raw data from relay for dates missing locally
+  async fullSync() {
+    const config = await this.getConfig();
+    if (!config || !config.workerUrl || !config.syncKey) {
+      UI.toast('Cloud Sync not configured', 'error');
+      return;
+    }
+
+    const isValidDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d);
+
+    try {
+      this.log('Full sync: fetching date list from relay...');
+      const datesResp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/dates`);
+      if (!datesResp.ok) {
+        this.log(`Full sync: dates fetch failed: HTTP ${datesResp.status}`, 'error');
+        UI.toast('Full sync failed — could not list relay dates', 'error');
+        return;
+      }
+
+      const { dates } = await datesResp.json();
+      const validDates = (dates || []).filter(isValidDate);
+      if (validDates.length === 0) {
+        this.log('Full sync: no dates found on relay');
+        UI.toast('No data on relay to sync');
+        return;
+      }
+
+      this.log(`Full sync: relay has ${validDates.length} date(s)`);
+
+      // Determine which dates are missing locally
+      const missingDates = [];
+      for (const date of validDates) {
+        const localEntries = await DB.getEntriesByDate(date);
+        if (!localEntries || localEntries.length === 0) {
+          missingDates.push(date);
+        }
+      }
+
+      if (missingDates.length === 0) {
+        this.log('Full sync: all relay dates already present locally', 'ok');
+        UI.toast('Already up to date — no missing days found');
+        // Still pull any pending results
+        await this.checkForResults();
+        return;
+      }
+
+      this.log(`Full sync: downloading ${missingDates.length} missing date(s)...`);
+      let done = 0;
+      let failed = 0;
+
+      for (const date of missingDates) {
+        // Update progress toast every date
+        UI.toast(`Syncing ${done + 1}/${missingDates.length} days...`);
+        try {
+          const r = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/day/${date}`);
+          if (r.ok) {
+            await Sync.restoreFromZipData(new Uint8Array(await r.arrayBuffer()));
+            this.log(`Full sync: restored ${date}`, 'ok');
+            done++;
+          } else {
+            this.log(`Full sync: ${date} fetch failed: HTTP ${r.status}`, 'error');
+            failed++;
+          }
+        } catch (err) {
+          this.log(`Full sync: ${date} error: ${err.message}`, 'error');
+          failed++;
+        }
+      }
+
+      // Pull any pending analysis results too
+      await this.checkForResults();
+
+      const msg = failed > 0
+        ? `Synced ${done} day(s), ${failed} failed`
+        : `Synced ${done} day(s)`;
+      UI.toast(msg, failed > 0 ? 'error' : 'success');
+      this.log(`Full sync complete: ${done} restored, ${failed} failed`, failed > 0 ? 'error' : 'ok');
+      App.loadDayView();
+    } catch (err) {
+      this.log(`Full sync error: ${err.message}`, 'error');
+      UI.toast('Full sync failed', 'error');
+    }
+  },
+
+  // Delete a single day from relay
+  async deleteDayFromRelay(date) {
+    const config = await this.getConfig();
+    if (!config?.workerUrl || !config?.syncKey) return;
+    try {
+      const url = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/day/${date}`;
+      const resp = await fetch(url, { method: 'DELETE' });
+      if (resp.ok) this.log(`Deleted ${date} from relay`, 'ok');
+      else this.log(`Failed to delete ${date} from relay: HTTP ${resp.status}`, 'error');
+    } catch (err) {
+      this.log(`Relay delete error: ${err.message}`, 'error');
+    }
+  },
+
+  // Delete ALL data from relay
+  async deleteAllFromRelay() {
+    const config = await this.getConfig();
+    if (!config?.workerUrl || !config?.syncKey) return;
+    try {
+      const url = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/all`;
+      const resp = await fetch(url, { method: 'DELETE' });
+      if (resp.ok) {
+        const { deleted } = await resp.json();
+        this.log(`Deleted ${deleted} files from relay`, 'ok');
+        UI.toast(`Relay data deleted (${deleted} files)`);
+      } else {
+        this.log(`Relay delete all failed: HTTP ${resp.status}`, 'error');
+      }
+    } catch (err) {
+      this.log(`Relay delete all error: ${err.message}`, 'error');
+    }
+  },
+
   // Show sync setup modal
   async showSetup() {
     const overlay = UI.createElement('div', 'modal-overlay');
@@ -687,6 +804,7 @@ const CloudRelay = {
       <button class="btn btn-secondary btn-block" id="cs-sync-now" style="margin-top: var(--space-sm);">Sync Now</button>
       <button class="btn btn-secondary btn-block" id="cs-check-results" style="margin-top: var(--space-xs);">Check for Results</button>
       <button class="btn btn-ghost btn-block" id="cs-resync" style="margin-top: var(--space-xs);">Re-sync All Results</button>
+      <button class="btn btn-secondary btn-block" id="cs-full-sync" style="margin-top: var(--space-xs);">Full Sync (Download All Raw Data)</button>
       <div style="margin-top: var(--space-md);">
         <label class="form-label">Sync Log</label>
         <div id="cloud-sync-log" style="font-size: var(--text-xs); font-family: monospace; max-height: 200px; overflow-y: auto; padding: var(--space-sm); background: var(--bg-secondary); border-radius: var(--radius-sm);"></div>
@@ -749,6 +867,10 @@ const CloudRelay = {
 
     document.getElementById('cs-resync')?.addEventListener('click', async () => {
       await CloudRelay.resyncAll();
+    });
+
+    document.getElementById('cs-full-sync')?.addEventListener('click', async () => {
+      await CloudRelay.fullSync();
     });
 
     document.getElementById('cs-test')?.addEventListener('click', async () => {

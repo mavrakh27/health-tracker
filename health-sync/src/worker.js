@@ -62,6 +62,42 @@ async function handle(request, env, key, route) {
     return json(200, { pending: state.pending || [] });
   }
 
+  // GET /sync/{key}/dates — list ALL dates that have raw data (pending or processed)
+  if (route === 'dates' && method === 'GET') {
+    const listed = await env.BUCKET.list({ prefix: `exports/${key}/` });
+    const dates = listed.objects
+      .map(o => o.key.replace(`exports/${key}/`, '').replace('.zip', ''))
+      .filter(d => DATE_RE.test(d))
+      .sort();
+    return json(200, { dates });
+  }
+
+  // DELETE /sync/{key}/day/{date} — delete a day's data (ZIP + results)
+  if (dayUpload && method === 'DELETE') {
+    const date = dayUpload[1];
+    if (!DATE_RE.test(date)) return json(400, { error: 'invalid date' });
+    await env.BUCKET.delete(`exports/${key}/${date}.zip`);
+    await env.BUCKET.delete(`results/${key}/${date}.json`);
+    await updateState(env, key, state => {
+      state.pending = (state.pending || []).filter(d => d !== date);
+      state.newResults = (state.newResults || []).filter(d => d !== date);
+    });
+    return json(200, { ok: true, deleted: date });
+  }
+
+  // DELETE /sync/{key}/all — delete ALL data for this key
+  if (route === 'all' && method === 'DELETE') {
+    const listed = await env.BUCKET.list({ prefix: `exports/${key}/` });
+    const resultsList = await env.BUCKET.list({ prefix: `results/${key}/` });
+    const deletes = [
+      ...listed.objects.map(o => env.BUCKET.delete(o.key)),
+      ...resultsList.objects.map(o => env.BUCKET.delete(o.key)),
+      env.BUCKET.delete(`metadata/${key}/state.json`),
+    ];
+    await Promise.all(deletes);
+    return json(200, { ok: true, deleted: listed.objects.length + resultsList.objects.length });
+  }
+
   // GET /sync/{key}/day/{date} — download day ZIP
   if (dayUpload && method === 'GET') {
     const date = dayUpload[1];
@@ -207,7 +243,7 @@ function cors(response, request) {
   const origin = request?.headers?.get('Origin') || '';
   const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
   response.headers.set('Access-Control-Allow-Origin', allowed);
-  response.headers.set('Access-Control-Allow-Methods', 'GET, PUT, POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
   return response;
 }
