@@ -243,18 +243,14 @@ const ProgressView = {
     thirtyDaysAgo.setDate(today.getDate() - 90);
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
-    const dateStrs = [];
-    const cursor = new Date(thirtyDaysAgo);
-    while (cursor <= today) {
-      dateStrs.push(fmt(cursor));
-      cursor.setDate(cursor.getDate() + 1);
-    }
+    const startDate = fmt(thirtyDaysAgo);
+    const endDate = fmt(today);
 
-    const summaries = await Promise.all(dateStrs.map(d => DB.getDailySummary(d).catch(() => ({}))));
+    const summaries = await DB.getDailySummaryRange(startDate, endDate);
     const points = [];
-    for (let i = 0; i < dateStrs.length; i++) {
-      if (summaries[i].weight?.value) {
-        points.push({ date: dateStrs[i], weight: summaries[i].weight.value });
+    for (const s of summaries) {
+      if (s.weight?.value) {
+        points.push({ date: s.date, weight: s.weight.value });
       }
     }
 

@@ -559,7 +559,9 @@ const App = {
 
     // Update nav
     document.querySelectorAll('.nav-item').forEach(item => {
-      item.classList.toggle('active', item.dataset.screen === screenId);
+      const isActive = item.dataset.screen === screenId;
+      item.classList.toggle('active', isActive);
+      item.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
 
     // Screen-specific init

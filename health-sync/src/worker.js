@@ -11,7 +11,7 @@ export default {
     const parts = url.pathname.split('/').filter(Boolean);
 
     // CORS
-    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }));
+    if (request.method === 'OPTIONS') return cors(new Response(null, { status: 204 }), request);
 
     // GET /health — connection check (no auth required)
     if (parts[0] === 'health' && request.method === 'GET') {
@@ -28,7 +28,7 @@ export default {
 
     try {
       const result = await handle(request, env, key, route);
-      return cors(result);
+      return cors(result, request);
     } catch (err) {
       console.error(err);
       return cors(json(500, { error: 'internal error' }));
@@ -197,8 +197,16 @@ function json(status, data) {
   });
 }
 
-function cors(response) {
-  response.headers.set('Access-Control-Allow-Origin', '*');
+const ALLOWED_ORIGINS = [
+  'https://nemily.github.io',
+  'http://localhost:8080',
+  'http://127.0.0.1:8080',
+];
+
+function cors(response, request) {
+  const origin = request?.headers?.get('Origin') || '';
+  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  response.headers.set('Access-Control-Allow-Origin', allowed);
   response.headers.set('Access-Control-Allow-Methods', 'GET, PUT, POST, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
   return response;

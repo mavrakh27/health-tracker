@@ -100,18 +100,16 @@ const Log = {
     if (!formContent) return;
     UI.clearChildren(formContent);
 
+    // Water and weight use the same modals as quick actions (no duplicate forms)
+    if (type === 'water') { Log.hideForm(); QuickLog.showWaterPicker(); return; }
+    if (type === 'weight') { Log.hideForm(); QuickLog.showWeightEntry(); return; }
+
     switch (type) {
       case 'meal':
         formContent.appendChild(Log.buildFoodForm());
         break;
       case 'workout':
         formContent.appendChild(Log.buildWorkoutForm());
-        break;
-      case 'water':
-        formContent.appendChild(Log.buildWaterForm());
-        break;
-      case 'weight':
-        formContent.appendChild(Log.buildWeightForm());
         break;
       case 'bodyPhoto':
         formContent.appendChild(Log.buildBodyPhotoForm());

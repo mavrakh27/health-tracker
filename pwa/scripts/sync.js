@@ -412,10 +412,11 @@ const CloudRelay = {
 
   log(msg, level = 'info') {
     const time = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-    this._log.push({ time, msg, level });
+    // Mask sync key in log output (show first 8 chars only)
+    const masked = msg.replace(/([0-9a-f]{8})-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '$1...');
+    this._log.push({ time, msg: masked, level });
     if (this._log.length > 20) this._log.shift();
-    console[level === 'error' ? 'error' : 'log'](`CloudRelay: ${msg}`);
-    // Update log display if visible
+    console[level === 'error' ? 'error' : 'log'](`CloudRelay: ${masked}`);
     const el = document.getElementById('cloud-sync-log');
     if (el) this._renderLog(el);
   },

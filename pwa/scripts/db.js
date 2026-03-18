@@ -205,6 +205,17 @@ async function getDailySummary(dateStr) {
   });
 }
 
+async function getDailySummaryRange(startDate, endDate) {
+  const db = await openDB();
+  const tx = db.transaction('dailySummary', 'readonly');
+  const range = IDBKeyRange.bound(startDate, endDate);
+  const request = tx.objectStore('dailySummary').getAll(range);
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
 async function updateDailySummary(dateStr, updates) {
   const db = await openDB();
   const existing = await getDailySummary(dateStr);
@@ -336,18 +347,31 @@ async function importAnalysis(dateStr, data) {
     }
   }
 
-  // Archive existing analysis before overwriting (v2+)
+  // Archive existing analysis before overwriting (v2+), cap at 5 per date
   if (db.objectStoreNames.contains('analysisHistory')) {
+    const histStore = tx.objectStore('analysisHistory');
     const existingReq = tx.objectStore('analysis').get(dateStr);
     existingReq.onsuccess = () => {
       try {
         const existing = existingReq.result;
         if (existing) {
-          tx.objectStore('analysisHistory').add({
+          histStore.add({
             date: existing.date,
             importedAt: existing.importedAt || 0,
             data: existing,
           });
+          // Cap history to 5 entries per date — delete oldest
+          const idx = histStore.index('date');
+          const countReq = idx.getAll(dateStr);
+          countReq.onsuccess = () => {
+            const all = countReq.result;
+            if (all.length > 5) {
+              all.sort((a, b) => (a.importedAt || 0) - (b.importedAt || 0));
+              for (let i = 0; i < all.length - 5; i++) {
+                histStore.delete(all[i].id);
+              }
+            }
+          };
         }
       } catch (e) {
         console.warn('Failed to archive analysis history:', e);
@@ -581,6 +605,7 @@ window.DB = {
   updateEntry,
   deleteEntry,
   getDailySummary,
+  getDailySummaryRange,
   updateDailySummary,
   getPhotos,
   getBodyPhotos,
