@@ -16,6 +16,7 @@ const QuickLog = {
 
     // Built-in options (universal)
     const builtIn = [
+      { type: 'meal', icon: UI.svg.meal, label: 'Food Note', color: 'var(--color-meal)', desc: 'Log food without a photo' },
       { type: 'workout', icon: UI.svg.workout, label: 'Workout', color: 'var(--color-workout)', desc: 'Log a gym session' },
       { type: 'weight', icon: UI.svg.weight, label: 'Weight', color: 'var(--color-weight)', desc: 'Record today\'s weight' },
       { type: 'bodyPhoto', icon: UI.svg.bodyPhoto, label: 'Body Photo', color: 'var(--color-body-photo, var(--accent-primary))', desc: 'Progress photos' },
@@ -57,7 +58,9 @@ const QuickLog = {
       btn.addEventListener('click', () => {
         const type = btn.dataset.moreType;
         closeModal();
-        if (type === 'weight') {
+        if (type === 'meal') {
+          QuickLog.showFoodNote();
+        } else if (type === 'weight') {
           QuickLog.showWeightEntry();
         } else {
           // Show inline form for this type
@@ -244,7 +247,12 @@ const QuickLog = {
         return;
       }
       try {
-        await DB.updateDailySummary(today, { weight: { value, unit: weightUnit } });
+        const fresh = await DB.getDailySummary(today);
+        const ts = Date.now();
+        await DB.updateDailySummary(today, {
+          weight: { value, unit: weightUnit, timestamp: ts },
+          weightLog: [...(fresh.weightLog || []), { value, unit: weightUnit, timestamp: ts }],
+        });
         UI.toast(`Weight: ${value} ${weightUnit} saved`);
         CloudRelay.queueUpload(today);
         overlay.remove();
@@ -252,6 +260,73 @@ const QuickLog = {
       } catch (err) {
         console.error('Quick weight failed:', err);
         UI.toast('Failed to save weight', 'error');
+      }
+    });
+  },
+
+  // --- Text-only food note (no photo required) ---
+  async showFoodNote() {
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.style.maxHeight = '60dvh';
+
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title">Food Note</span>
+        <button class="modal-close" id="fn-close">&times;</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">What did you eat?</label>
+        <textarea class="form-input" id="fn-notes" placeholder="e.g. Chicken salad, apple, protein shake…" rows="4" style="resize: vertical;"></textarea>
+      </div>
+      <div class="form-group" style="margin-top: var(--space-md);">
+        <button class="btn btn-primary btn-block btn-lg" id="fn-save">Save</button>
+      </div>
+    `;
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    document.getElementById('fn-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    // Focus textarea after render
+    requestAnimationFrame(() => document.getElementById('fn-notes')?.focus());
+
+    let saving = false;
+    document.getElementById('fn-save').addEventListener('click', async () => {
+      if (saving) return;
+      const notes = document.getElementById('fn-notes')?.value?.trim() || '';
+      if (!notes) { UI.toast('Add a note first', 'error'); return; }
+
+      saving = true;
+      const today = UI.today();
+      const entry = {
+        id: UI.generateId('meal'),
+        type: 'meal',
+        subtype: null,
+        date: today,
+        timestamp: new Date().toISOString(),
+        notes,
+        photo: false,
+        duration_minutes: null,
+      };
+
+      try {
+        await DB.addEntry(entry, null);
+        UI.toast('Food logged');
+        CloudRelay.queueUpload(today);
+        if (App.selectedDate !== today) {
+          App.selectedDate = today;
+          App.updateHeaderDate();
+        }
+        closeModal();
+        App.loadDayView();
+      } catch (err) {
+        console.error('Food note save failed:', err);
+        UI.toast('Failed to save', 'error');
+        saving = false;
       }
     });
   },

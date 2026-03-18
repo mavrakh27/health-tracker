@@ -737,8 +737,11 @@ const Log = {
     try {
       const prefs = await DB.getProfile('preferences') || {};
       const weightUnit = prefs.weightUnit || 'lbs';
+      const fresh = await DB.getDailySummary(App.selectedDate);
+      const ts = Date.now();
       await DB.updateDailySummary(App.selectedDate, {
-        weight: { value, unit: weightUnit },
+        weight: { value, unit: weightUnit, timestamp: ts },
+        weightLog: [...(fresh.weightLog || []), { value, unit: weightUnit, timestamp: ts }],
       });
       UI.toast(`Weight: ${value} ${weightUnit} saved`);
       CloudRelay.queueUpload(App.selectedDate);

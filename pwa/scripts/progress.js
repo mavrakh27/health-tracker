@@ -251,9 +251,20 @@ const ProgressView = {
 
     const summaries = await DB.getDailySummaryRange(startDate, endDate);
     const points = [];
+    // Collect all timestamped measurements for AM/PM analysis
+    const allMeasurements = [];
     for (const s of summaries) {
-      if (s.weight?.value) {
+      if (s.weightLog && s.weightLog.length > 0) {
+        // Use the first measurement of the day (most consistent for trend)
+        const sorted = s.weightLog.slice().sort((a, b) => a.timestamp - b.timestamp);
+        points.push({ date: s.date, weight: sorted[0].value });
+        for (const entry of s.weightLog) {
+          if (entry.timestamp) allMeasurements.push(entry);
+        }
+      } else if (s.weight?.value) {
         points.push({ date: s.date, weight: s.weight.value });
+        // If there's a timestamp on the weight object, include it for AM/PM
+        if (s.weight.timestamp) allMeasurements.push(s.weight);
       }
     }
 
@@ -290,6 +301,23 @@ const ProgressView = {
       <span>${UI.formatDate(first.date)}</span><span>${UI.formatDate(latest.date)}</span>
     </div>`;
     html += '</div>';
+
+    // AM vs PM pattern — only show when there are enough timestamped measurements
+    if (allMeasurements.length >= 5) {
+      const amMeasurements = allMeasurements.filter(m => new Date(m.timestamp).getHours() < 12);
+      const pmMeasurements = allMeasurements.filter(m => new Date(m.timestamp).getHours() >= 12);
+      if (amMeasurements.length > 0 && pmMeasurements.length > 0) {
+        const avg = arr => (arr.reduce((s, m) => s + m.value, 0) / arr.length).toFixed(1);
+        const amAvg = avg(amMeasurements);
+        const pmAvg = avg(pmMeasurements);
+        html += '<h2 class="section-header" style="margin-top:var(--space-md);">Weight by Time of Day</h2>';
+        html += '<div class="stats-row">';
+        html += `<div class="stat-card"><div class="stat-value">${amAvg}</div><div class="stat-label">AM avg</div></div>`;
+        html += `<div class="stat-card"><div class="stat-value">${pmAvg}</div><div class="stat-label">PM avg</div></div>`;
+        html += '</div>';
+      }
+    }
+
     return html;
   },
 
