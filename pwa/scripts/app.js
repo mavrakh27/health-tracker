@@ -901,15 +901,54 @@ const App = {
         </div>
         <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-xs);">Welcome to Coach</h2>
         <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-lg); line-height: 1.6;">
-          Track meals, water, workouts, and weight.<br>
-          Snap a photo and your AI coach handles the rest.
+          Your AI coach sets personalized goals based on your body, lifestyle, and timeline.
         </p>
         <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
-          <button class="btn btn-primary btn-block btn-lg" onclick="App.showGoalSetup()">Set Your Goals</button>
-          <button class="btn btn-secondary btn-block" onclick="App._openLogGrid()">Start Logging</button>
+          <button class="btn btn-primary btn-block btn-lg" onclick="App.showCoachSetup()">Set Up with Coach</button>
+          <button class="btn btn-ghost btn-block" onclick="App.showGoalSetup()" style="font-size:var(--text-xs);">Set goals manually</button>
         </div>
       </div>
     `;
+  },
+
+  showCoachSetup() {
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.innerHTML = `
+      <div class="modal-header">
+        <span class="modal-title">Set Up with Coach</span>
+        <button class="modal-close" id="cs-coach-close">&times;</button>
+      </div>
+      <div style="text-align:center; margin-bottom:var(--space-lg);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" width="40" height="40" style="margin-bottom:var(--space-sm);">
+          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
+        </svg>
+      </div>
+      <p style="font-size:var(--text-sm); color:var(--text-primary); line-height:1.6; margin-bottom:var(--space-md);">
+        Your coach will ask about your weight, height, goals, and timeline -- then create personalized calorie, protein, and workout targets just for you.
+      </p>
+      <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-bottom:var(--space-lg);">
+        <p style="font-weight:600; margin-bottom:var(--space-sm);">How to start:</p>
+        <ol style="margin:0; padding-left:var(--space-lg); line-height:1.8;">
+          <li>Install the coach plugin on your computer:<br>
+            <code style="font-size:var(--text-xs); background:var(--bg-input); padding:2px 6px; border-radius:var(--radius-sm); word-break:break-all;">curl -sL https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.sh | bash</code>
+          </li>
+          <li>Open Claude Code in your terminal and type <code style="font-size:var(--text-xs); background:var(--bg-input); padding:2px 6px; border-radius:var(--radius-sm);">/coach</code></li>
+          <li>Tell your coach about yourself -- it'll handle the rest</li>
+        </ol>
+      </div>
+      <button class="btn btn-secondary btn-block" id="cs-coach-done">I've set up my goals with Coach</button>
+      <button class="btn btn-ghost btn-block" id="cs-coach-skip" style="margin-top:var(--space-xs); font-size:var(--text-xs);">Skip -- I'll start logging first</button>
+    `;
+
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const closeModal = () => { overlay.remove(); App.loadDayView(); };
+    document.getElementById('cs-coach-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.getElementById('cs-coach-done').addEventListener('click', closeModal);
+    document.getElementById('cs-coach-skip').addEventListener('click', closeModal);
   },
 
   _openLogGrid() {
