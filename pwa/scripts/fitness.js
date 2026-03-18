@@ -192,7 +192,7 @@ const Fitness = {
           <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-top:2px;">${todayPlan ? UI.escapeHtml(todayPlan.description) : 'Recover and recharge.'}</div>
         </div>
         <div class="card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
-          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes || '')}</textarea>
+          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-base);">${UI.escapeHtml(notes || '')}</textarea>
           <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%; font-size:var(--text-xs);">Save Notes</button>
         </div>
       `;
@@ -254,7 +254,7 @@ const Fitness = {
     // Notes
     html += `
       <div class="card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Notes..." rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes || '')}</textarea>
+        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Notes..." rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-base);">${UI.escapeHtml(notes || '')}</textarea>
         <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%; font-size:var(--text-xs);">Save Notes</button>
       </div>
     `;

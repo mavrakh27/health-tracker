@@ -1407,6 +1407,24 @@ input[type="range"]::-webkit-slider-thumb {
   background: linear-gradient(135deg, var(--bg-card) 0%, color-mix(in srgb, var(--accent-primary) 5%, var(--bg-card)) 100%);
 }
 
+/* Danger zone section label */
+.s-section-label--danger {
+  color: var(--color-danger, #f85149);
+}
+
+/* Danger zone card — subtle red border */
+.s-card--danger {
+  border-left: 3px solid var(--color-danger, #f85149);
+}
+
+.s-group:has(.s-card--danger) {
+  border-color: color-mix(in srgb, var(--color-danger, #f85149) 40%, var(--border-color));
+}
+
+.s-title--danger {
+  color: var(--color-danger, #f85149);
+}
+
 /* Sync action buttons row */
 .s-sync-actions {
   display: flex;
@@ -1867,7 +1885,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: var(--radius-full);
   background: var(--bg-input);
   color: var(--text-primary);
-  font-size: var(--text-sm);
+  font-size: var(--text-base); /* 16px min prevents iOS auto-zoom */
   font-family: var(--font-sans);
   line-height: 1.4;
   max-height: 100px;
