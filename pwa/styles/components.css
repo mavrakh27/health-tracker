@@ -256,6 +256,7 @@
   min-width: 32px;
   border: none;
   border-radius: 50%;
+  background: rgba(248, 81, 73, 0.10);
   background: color-mix(in srgb, var(--accent-red) 10%, transparent);
   color: var(--accent-red);
   font-size: var(--text-lg);
@@ -267,6 +268,7 @@
 }
 
 .dailies-remove:active {
+  background: rgba(248, 81, 73, 0.20);
   background: color-mix(in srgb, var(--accent-red) 20%, transparent);
   transform: scale(0.9);
 }
@@ -316,9 +318,10 @@
 }
 
 .fitness-check {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 4px;
   border: 2px solid var(--border-accent);
   border-radius: var(--radius-sm);
   background: transparent;
@@ -356,9 +359,9 @@
 }
 
 .fitness-info-btn {
-  width: 28px;
-  height: 28px;
-  min-width: 28px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
   border: 1px solid var(--border-color);
   border-radius: 50%;
   background: transparent;
@@ -482,6 +485,7 @@
 }
 
 .btn-danger:active {
+  background: rgba(248, 81, 73, 0.10);
   background: color-mix(in srgb, var(--color-danger, #f85149) 10%, transparent);
   transform: scale(0.97);
 }
@@ -625,7 +629,6 @@ textarea.coach-input {
   resize: none;
   min-height: 44px;
   overflow-y: hidden;
-  field-sizing: content;
 }
 
 /* Slider (Water) */
@@ -896,7 +899,7 @@ input[type="range"]::-webkit-slider-thumb {
 /* Toast Notifications */
 .toast-container {
   position: fixed;
-  top: env(safe-area-inset-top, var(--space-md));
+  top: calc(env(safe-area-inset-top, 0px) + 56px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
@@ -1198,7 +1201,9 @@ input[type="range"]::-webkit-slider-thumb {
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-md);
   margin-bottom: var(--space-md);
+  background: rgba(248, 81, 73, 0.08);
   background: color-mix(in srgb, var(--accent-red) 8%, var(--bg-card));
+  border: 1px solid rgba(248, 81, 73, 0.25);
   border: 1px solid color-mix(in srgb, var(--accent-red) 25%, var(--border-color));
   border-radius: var(--radius-md);
   font-size: var(--text-xs);
@@ -1206,6 +1211,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .edit-lock-bar.unlocked {
+  background: rgba(46, 160, 67, 0.08);
   background: color-mix(in srgb, var(--accent-green) 8%, var(--bg-card));
   border-color: color-mix(in srgb, var(--accent-green) 25%, var(--border-color));
 }
@@ -1880,9 +1886,9 @@ input[type="range"]::-webkit-slider-thumb {
 
 /* Send button: icon-only circle */
 .coach-send {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
