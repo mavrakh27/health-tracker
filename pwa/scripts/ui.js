@@ -129,6 +129,11 @@ const UI = {
     el.style.height = el.scrollHeight + 'px';
   },
 
+  // Close any open modal before opening a new one (prevents stacking)
+  dismissModals() {
+    document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
+  },
+
   // Scroll focused input into view when mobile keyboard opens
   initKeyboardScroll() {
     document.addEventListener('focusin', (e) => {
@@ -152,6 +157,8 @@ const UI = {
   },
 
   createElement(tag, className, innerHTML) {
+    // Dismiss existing modals before creating a new one (prevents stacking)
+    if (className === 'modal-overlay') UI.dismissModals();
     const el = document.createElement(tag);
     if (className) el.className = className;
     if (innerHTML) el.innerHTML = innerHTML;

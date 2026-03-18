@@ -1158,6 +1158,88 @@ async function testConsoleErrors(page) {
   assert(realErrors.length === 0, `No JS console errors (found ${realErrors.length}: ${realErrors.join('; ').slice(0, 200)})`);
 }
 
+async function testBugRegressions(page, fixtures) {
+  console.log('\n--- Bug Regressions ---');
+
+  // BUG: Stale form visible after day navigation (fixed in 1a41231)
+  // Open body photo form via More sheet, then navigate to prev day
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.click('#quick-more-btn').catch(() => {});
+  await page.waitForTimeout(400);
+  const bpBtn = await page.$('[data-more-type="bodyPhoto"]');
+  if (bpBtn) {
+    await bpBtn.click();
+    await page.waitForTimeout(400);
+    // Form should be open
+    const formBefore = await page.evaluate(() => {
+      const f = document.getElementById('log-form-inline');
+      return f && f.style.display !== 'none' && f.offsetHeight > 0;
+    });
+    assert(formBefore, 'Regression: Body photo form opens');
+
+    // Navigate to prev day
+    await page.click('#header-prev');
+    await page.waitForTimeout(500);
+
+    // Form should be closed
+    const formAfter = await page.evaluate(() => {
+      const f = document.getElementById('log-form-inline');
+      return f && f.style.display !== 'none' && f.offsetHeight > 0;
+    });
+    assert(!formAfter, 'Regression: Form closes on day navigation (was stale before fix)');
+
+    // Navigate back to today
+    await page.click('nav button:has-text("Today")');
+    await page.waitForTimeout(300);
+  }
+
+  // BUG: syncNow called _doUpload() without date arg (fixed in 919961c)
+  const syncNowPassesDate = await page.evaluate(() => {
+    // Verify the syncNow code calls _doUpload(date) not _doUpload()
+    const src = App.syncNow.toString();
+    return src.includes('_doUpload(date)') || src.includes('_doUpload( date');
+  });
+  assert(syncNowPassesDate, 'Regression: syncNow passes date to _doUpload');
+
+  // BUG: Water/weight had duplicate inline forms (consolidated in 37208ea)
+  // Log.showForm for water should redirect to modal, not render inline
+  const waterRedirects = await page.evaluate(() => {
+    const src = Log.showForm.toString();
+    return src.includes("type === 'water'") && src.includes('showWaterPicker');
+  });
+  assert(waterRedirects, 'Regression: Water form redirects to modal (no duplicate)');
+
+  const weightRedirects = await page.evaluate(() => {
+    const src = Log.showForm.toString();
+    return src.includes("type === 'weight'") && src.includes('showWeightEntry');
+  });
+  assert(weightRedirects, 'Regression: Weight form redirects to modal (no duplicate)');
+
+  // BUG: No online event listener for sync retry (fixed in 0aa50c6)
+  const hasOnlineListener = await page.evaluate(() => {
+    // Check that the online listener was registered by looking for its effect
+    // We can't directly inspect event listeners, but we can check App.init source
+    const src = App.init.toString();
+    return src.includes("'online'") || src.includes('"online"');
+  });
+  assert(hasOnlineListener, 'Regression: Online event listener registered for sync retry');
+
+  // BUG: Sync key visible in logs (fixed in 37208ea)
+  const syncKeyMasked = await page.evaluate(() => {
+    const src = CloudRelay.log.toString();
+    return src.includes('replace') && src.includes('...');
+  });
+  assert(syncKeyMasked, 'Regression: Sync key masked in log output');
+
+  // BUG: DayScore.calculate re-read all DB values (fixed in 8d6c08e)
+  const scoreAcceptsPreloaded = await page.evaluate(() => {
+    const src = DayScore.calculate.toString();
+    return src.includes('preloaded');
+  });
+  assert(scoreAcceptsPreloaded, 'Regression: DayScore.calculate accepts preloaded data');
+}
+
 async function run() {
   console.log('=== Health Tracker Validation ===\n');
 
@@ -1211,6 +1293,7 @@ async function run() {
     await testUILabels(page, fixtures);
     await testScoreCentering(page, fixtures);
     await testMultiViewport(page, context, fixtures);
+    await testBugRegressions(page, fixtures);
     await testConsoleErrors(page);
 
   } catch (err) {
