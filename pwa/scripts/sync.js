@@ -603,12 +603,13 @@ const CloudRelay = {
           await fetch(ackUrl, { method: 'POST' });
           this.log(`Ack sent for ${date}`, 'ok');
 
-          UI.toast(`Analysis for ${UI.formatDate(date)} imported!`);
           if (date === App.selectedDate) App.loadDayView();
         } catch (innerErr) {
           this.log(`Error processing ${date}: ${innerErr.message}`, 'error');
         }
       }
+      // Single summary toast instead of per-result
+      UI.toast(`${newResults.length} day(s) of analysis imported`);
     } catch (err) {
       this.log(`Results check error: ${err.message}`, 'error');
     }
@@ -682,7 +683,7 @@ const CloudRelay = {
         <input type="text" class="form-input" id="cs-key" value="${UI.escapeHtml(config.syncKey || '')}" placeholder="UUID sync key">
       </div>
       <button class="btn btn-primary btn-block btn-lg" id="cs-save">Save</button>
-      ${config.syncKey ? '<button class="btn btn-ghost btn-block" id="cs-test" style="margin-top: var(--space-sm);">Test Connection</button>' : ''}
+      ${config.syncKey ? '<button class="btn btn-secondary btn-block" id="cs-test" style="margin-top: var(--space-sm);">Test Connection</button>' : ''}
       <button class="btn btn-secondary btn-block" id="cs-sync-now" style="margin-top: var(--space-sm);">Sync Now</button>
       <button class="btn btn-secondary btn-block" id="cs-check-results" style="margin-top: var(--space-xs);">Check for Results</button>
       <button class="btn btn-ghost btn-block" id="cs-resync" style="margin-top: var(--space-xs);">Re-sync All Results</button>

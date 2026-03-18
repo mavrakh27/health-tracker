@@ -1104,13 +1104,16 @@ const App = {
       await DB.setProfile('goals', newGoals);
       UI.toast('Goals saved');
 
+      // Always refresh the settings summary
+      Settings.loadGoalsSummary();
+
       // If first-run (no sync configured), offer Cloud Sync setup
       const syncConfigured = await CloudRelay.isConfigured();
       if (!syncConfigured) {
         App._showSyncSetupStep(overlay);
       } else {
         overlay.remove();
-        App.loadDayView();
+        if (App.currentScreen === 'today') App.loadDayView();
       }
     });
   },
