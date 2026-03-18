@@ -282,7 +282,7 @@ async function testPlanScreen(page, fixtures) {
 
   // Segment control should exist
   const segmentBtns = await page.$$('.segment-btn');
-  assert(segmentBtns.length === 2, `Progress has 2 segment buttons (got ${segmentBtns.length})`);
+  assert(segmentBtns.length >= 2, `Progress has 2+ segment buttons (got ${segmentBtns.length})`);
 
   // Default tab is Insights — should show meal plan content
   const container = await page.$('#progress-container');

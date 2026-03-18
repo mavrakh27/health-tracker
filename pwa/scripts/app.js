@@ -994,6 +994,19 @@ const App = {
           </div>`;
       }
     }
+
+    // Skincare routine planning section
+    const skincareEl = document.getElementById('coach-skincare');
+    if (skincareEl) {
+      try {
+        const profile = await DB.getSkincareRoutine();
+        skincareEl.innerHTML = SkincareCoach.renderSection(profile);
+        SkincareCoach.bindEvents(skincareEl, profile);
+      } catch (e) {
+        console.warn('Skincare coach section error:', e);
+        skincareEl.innerHTML = '';
+      }
+    }
   },
 
   _getGreeting() {
