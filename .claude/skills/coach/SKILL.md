@@ -97,8 +97,19 @@ If `bio.txt` doesn't exist or `goals.json` has only default values (2000 cal / 1
    - `bio.txt` -- stats, goals, timeline
    - `preferences.json` -- meal structure, dietary preferences
    - `regimen.json` -- starter workout plan based on equipment and experience
-4. **Confirm**: Show them a summary of their plan and ask if anything needs adjusting
-5. **Remind them to sync**: "Open the app and tap Sync Now to pull in your personalized goals"
+4. **Skincare setup** (if `$HEALTH_DATA_DIR/profile/skincare.json` does not exist): Ask about skincare one question at a time:
+   - Skin type (oily, dry, combination, sensitive, normal)
+   - Main concerns (acne, aging, hyperpigmentation, dryness, redness, none)
+   - Current products they use (if any)
+   - Budget level (drugstore, mid-range, high-end)
+   - Time commitment (minimal 2-3 products, moderate 4-6, full routine 7+)
+   Then generate and write `$HEALTH_DATA_DIR/profile/skincare.json` with:
+   - A weekly template with AM/PM routines (using `weeklyTemplate.default.am` and `weeklyTemplate.default.pm` arrays of product keys)
+   - A `products` catalog array with `{ key, name, category, whenToUse, notes }` entries
+   - A `rotations` array for actives rotation (e.g., retinol alternating with AHA)
+   - Top-level metadata: `skinType`, `concerns`, `budget`, `timeCommitment`
+5. **Confirm**: Show them a summary of their plan and ask if anything needs adjusting
+6. **Remind them to sync**: "Open the app and tap Sync Now to pull in your personalized goals"
 
 ## Arguments
 
@@ -106,5 +117,6 @@ If `bio.txt` doesn't exist or `goals.json` has only default values (2000 cal / 1
 - `meal-plan` -- Focus on meal planning: what to eat today/this week, given their preferences and remaining budget
 - `regimen` -- Focus on workout planning: review this week's workouts, adjust exercises, discuss progression
 - `goals` -- Review goal progress, discuss whether targets need adjusting, check timeline milestones
+- `skincare` -- Focus on skincare routine: review adherence from recent logs, adjust products or rotation, discuss skin concerns, update `skincare.json` if changes are made
 - `setup` -- Run the first-time setup flow (even if goals already exist -- useful for reconfiguring)
 - (no argument) -- Open-ended coaching conversation (auto-detects first-time setup if no bio/goals)

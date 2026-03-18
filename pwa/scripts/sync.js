@@ -9,7 +9,12 @@ const Sync = {
     }
 
     const files = [];
-    const logJson = JSON.stringify(data.log, null, 2);
+    // Include skincare log for the day so processing can analyze adherence
+    const skincareLog = await DB.getSkincareLog(date);
+    const logWithSkincare = skincareLog
+      ? { ...data.log, skincare: skincareLog }
+      : data.log;
+    const logJson = JSON.stringify(logWithSkincare, null, 2);
     files.push({ name: `daily/${date}/log.json`, data: new TextEncoder().encode(logJson) });
 
     // Bundle user profile so processing uses actual targets + profile survives reinstalls
@@ -38,6 +43,7 @@ const Sync = {
         supplements: await DB.getProfile('supplements'),
         bodyPhotoTypes: await DB.getProfile('bodyPhotoTypes'),
         moreOptions: await DB.getProfile('moreOptions'),
+        skincare: await DB.getSkincareRoutine(),
       };
       files.push({ name: `profile/pwa-profile.json`, data: new TextEncoder().encode(JSON.stringify(pwaProfile, null, 2)) });
     }

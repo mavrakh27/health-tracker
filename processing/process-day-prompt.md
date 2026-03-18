@@ -82,6 +82,12 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
    - Note any deviations or progressions
    - If the user did EXTRA work beyond what was scheduled (e.g., core work on a cardio-only day), celebrate the initiative — never criticize the volume of voluntary bonus effort. Only compare rep counts/sets against targets on days where that exercise was actually programmed.
 
+4b. **Analyze skincare adherence:**
+   - Check `log.json` for a `skincare` field -- if present, it contains today's AM/PM skincare checklist
+   - Note adherence: which products were used, which were skipped
+   - Compare to the skincare routine in `profile/skincare.json` (if it exists in the extracted data or `$DATA_DIR/profile/`)
+   - Include skincare summary in highlights/concerns (e.g., "Skipped PM routine -- consistency matters for actives")
+
 4. **Handle alcohol/custom entries:**
    - Custom entries have `type: 'custom'`, `subtype` (beer/wine/cocktail/shot/etc.), `quantity`, and `calories_est`
    - Include in calorie totals
@@ -151,6 +157,10 @@ Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing eve
   "highlights": ["..."],
   "concerns": ["..."],
   "streaks": { "tracking": 0, "calorie_goal": 0, "protein_goal": 0 },
+  "skincareAdherence": {
+    "am": { "completed": 4, "total": 4, "skipped": [] },
+    "pm": { "completed": 2, "total": 3, "skipped": ["retinol"] }
+  },
 
   "mealPlan": {
     "generatedDate": "YYYY-MM-DD",
