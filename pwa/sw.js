@@ -15,6 +15,7 @@ const ASSETS = [
   './scripts/camera.js',
   './scripts/sync.js',
   './scripts/fitness.js',
+  './scripts/skincare.js',
   './scripts/goals.js',
   './scripts/plan.js',
   './scripts/progress.js',

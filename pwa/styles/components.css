@@ -472,6 +472,56 @@
   border-color: var(--accent-green);
 }
 
+/* Skincare checklist */
+.skincare-progress-summary {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: var(--space-sm);
+  letter-spacing: 0.5px;
+}
+
+.skincare-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin: var(--space-sm) 0 var(--space-xs);
+  padding: 0 var(--space-xs);
+}
+
+.skincare-completion-badge {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent-green);
+}
+
+.skincare-product-row {
+  padding: var(--space-sm) var(--space-md);
+}
+
+.skincare-product-row.skincare-done {
+  opacity: 0.6;
+}
+
+.skincare-category-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: lowercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 /* Cards — minimal, barely bordered */
 .card {
   background: var(--bg-card);
