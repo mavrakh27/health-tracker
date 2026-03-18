@@ -499,6 +499,20 @@ const App = {
     UI.initKeyboardScroll();
     window.addEventListener('hashchange', () => App.handleRoute());
 
+    // Auto-retry sync when coming back online
+    window.addEventListener('online', async () => {
+      const configured = await CloudRelay.isConfigured();
+      if (!configured) return;
+      const dates = await DB.getDatesNeedingSync();
+      if (dates.length > 0) {
+        UI.toast('Back online — syncing...');
+        for (const date of dates) {
+          await CloudRelay._doUpload(date);
+        }
+      }
+      CloudRelay.checkForResults().catch(() => {});
+    });
+
     // Initialize DB, then load the initial route
     DB.openDB().then(async () => {
       console.log('DB ready');

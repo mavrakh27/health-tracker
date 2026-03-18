@@ -544,6 +544,8 @@ const CloudRelay = {
     } catch (err) {
       this.log(`Upload error: ${err.message}`, 'error');
       CloudRelay.setSyncStatus('error');
+      // Re-queue for retry on reconnect (persistent via getDatesNeedingSync)
+      UI.toast('Sync failed — will retry when online', 'error');
     }
   },
 
