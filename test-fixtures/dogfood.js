@@ -189,7 +189,7 @@ async function runDogfood(existingBrowser) {
     await screenshot(page, 'goals-saved');
 
     // ================================================================
-    // Step 3: Log food — use + Add Entry or Start Logging -> Food
+    // Step 3: Log food — use More → Food Note flow
     // ================================================================
     console.log('\n--- Step 3: Log Food ---');
     await page.click('nav button:has-text("Today")');
@@ -199,71 +199,63 @@ async function runDogfood(existingBrowser) {
     await page.evaluate(() => App.goToDate(UI.today()));
     await page.waitForTimeout(1000);
 
-    // On a fresh start after goal setup, the welcome card may still show
-    // (no entries yet), so look for either "+ Add Entry" or "Start Logging"
-    let addBtn = await page.$('#toggle-log-types');
-    const startLoggingBtn = await page.$('button:has-text("Start Logging")');
+    // Open the More sheet (replaces old "+ Add Entry" / "Start Logging" flow)
+    const moreBtn = await page.$('#quick-more-btn');
+    assert(!!moreBtn, 'More quick-action button exists');
 
-    if (startLoggingBtn && !addBtn) {
-      // Click "Start Logging" from the welcome card — this opens the log grid
-      await startLoggingBtn.click();
-      await page.waitForTimeout(400);
-      assert(true, 'Clicked "Start Logging" from welcome card');
-    } else if (addBtn) {
-      await addBtn.click();
-      await page.waitForTimeout(400);
-      assert(true, '+ Add Entry button clicked');
-    } else {
-      assert(false, '+ Add Entry or Start Logging button exists');
-    }
-
-    // Log type grid should be visible now
-    const gridVisible = await page.$eval('#log-type-grid-inline', el => el.style.display !== 'none').catch(() => false);
-    assert(gridVisible, 'Log type grid visible');
-    await screenshot(page, 'add-entry-grid');
-
-    // Click Food type
-    const foodBtn = await page.$('#log-type-grid-inline .type-btn[data-type="meal"]');
-    if (foodBtn) {
-      await foodBtn.click();
+    if (moreBtn) {
+      await moreBtn.click();
       await page.waitForTimeout(400);
 
-      assert(true, 'Selected Food type');
-      await screenshot(page, 'food-form-open');
+      // More sheet modal should be open
+      const moreSheet = await page.$('.modal-overlay');
+      assert(!!moreSheet, 'More sheet modal opens');
+      await screenshot(page, 'more-sheet-open');
 
-      // Enter notes — try multiple selectors for the notes input
-      const notesInput = await page.$('#log-form-content-inline textarea, #log-form-content-inline input[type="text"]');
-      if (notesInput) {
-        await notesInput.fill('Test chicken salad');
-        assert(true, 'Entered food notes: "Test chicken salad"');
-      }
+      // Click "Food Note" option (data-more-type="meal")
+      const foodNoteBtn = await page.$('[data-more-type="meal"]');
+      assert(!!foodNoteBtn, 'Food Note option found in More sheet');
 
-      await screenshot(page, 'food-notes-entered');
+      if (foodNoteBtn) {
+        await foodNoteBtn.click();
+        await page.waitForTimeout(400);
 
-      // Click Save button — try multiple selectors
-      const saveBtn = await page.$('#log-form-content-inline .btn-primary, #log-form-inline .btn-primary, .btn-primary:has-text("Save")');
-      if (saveBtn) {
-        await saveBtn.click();
-        await page.waitForTimeout(1000);
+        // Food Note modal should now be open
+        const foodNoteModal = await page.$('.modal-overlay');
+        assert(!!foodNoteModal, 'Food Note modal opens');
+        await screenshot(page, 'food-note-modal-open');
 
-        // After save, inline form collapses and entries refresh
-        // Verify entry appears in list
-        const entries = await page.$$('.entry-item');
-        assert(entries.length > 0, 'Food entry appears in list after save');
-
-        // Check entry text contains our notes
-        if (entries.length > 0) {
-          const entryTexts = await page.$$eval('.entry-item', els => els.map(e => e.textContent));
-          const hasChicken = entryTexts.some(t => t.includes('chicken salad'));
-          assert(hasChicken, 'Entry shows "chicken salad" notes');
+        // Enter notes in the Food Note textarea
+        const notesInput = await page.$('#fn-notes');
+        if (notesInput) {
+          await notesInput.fill('Test chicken salad');
+          assert(true, 'Entered food notes: "Test chicken salad"');
         }
 
-        await screenshot(page, 'food-logged');
-      } else {
-        assert(false, 'Save button found in food form');
+        await screenshot(page, 'food-notes-entered');
+
+        // Click Save
+        const saveBtn = await page.$('#fn-save');
+        if (saveBtn) {
+          await saveBtn.click();
+          await page.waitForTimeout(1000);
+
+          // After save, modal closes and entry appears in list
+          const entries = await page.$$('.entry-item');
+          assert(entries.length > 0, 'Food entry appears in list after save');
+
+          // Check entry text contains our notes
+          if (entries.length > 0) {
+            const entryTexts = await page.$$eval('.entry-item', els => els.map(e => e.textContent));
+            const hasChicken = entryTexts.some(t => t.includes('chicken salad'));
+            assert(hasChicken, 'Entry shows "chicken salad" notes');
+          }
+
+          await screenshot(page, 'food-logged');
+        } else {
+          assert(false, 'Save button found in Food Note modal');
+        }
       }
-    } else {
-      assert(false, 'Food button found in log type grid');
     }
 
     // ================================================================
