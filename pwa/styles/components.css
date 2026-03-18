@@ -1194,6 +1194,46 @@ input[type="range"]::-webkit-slider-thumb {
   pointer-events: none;
 }
 
+/* Progress Photos timeline */
+.progress-photos-scroll {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0 var(--space-xs);
+  scrollbar-width: none;
+}
+
+.progress-photos-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.progress-photo-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.progress-photo-thumb {
+  width: 72px;
+  height: 96px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+  border: 1px solid var(--border-accent);
+}
+
+.progress-photo-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
+}
+
 /* Entry lock bar (body photo protection) */
 .edit-lock-bar {
   display: flex;
@@ -1678,14 +1718,22 @@ input[type="range"]::-webkit-slider-thumb {
 /* Day Score */
 .day-score {
   display: flex;
-  align-items: center;
-  gap: var(--space-md);
+  flex-direction: column;
+  gap: 0;
   padding: var(--space-md);
   background: var(--bg-secondary);
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-lg);
   margin-top: var(--space-md);
   animation: scaleIn 0.35s ease both;
+  overflow: hidden;
+}
+
+/* Top row: gauge + labels side by side */
+.day-score-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
 }
 
 .day-score-gauge {
@@ -1723,25 +1771,83 @@ input[type="range"]::-webkit-slider-thumb {
 .day-score-labels {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
-.score-label-main {
+.score-descriptor {
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-primary);
 }
 
-.score-label-hc {
+/* Goal target row inside the card */
+.score-targets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.score-target-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.score-target-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.score-target-value {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.score-target-sep {
+  color: var(--border-color);
+  font-size: var(--text-xs);
+}
+
+/* Chips row — horizontally scrollable, flush to card edges */
+.score-breakdown-wrap {
+  position: relative;
+  margin-top: var(--space-sm);
+  /* Extend flush to card padding edges */
+  margin-left: calc(-1 * var(--space-md));
+  margin-right: calc(-1 * var(--space-md));
+}
+
+.score-breakdown-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--bg-secondary));
+  pointer-events: none;
 }
 
 .score-breakdown {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
-  margin-top: var(--space-sm);
-  padding: 0 var(--space-md) var(--space-sm);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 2px var(--space-md);
+  /* Extra right padding so last chip clears the fade overlay */
+  padding-right: calc(var(--space-md) + 28px);
+}
+
+.score-breakdown::-webkit-scrollbar {
+  display: none;
 }
 
 .score-chip {
@@ -1750,19 +1856,7 @@ input[type="range"]::-webkit-slider-thumb {
   border: 1px solid;
   border-radius: 12px;
   white-space: nowrap;
-}
-
-.score-target-compare {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 var(--space-md) var(--space-sm);
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-}
-
-.score-target-compare span:last-child {
-  color: var(--accent-primary);
+  flex-shrink: 0;
 }
 
 /* ── Coach Chat ── */

@@ -109,6 +109,15 @@ const DayScore = {
     return { score, breakdown };
   },
 
+  // Descriptor text for a given score value
+  _descriptor(score) {
+    if (score <= 20) return 'Just getting started';
+    if (score <= 40) return 'Building momentum';
+    if (score <= 60) return 'Solid effort';
+    if (score <= 80) return 'Great day';
+    return 'Crushing it';
+  },
+
   // Render the score gauge for the today screen
   render(result) {
     const { moderate, hardcore, goals } = result;
@@ -120,7 +129,7 @@ const DayScore = {
     const hasActivity = bd.calories != null || bd.water > 0 || bd.logging > 0;
     if (!hasActivity && ms <= 25) {
       return `
-        <div class="day-score" style="opacity: 0.6;">
+        <div class="day-score day-score--empty" style="opacity: 0.6;">
           <div class="day-score-gauge">
             <svg viewBox="0 0 100 100" class="score-ring">
               <circle cx="50" cy="50" r="40" fill="none" stroke="var(--border-color)" stroke-width="6" stroke-dasharray="4 8"/>
@@ -136,31 +145,11 @@ const DayScore = {
     }
 
     const color = ms >= 75 ? 'var(--accent-green)' : ms >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
-    const hcColor = hs >= 75 ? 'var(--accent-green)' : hs >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
 
     // SVG circular gauge
     const radius = 40;
     const circumference = 2 * Math.PI * radius;
     const offset = circumference - (ms / 100) * circumference;
-
-    let html = `
-      <div class="day-score">
-        <div class="day-score-gauge">
-          <svg viewBox="0 0 100 100" class="score-ring">
-            <circle cx="50" cy="50" r="${radius}" fill="none" stroke="var(--border-color)" stroke-width="6"/>
-            <circle cx="50" cy="50" r="${radius}" fill="none" stroke="${color}" stroke-width="6"
-              stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
-              stroke-linecap="round" transform="rotate(-90 50 50)"
-              class="score-ring-fill"/>
-          </svg>
-          <div class="score-number" style="color:${color}">${ms}</div>
-        </div>
-        <div class="day-score-labels">
-          <div class="score-label-main">Great: ${ms}</div>
-          <div class="score-label-hc" style="color:${hcColor}">Crush It: ${hs}</div>
-        </div>
-      </div>
-    `;
 
     // Breakdown chips
     const chips = [];
@@ -171,27 +160,58 @@ const DayScore = {
     chips.push({ label: 'Logged', pts: bd.logging, max: 15 });
     if (bd.vices != null) chips.push({ label: 'Vices', pts: bd.vices, max: 0 });
 
-    html += '<div class="score-breakdown">';
+    let chipsHtml = '';
     for (const chip of chips) {
       const chipColor = chip.pts < 0 ? 'var(--accent-red)' :
                         chip.pts >= chip.max ? 'var(--accent-green)' :
                         chip.pts > 0 ? 'var(--accent-orange)' : 'var(--text-muted)';
       const label = chip.pts != null ? `${chip.pts > 0 ? '+' : ''}${chip.pts}` : '?';
-      html += `<span class="score-chip" style="border-color:${chipColor}; color:${chipColor}">${chip.label} ${label}</span>`;
+      chipsHtml += `<span class="score-chip" style="border-color:${chipColor}; color:${chipColor}">${chip.label} ${label}</span>`;
     }
-    html += '</div>';
 
-    // Target comparison — only show when scores differ
-    if (goals && moderate.score !== hardcore.score) {
+    // Goal targets row — only when scores differ
+    let targetsHtml = '';
+    if (goals && ms !== hs) {
       const mg = goals.moderate;
       const hg = goals.hardcore;
-      html += `
-        <div class="score-target-compare">
-          <span>Great: ${mg.calories} cal · ${mg.protein}g protein</span>
-          <span>Crush It: ${hg.calories} cal · ${hg.protein}g protein</span>
+      targetsHtml = `
+        <div class="score-targets">
+          <span class="score-target-item">
+            <span class="score-target-label">Your Goal</span>
+            <span class="score-target-value">${ms}</span>
+          </span>
+          <span class="score-target-sep">·</span>
+          <span class="score-target-item">
+            <span class="score-target-label">Stretch</span>
+            <span class="score-target-value">${hs}</span>
+          </span>
         </div>`;
     }
 
-    return html;
+    return `
+      <div class="day-score">
+        <div class="day-score-top">
+          <div class="day-score-gauge">
+            <svg viewBox="0 0 100 100" class="score-ring">
+              <circle cx="50" cy="50" r="${radius}" fill="none" stroke="var(--border-color)" stroke-width="6"/>
+              <circle cx="50" cy="50" r="${radius}" fill="none" stroke="${color}" stroke-width="6"
+                stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
+                stroke-linecap="round" transform="rotate(-90 50 50)"
+                class="score-ring-fill"/>
+            </svg>
+            <div class="score-number" style="color:${color}">${ms}</div>
+          </div>
+          <div class="day-score-labels">
+            <div class="score-descriptor">${DayScore._descriptor(ms)}</div>
+            ${targetsHtml}
+          </div>
+        </div>
+        <div class="score-breakdown-wrap">
+          <div class="score-breakdown">
+            ${chipsHtml}
+          </div>
+        </div>
+      </div>
+    `;
   },
 };

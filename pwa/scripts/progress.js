@@ -221,6 +221,9 @@ const ProgressView = {
     // Weight trend
     html += await ProgressView.renderWeightTrend();
 
+    // Progress photos
+    html += await ProgressView.renderProgressPhotos();
+
     // Streaks
     const latestAnalysis = analyses.length > 0 ? analyses[analyses.length - 1] : null;
     if (latestAnalysis?.streaks) {
@@ -287,6 +290,82 @@ const ProgressView = {
       <span>${UI.formatDate(first.date)}</span><span>${UI.formatDate(latest.date)}</span>
     </div>`;
     html += '</div>';
+    return html;
+  },
+
+  async renderProgressPhotos() {
+    // Limit to last 30 days
+    const today = UI.today();
+    const thirtyDaysAgo = new Date(today + 'T12:00:00');
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const startDate = fmt(thirtyDaysAgo);
+
+    // Get all bodyPhoto entries in range
+    const entries = await DB.getEntriesByType('bodyPhoto', startDate, today);
+    if (!entries || entries.length === 0) return '';
+
+    // Group by date — one photo per date (first entry per date), newest-first
+    const byDate = {};
+    for (const e of entries) {
+      if (!byDate[e.date]) byDate[e.date] = e;
+    }
+    const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+    if (dates.length === 0) return '';
+
+    let html = '<h2 class="section-header">Progress Photos</h2>';
+    html += '<div class="progress-photos-scroll">';
+
+    for (const date of dates) {
+      const entry = byDate[date];
+      const d = new Date(date + 'T12:00:00');
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const cardId = `pp-card-${date}`;
+      html += `<div class="progress-photo-card" id="${cardId}" data-entry-id="${UI.escapeHtml(entry.id)}" data-date="${date}">
+        <div class="progress-photo-thumb entry-photo-locked">
+          ${UI.svg.lock}
+        </div>
+        <div class="progress-photo-label">${label}</div>
+      </div>`;
+    }
+
+    html += '</div>';
+
+    // Wire up tap-to-reveal after DOM is painted
+    setTimeout(() => {
+      const container = document.querySelector('.progress-photos-scroll');
+      if (!container) return;
+      container.querySelectorAll('.progress-photo-card').forEach(card => {
+        const thumb = card.querySelector('.progress-photo-thumb');
+        if (!thumb) return;
+        let currentUrl = null;
+        let hideTimer = null;
+        const hide = () => {
+          thumb.classList.remove('revealed');
+          thumb.innerHTML = UI.svg.lock;
+          thumb.style.backgroundImage = '';
+          if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+          if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+        };
+        thumb.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (thumb.classList.contains('revealed')) { hide(); return; }
+          const entryId = card.dataset.entryId;
+          DB.getPhotos(entryId).then(photos => {
+            if (photos.length > 0 && photos[0].blob) {
+              currentUrl = URL.createObjectURL(photos[0].blob);
+              thumb.innerHTML = '';
+              thumb.style.backgroundImage = `url(${currentUrl})`;
+              thumb.style.backgroundSize = 'cover';
+              thumb.style.backgroundPosition = 'center';
+              thumb.classList.add('revealed');
+              hideTimer = setTimeout(() => { if (thumb.classList.contains('revealed')) hide(); }, 5000);
+            }
+          });
+        });
+      });
+    }, 0);
+
     return html;
   },
 

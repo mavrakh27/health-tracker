@@ -191,9 +191,16 @@ const Fitness = {
           <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; font-weight:600;">Rest Day</div>
           <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-top:2px;">${todayPlan ? UI.escapeHtml(todayPlan.description) : 'Recover and recharge.'}</div>
         </div>
-        <div class="card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
-          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Light walk, stretching, how you're feeling..." rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-base);">${UI.escapeHtml(notes || '')}</textarea>
-          <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%; font-size:var(--text-xs);">Save Notes</button>
+        <div class="card fitness-notes-card" id="fitness-notes-card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
+          ${notes ? `
+            <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; font-weight:600; margin-bottom:var(--space-xs);">Notes</div>
+            <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did it feel? Any modifications?" rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes)}</textarea>
+            <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); font-size:var(--text-xs); opacity:0.6;">Save</button>
+          ` : `
+            <button class="btn btn-ghost fitness-notes-prompt" id="fitness-notes-prompt" style="width:100%; text-align:left; color:var(--text-muted); font-size:var(--text-sm); padding:0;">+ Add notes...</button>
+            <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did it feel? Any modifications?" rows="2" style="display:none; border:none; padding:0; background:transparent; font-size:var(--text-sm);"></textarea>
+            <button class="btn btn-ghost" id="fitness-save-btn" style="display:none; margin-top:var(--space-xs); font-size:var(--text-xs); opacity:0.6;">Save</button>
+          `}
         </div>
       `;
     }
@@ -253,9 +260,16 @@ const Fitness = {
 
     // Notes
     html += `
-      <div class="card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
-        <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="Notes..." rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-base);">${UI.escapeHtml(notes || '')}</textarea>
-        <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); width:100%; font-size:var(--text-xs);">Save Notes</button>
+      <div class="card fitness-notes-card" id="fitness-notes-card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
+        ${notes ? `
+          <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; font-weight:600; margin-bottom:var(--space-xs);">Notes</div>
+          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did the workout feel? Any modifications?" rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes)}</textarea>
+          <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); font-size:var(--text-xs); opacity:0.6;">Save</button>
+        ` : `
+          <button class="btn btn-ghost fitness-notes-prompt" id="fitness-notes-prompt" style="width:100%; text-align:left; color:var(--text-muted); font-size:var(--text-sm); padding:0;">+ Add notes...</button>
+          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did the workout feel? Any modifications?" rows="2" style="display:none; border:none; padding:0; background:transparent; font-size:var(--text-sm);"></textarea>
+          <button class="btn btn-ghost" id="fitness-save-btn" style="display:none; margin-top:var(--space-xs); font-size:var(--text-xs); opacity:0.6;">Save</button>
+        `}
       </div>
     `;
 
@@ -308,16 +322,29 @@ const Fitness = {
       });
     });
 
-    // Notes — save button + auto-save fallback
+    // Notes — expand prompt, save button, auto-save fallback
     clearTimeout(Fitness._saveTimer);
     const notesEl = root.querySelector('#fitness-notes');
     const saveBtn = root.querySelector('#fitness-save-btn');
+    const notesPrompt = root.querySelector('#fitness-notes-prompt');
+
+    // "Add notes..." prompt — tap to reveal textarea
+    if (notesPrompt && notesEl && saveBtn) {
+      notesPrompt.addEventListener('click', () => {
+        notesPrompt.style.display = 'none';
+        notesEl.style.display = 'block';
+        saveBtn.style.display = 'inline-block';
+        UI.autoResize(notesEl);
+        notesEl.focus();
+      });
+    }
+
     if (notesEl) {
       UI.autoResize(notesEl);
       notesEl.addEventListener('input', () => {
         UI.autoResize(notesEl);
         clearTimeout(Fitness._saveTimer);
-        if (saveBtn) { saveBtn.textContent = 'Save Notes'; saveBtn.style.opacity = '1'; }
+        if (saveBtn) { saveBtn.textContent = 'Save'; saveBtn.style.opacity = '1'; }
         Fitness._saveTimer = setTimeout(() => {
           Fitness.saveWorkoutNotes(date, notesEl.value);
         }, 3000);

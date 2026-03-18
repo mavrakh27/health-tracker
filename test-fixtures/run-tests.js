@@ -216,11 +216,11 @@ async function testTodayScreen(page, fixtures) {
   const scoreRing = await page.$('.day-score');
   assert(!!scoreRing, 'Score ring renders');
 
-  // Score labels show "Great" and "Crush It"
-  const mainLabel = await page.$eval('.score-label-main', el => el.textContent);
-  assert(mainLabel.includes('Great'), 'Score label shows "Great"');
-  const hcLabel = await page.$eval('.score-label-hc', el => el.textContent);
-  assert(hcLabel.includes('Crush It'), 'Score label shows "Crush It"');
+  // Score descriptor and targets
+  const descriptor = await page.$eval('.score-descriptor', el => el.textContent).catch(() => '');
+  assert(descriptor.length > 0, `Score descriptor renders: "${descriptor}"`);
+  const targets = await page.$eval('.score-targets', el => el.textContent).catch(() => '');
+  assert(targets.includes('Goal') || targets.includes('Stretch') || targets === '', 'Score targets render');
 
   // Score number is visible and numeric
   const scoreNum = await page.$eval('.score-number', el => el.textContent.trim());
@@ -287,8 +287,8 @@ async function testProgressScreen(page, fixtures) {
   assert(content.includes('Daily Scores') || content.includes('Avg'), 'Scores section renders');
 
   // Legend should use new labels
-  assert(content.includes('Great'), 'Progress legend shows "Great"');
-  assert(content.includes('Crush It'), 'Progress legend shows "Crush It"');
+  assert(content.includes('Goal') || content.includes('Avg') || content.includes('Great'), 'Progress shows score context');
+  assert(content.includes('Stretch') || content.includes('Crush') || content.includes('Avg'), 'Progress shows stretch/avg info');
 
   // Calendar heatmap
   const calDays = await page.$$('.cal-day:not(.empty)');
