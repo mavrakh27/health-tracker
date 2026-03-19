@@ -754,13 +754,16 @@ async function runDogfood(existingBrowser) {
     await page.click('nav button:has-text("Today")');
     await page.waitForTimeout(400);
 
-    // Use Snap food to trigger photo flow
+    // Use Food button to open food logger, then click Take Photo
     const snapBtn = await page.$('#quick-photo-btn');
     if (snapBtn) {
-      // Intercept file chooser
+      await snapBtn.click();
+      await page.waitForTimeout(400);
+      // Food logger modal opens — click "Take Photo" inside it
+      const cameraBtn = await page.$('#fn-camera');
       const [fileChooser] = await Promise.all([
         page.waitForEvent('filechooser', { timeout: 3000 }).catch(() => null),
-        snapBtn.click(),
+        cameraBtn ? cameraBtn.click() : Promise.resolve(),
       ]);
 
       if (fileChooser) {
@@ -795,6 +798,12 @@ async function runDogfood(existingBrowser) {
         }
 
         await screenshot(page, 'photo-uploaded');
+
+        // Close the food logger modal (save or dismiss)
+        const fnSave = await page.$('#fn-save');
+        if (fnSave) { await fnSave.click(); await page.waitForTimeout(500); }
+        else { const fnClose = await page.$('#fn-close'); if (fnClose) await fnClose.click(); }
+        await page.waitForTimeout(300);
 
         // Clean up test image
         try { fs.unlinkSync(testImagePath); } catch (e) { /* ignore */ }

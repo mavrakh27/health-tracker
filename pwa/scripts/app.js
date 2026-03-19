@@ -16,7 +16,7 @@ const QuickLog = {
 
     // Built-in options (universal)
     const builtIn = [
-      { type: 'meal', icon: UI.svg.meal, label: 'Food Note', color: 'var(--color-meal)', desc: 'Log food without a photo' },
+      { type: 'meal', icon: UI.svg.meal, label: 'Log Food', color: 'var(--color-meal)', desc: 'Photo, text, or both' },
       { type: 'workout', icon: UI.svg.workout, label: 'Workout', color: 'var(--color-workout)', desc: 'Log a gym session' },
       { type: 'weight', icon: UI.svg.weight, label: 'Weight', color: 'var(--color-weight)', desc: 'Record today\'s weight' },
       { type: 'bodyPhoto', icon: UI.svg.bodyPhoto, label: 'Body Photo', color: 'var(--color-body-photo, var(--accent-primary))', desc: 'Progress photos' },
@@ -75,37 +75,9 @@ const QuickLog = {
     });
   },
 
-  // --- Snap food → auto-save (zero taps after photo) ---
+  // --- Snap food → opens food logger (photo + text) ---
   async snapFood() {
-    const photo = await Camera.capture('meal');
-    if (!photo) return;
-
-    const today = UI.today();
-    const entry = {
-      id: UI.generateId('meal'),
-      type: 'meal',
-      subtype: null,
-      date: today,
-      timestamp: new Date().toISOString(),
-      notes: '',
-      photo: true,
-      duration_minutes: null,
-    };
-
-    try {
-      await DB.addEntry(entry, photo.blob);
-      UI.toast('Food logged');
-      CloudRelay.queueUpload(today);
-      if (App.selectedDate !== today) {
-        App.selectedDate = today;
-        App.updateHeaderDate();
-      }
-      App.loadDayView();
-    } catch (err) {
-      console.error('Quick save failed:', err);
-      UI.toast('Failed to save', 'error');
-      Camera.revokeURL(photo.url);
-    }
+    QuickLog.showFoodNote();
   },
 
   // --- Visual water picker ---
@@ -264,32 +236,62 @@ const QuickLog = {
     });
   },
 
-  // --- Text-only food note (no photo required) ---
+  // --- Log food (text + optional photo) ---
   async showFoodNote() {
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
-    sheet.style.maxHeight = '60dvh';
+    sheet.style.maxHeight = '75dvh';
+
+    let pendingPhoto = null; // { blob, url }
 
     sheet.innerHTML = `
       <div class="modal-header">
-        <span class="modal-title">Food Note</span>
+        <span class="modal-title">Log Food</span>
         <button class="modal-close" id="fn-close">&times;</button>
       </div>
       <div class="form-group">
-        <label class="form-label">What did you eat?</label>
-        <textarea class="form-input" id="fn-notes" placeholder="e.g. Chicken salad, apple, protein shake…" rows="4" style="resize: vertical;"></textarea>
+        <div style="display:flex; gap:var(--space-sm); margin-bottom:var(--space-sm);">
+          <button class="btn btn-secondary" id="fn-camera" style="flex:1;"><span class="btn-icon">${UI.svg.camera}</span> Take Photo</button>
+          <button class="btn btn-ghost" id="fn-library" style="flex:1;"><span class="btn-icon">${UI.svg.gallery || UI.svg.camera}</span> Library</button>
+        </div>
+        <div id="fn-photo-area"></div>
       </div>
-      <div class="form-group" style="margin-top: var(--space-md);">
-        <button class="btn btn-primary btn-block btn-lg" id="fn-save">Save</button>
+      <div class="form-group">
+        <textarea class="form-input" id="fn-notes" placeholder="What did you eat? (optional if photo added)" rows="2"></textarea>
       </div>
+      <button class="btn btn-primary btn-block btn-lg" id="fn-save">Save</button>
     `;
 
     overlay.appendChild(sheet);
     document.body.appendChild(overlay);
 
-    const closeModal = () => overlay.remove();
+    const closeModal = () => {
+      if (pendingPhoto) Camera.revokeURL(pendingPhoto.url);
+      overlay.remove();
+    };
     document.getElementById('fn-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    const showPreview = (photo) => {
+      if (pendingPhoto) Camera.revokeURL(pendingPhoto.url);
+      pendingPhoto = photo;
+      const area = document.getElementById('fn-photo-area');
+      if (!area) return;
+      area.innerHTML = '';
+      area.appendChild(Camera.createPreview(photo.url, () => {
+        Camera.revokeURL(pendingPhoto.url);
+        pendingPhoto = null;
+      }));
+    };
+
+    document.getElementById('fn-camera').addEventListener('click', async () => {
+      const result = await Camera.capture('meal');
+      if (result) showPreview(result);
+    });
+    document.getElementById('fn-library').addEventListener('click', async () => {
+      const result = await Camera.pick('meal');
+      if (result) showPreview(result);
+    });
 
     // Focus textarea after render
     requestAnimationFrame(() => document.getElementById('fn-notes')?.focus());
@@ -298,7 +300,7 @@ const QuickLog = {
     document.getElementById('fn-save').addEventListener('click', async () => {
       if (saving) return;
       const notes = document.getElementById('fn-notes')?.value?.trim() || '';
-      if (!notes) { UI.toast('Add a note first', 'error'); return; }
+      if (!notes && !pendingPhoto) { UI.toast('Add a note or photo', 'error'); return; }
 
       saving = true;
       const today = UI.today();
@@ -307,14 +309,15 @@ const QuickLog = {
         type: 'meal',
         subtype: null,
         date: today,
-        timestamp: new Date().toISOString(),
+        timestamp: pendingPhoto?.takenAt && pendingPhoto.takenAt.startsWith(today) ? pendingPhoto.takenAt : new Date().toISOString(),
         notes,
-        photo: false,
+        photo: !!pendingPhoto,
         duration_minutes: null,
       };
 
       try {
-        await DB.addEntry(entry, null);
+        await DB.addEntry(entry, pendingPhoto ? pendingPhoto.blob : null);
+        pendingPhoto = null;
         UI.toast('Food logged');
         CloudRelay.queueUpload(today);
         if (App.selectedDate !== today) {
@@ -324,7 +327,7 @@ const QuickLog = {
         closeModal();
         App.loadDayView();
       } catch (err) {
-        console.error('Food note save failed:', err);
+        console.error('Food log failed:', err);
         UI.toast('Failed to save', 'error');
         saving = false;
       }
