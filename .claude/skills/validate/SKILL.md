@@ -141,6 +141,38 @@ And in `.claude/test-screenshots/dogfood/` — especially:
 - `dogfood-*-edit-modal-*.png` — edit flow
 - `dogfood-*-viewport-*.png` — multi-viewport screenshots
 
+## Phase 4 — Chaos Testing
+
+The chaos runner (`test-fixtures/chaos.js`) simulates unpredictable user behavior — random clicks in random order, with invariant checks after every action.
+
+**Actions pool** (weighted random):
+- Navigation: tab switches, day arrows, double-taps
+- Quick actions: water, dailies, more sheet
+- Stat card taps: water, workout, weight
+- Modal interactions: open, close, select options
+- Fitness: toggle exercise checks, expand info
+- **Interrupt scenarios** (high weight): open form → immediately navigate, open modal → switch tabs
+
+**Invariants checked after every action:**
+- No horizontal overflow (`body.scrollWidth <= viewport`)
+- Max 1 modal overlay (no stacked modals)
+- No stale inline forms (tracks which date form was opened on — flags if date changes while form stays visible)
+- Exactly 4 visible nav buttons
+- Exactly 1 active screen
+- No unhandled JS errors
+
+Run: `node test-fixtures/chaos.js --rounds 50 --screenshots`
+
+### Validating Chaos Tests
+
+**When adding new invariants or actions, always verify against a known bug.** A chaos test that passes on both buggy and fixed code is worthless. To verify:
+1. Temporarily revert the fix (swap in old file)
+2. Run chaos — it MUST catch the bug
+3. Restore the fix — chaos MUST pass
+4. Only then commit the test
+
+This was learned the hard way: the original stale-form invariant checked "form visible on non-today screen" but the real bug was "form opened on date A, visible on date B" — both on the Today screen. The test passed on buggy code for 50 rounds until the invariant was corrected to track the form's originating date.
+
 ## Post-Deploy Smoke Test
 
 After pushing, verify the deployed site loads:

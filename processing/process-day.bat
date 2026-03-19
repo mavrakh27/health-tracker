@@ -89,9 +89,9 @@ if not "!RELAY_DATES!"=="" (
 )
 
 if !ZIP_COUNT! equ 0 (
-    echo [%TODAY%] No new data to process.
+    echo [%TODAY%] No new data to process. Checking for un-uploaded analysis...
     rmdir /s /q "%EXTRACT_DIR%" 2>nul
-    exit /b 0
+    goto :upload_results
 )
 
 echo [%TODAY%] Processing !ZIP_COUNT! new days of data...
@@ -111,11 +111,20 @@ echo [%TODAY%] Backing up analysis and corrections...
 xcopy "%DATA_DIR%\analysis\*.json" "%BACKUP_DIR%\analysis\" /Y /Q >nul 2>&1
 xcopy "%DATA_DIR%\corrections\*.json" "%BACKUP_DIR%\corrections\" /Y /Q >nul 2>&1
 
+:upload_results
 REM --- Upload results back to cloud relay ---
 REM Upload analysis files that are new or modified since last upload.
 REM Uses .uploaded marker files to track state. Catches crashed runs.
+REM Always runs — even when no new ZIPs — to catch files from previous failed uploads.
 echo [%TODAY%] Uploading analysis results to cloud relay...
+
+if not defined HEALTH_SYNC_URL (
+    echo [%TODAY%] WARNING: HEALTH_SYNC_URL not set — skipping upload.
+    goto :upload_done
+)
+
 set UPLOAD_COUNT=0
+set UPLOAD_FAIL=0
 for %%f in ("%DATA_DIR%\analysis\????-??-??.json") do (
     set "ADATE=%%~nf"
     set "NEED_UPLOAD=0"
@@ -135,7 +144,8 @@ for %%f in ("%DATA_DIR%\analysis\????-??-??.json") do (
             echo %TODAY% %TIME% > "%%f.uploaded"
             set /a UPLOAD_COUNT+=1
         ) else (
-            echo [%TODAY%] WARNING: Failed to upload results for !ADATE!
+            echo [%TODAY%] WARNING: Failed to upload results for !ADATE! [curl exit !ERRORLEVEL!]
+            set /a UPLOAD_FAIL+=1
         )
     )
 )
@@ -144,6 +154,10 @@ if !UPLOAD_COUNT! gtr 0 (
 ) else (
     echo [%TODAY%] All analysis files up to date.
 )
+if !UPLOAD_FAIL! gtr 0 (
+    echo [%TODAY%] WARNING: !UPLOAD_FAIL! upload(s) failed — will retry next run.
+)
+:upload_done
 REM Clean up old upload markers (>30 days)
 forfiles /p "%DATA_DIR%\analysis" /m "*.uploaded" /d -30 /c "cmd /c del @path" 2>nul
 

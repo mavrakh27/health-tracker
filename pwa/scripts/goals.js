@@ -184,15 +184,16 @@ const GoalsView = {
     if (Object.keys(n.macros).length > 0) {
       html += '<div class="card" style="margin-top: var(--space-sm);">';
       for (const [name, m] of Object.entries(n.macros)) {
-        const pct = m.goal ? Math.min(100, Math.round((m.actual / m.goal) * 100)) : 0;
-        const color = m.goal && m.actual >= m.goal * 0.85 ? 'var(--accent-green)' : 'var(--accent-orange)';
+        const hasGoal = m.goal && m.goal > 0;
+        const pct = hasGoal ? Math.min(100, Math.round((m.actual / m.goal) * 100)) : 0;
+        const color = hasGoal && m.actual >= m.goal * 0.85 ? 'var(--accent-green)' : 'var(--accent-orange)';
         html += `
           <div style="margin-bottom: var(--space-sm);">
             <div style="display:flex; justify-content:space-between; font-size:var(--text-sm);">
               <span style="text-transform:capitalize;">${name}</span>
-              <span style="color:var(--text-secondary)">${m.actual}g${m.goal ? ' / ' + m.goal + 'g' : ''}</span>
+              <span style="color:var(--text-secondary)">${m.actual}g${hasGoal ? ' / ' + m.goal + 'g' : ''}</span>
             </div>
-            <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${color}"></div></div>
+            ${hasGoal ? `<div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${color}"></div></div>` : ''}
           </div>
         `;
       }

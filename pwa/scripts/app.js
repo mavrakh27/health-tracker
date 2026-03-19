@@ -22,6 +22,15 @@ const QuickLog = {
       { type: 'bodyPhoto', icon: UI.svg.bodyPhoto, label: 'Body Photo', color: 'var(--color-body-photo, var(--accent-primary))', desc: 'Progress photos' },
     ];
 
+    // Add period option with dynamic label
+    const periodState = await Period.getState();
+    builtIn.push({
+      type: 'period', icon: UI.svg.period,
+      label: periodState.active ? 'End Period' : 'Period',
+      color: 'var(--color-period)',
+      desc: periodState.active ? `Day ${Math.floor((new Date(UI.today() + 'T12:00:00') - new Date(periodState.startDate + 'T12:00:00')) / 86400000) + 1} — tap to end` : 'Start tracking your cycle',
+    });
+
     // User-specific options (added by relay/coach processing)
     const custom = await DB.getProfile('moreOptions') || [];
     const options = [...builtIn, ...custom.map(o => ({
@@ -62,6 +71,8 @@ const QuickLog = {
           QuickLog.showFoodNote();
         } else if (type === 'weight') {
           QuickLog.showWeightEntry();
+        } else if (type === 'period') {
+          if (periodState.active) Period.end(); else Period.start();
         } else {
           // Show inline form for this type
           const logGrid = document.getElementById('log-type-grid-inline');
@@ -75,15 +86,39 @@ const QuickLog = {
     });
   },
 
-  // --- Snap food → opens food logger (photo + text) ---
+  // --- Snap food → camera opens, auto-saves on capture ---
   async snapFood() {
-    QuickLog.showFoodNote();
+    const result = await Camera.capture('meal');
+    if (!result) return; // user cancelled camera
+
+    const date = App.selectedDate;
+    const entry = {
+      id: UI.generateId('meal'),
+      type: 'meal',
+      subtype: null,
+      date,
+      timestamp: result.takenAt && result.takenAt.startsWith(date) ? result.takenAt : new Date().toISOString(),
+      notes: '',
+      photo: true,
+      duration_minutes: null,
+    };
+
+    try {
+      await DB.addEntry(entry, result.blob);
+      Camera.revokeURL(result.url);
+      UI.toast('Food photo saved');
+      CloudRelay.queueUpload(date);
+      App.loadDayView();
+    } catch (err) {
+      console.error('Quick snap failed:', err);
+      UI.toast('Failed to save', 'error');
+    }
   },
 
   // --- Visual water picker ---
   async showWaterPicker() {
-    const today = UI.today();
-    const summary = await DB.getDailySummary(today);
+    const date = App.selectedDate;
+    const summary = await DB.getDailySummary(date);
     const currentOz = summary.water_oz || 0;
     const goals = await DB.getProfile('goals') || {};
     const waterGoal = goals.water_oz || 64;
@@ -135,14 +170,14 @@ const QuickLog = {
         const oz = parseInt(btn.dataset.oz);
         btn.classList.add('water-pick-saved');
         try {
-          const fresh = await DB.getDailySummary(today);
+          const fresh = await DB.getDailySummary(date);
           const newTotal = (fresh.water_oz || 0) + oz;
-          await DB.updateDailySummary(today, { water_oz: newTotal });
+          await DB.updateDailySummary(date, { water_oz: newTotal });
           UI.toast(`+${oz} oz — ${newTotal} oz total`);
-          CloudRelay.queueUpload(today);
+          CloudRelay.queueUpload(date);
           setTimeout(() => {
             closeModal();
-            if (App.selectedDate === today) App.loadDayView();
+            App.loadDayView();
           }, 300);
         } catch (err) {
           console.error('Quick water failed:', err);
@@ -152,10 +187,10 @@ const QuickLog = {
     });
   },
 
-  // --- Quick weight modal (always logs to today) ---
+  // --- Quick weight modal ---
   async showWeightEntry() {
     const overlay = UI.createElement('div', 'modal-overlay');
-    const today = UI.today();
+    const date = App.selectedDate;
     const prefs = await DB.getProfile('preferences') || {};
     const weightUnit = prefs.weightUnit || 'lbs';
 
@@ -181,13 +216,13 @@ const QuickLog = {
     document.body.appendChild(overlay);
 
     // Pre-fill current weight (or last known weight) and auto-focus
-    DB.getDailySummary(today).then(async summary => {
+    DB.getDailySummary(date).then(async summary => {
       const input = document.getElementById('qw-weight');
       if (summary.weight) {
         input.value = summary.weight.value;
       } else {
         // Check yesterday for a recent weight to pre-fill
-        const yesterday = UI.yesterday(today);
+        const yesterday = UI.yesterday(date);
         const yesterdaySummary = await DB.getDailySummary(yesterday);
         if (yesterdaySummary.weight) {
           input.value = yesterdaySummary.weight.value;
@@ -219,16 +254,16 @@ const QuickLog = {
         return;
       }
       try {
-        const fresh = await DB.getDailySummary(today);
+        const fresh = await DB.getDailySummary(date);
         const ts = Date.now();
-        await DB.updateDailySummary(today, {
+        await DB.updateDailySummary(date, {
           weight: { value, unit: weightUnit, timestamp: ts },
           weightLog: [...(fresh.weightLog || []), { value, unit: weightUnit, timestamp: ts }],
         });
         UI.toast(`Weight: ${value} ${weightUnit} saved`);
-        CloudRelay.queueUpload(today);
+        CloudRelay.queueUpload(date);
         overlay.remove();
-        if (App.selectedDate === today) App.loadDayView();
+        App.loadDayView();
       } catch (err) {
         console.error('Quick weight failed:', err);
         UI.toast('Failed to save weight', 'error');
@@ -303,13 +338,13 @@ const QuickLog = {
       if (!notes && !pendingPhoto) { UI.toast('Add a note or photo', 'error'); return; }
 
       saving = true;
-      const today = UI.today();
+      const date = App.selectedDate;
       const entry = {
         id: UI.generateId('meal'),
         type: 'meal',
         subtype: null,
-        date: today,
-        timestamp: pendingPhoto?.takenAt && pendingPhoto.takenAt.startsWith(today) ? pendingPhoto.takenAt : new Date().toISOString(),
+        date,
+        timestamp: pendingPhoto?.takenAt && pendingPhoto.takenAt.startsWith(date) ? pendingPhoto.takenAt : new Date().toISOString(),
         notes,
         photo: !!pendingPhoto,
         duration_minutes: null,
@@ -319,11 +354,7 @@ const QuickLog = {
         await DB.addEntry(entry, pendingPhoto ? pendingPhoto.blob : null);
         pendingPhoto = null;
         UI.toast('Food logged');
-        CloudRelay.queueUpload(today);
-        if (App.selectedDate !== today) {
-          App.selectedDate = today;
-          App.updateHeaderDate();
-        }
+        CloudRelay.queueUpload(date);
         closeModal();
         App.loadDayView();
       } catch (err) {
@@ -408,7 +439,7 @@ const QuickLog = {
 
       document.getElementById('sp-log-btn')?.addEventListener('click', async () => {
         if (selected.size === 0) return;
-        const today = UI.today();
+        const date = App.selectedDate;
         const logged = [];
         for (const key of selected) {
           const supp = supplements.find(s => s.key === key);
@@ -417,7 +448,7 @@ const QuickLog = {
             id: UI.generateId('supplement'),
             type: 'supplement',
             subtype: supp.key,
-            date: today,
+            date,
             timestamp: new Date().toISOString(),
             notes: supp.notes || supp.name,
             photo: null,
@@ -432,10 +463,10 @@ const QuickLog = {
         }
         if (logged.length > 0) {
           UI.toast(`${logged.join(', ')} logged`);
-          CloudRelay.queueUpload(today);
+          CloudRelay.queueUpload(date);
         }
         closeModal();
-        if (App.selectedDate === today) App.loadDayView();
+        App.loadDayView();
       });
     };
 
@@ -715,6 +746,19 @@ const App = {
     document.querySelectorAll('.today-panel').forEach(p => {
       p.style.transform = `translateX(-${idx * 100}%)`;
     });
+
+    // Update container height to match active panel (transform doesn't affect layout)
+    App._updatePanelHeight();
+  },
+
+  _updatePanelHeight() {
+    requestAnimationFrame(() => {
+      const panel = document.querySelector(`#panel-${App._currentPanel}`);
+      const container = document.getElementById('today-panels');
+      if (panel && container) {
+        container.style.minHeight = panel.scrollHeight + 'px';
+      }
+    });
   },
 
   // --- Navigation ---
@@ -848,6 +892,9 @@ const App = {
       });
     }
 
+    // Period banner (shows if period is active on this date)
+    await Period.renderBanner(date, entryList);
+
     // Render stats and score in parallel — both use preloaded data
     const preloaded = { goals, summary, entries, analysis, regimen };
 
@@ -931,6 +978,8 @@ const App = {
       } catch (e) { mealSuggEl.innerHTML = ''; }
     }
 
+    // Update panel container height (panels use transform, which doesn't affect layout)
+    App._updatePanelHeight();
   },
 
   async loadCoachView() {
@@ -1656,6 +1705,92 @@ const Settings = {
         console.error('Update failed:', err);
         UI.toast('Update failed — try reloading manually', 'error');
       }
+    });
+  },
+};
+
+// --- Period Tracker ---
+const Period = {
+  async getState() {
+    return await DB.getProfile('period') || { active: false, startDate: null, history: [] };
+  },
+
+  async start() {
+    const state = await Period.getState();
+    if (state.active) {
+      UI.toast('Period already tracking');
+      return;
+    }
+    const date = App.selectedDate;
+    state.active = true;
+    state.startDate = date;
+    await DB.setProfile('period', state);
+    UI.toast('Period started');
+    CloudRelay.queueUpload(date);
+    App.loadDayView();
+  },
+
+  async end() {
+    const state = await Period.getState();
+    if (!state.active) return;
+    const today = App.selectedDate;
+    state.history = state.history || [];
+    state.history.push({ start: state.startDate, end: today });
+    state.active = false;
+    state.startDate = null;
+    await DB.setProfile('period', state);
+    UI.toast('Period ended');
+    CloudRelay.queueUpload(today);
+    App.loadDayView();
+  },
+
+  // Check if a given date falls within any period (active or historical)
+  // Returns { startDate, dayNum, canEnd } or null
+  getPeriodOnDate(state, dateStr) {
+    // Check active period
+    if (state.active && state.startDate && dateStr >= state.startDate) {
+      const dayNum = Math.floor((new Date(dateStr + 'T12:00:00') - new Date(state.startDate + 'T12:00:00')) / 86400000) + 1;
+      return { startDate: state.startDate, dayNum, canEnd: true };
+    }
+    // Check history
+    if (state.history) {
+      for (const p of state.history) {
+        if (dateStr >= p.start && dateStr <= p.end) {
+          const dayNum = Math.floor((new Date(dateStr + 'T12:00:00') - new Date(p.start + 'T12:00:00')) / 86400000) + 1;
+          return { startDate: p.start, dayNum, canEnd: false };
+        }
+      }
+    }
+    return null;
+  },
+
+  // Render a period banner card in the entry list if period covers this date
+  async renderBanner(date, entryList) {
+    const state = await Period.getState();
+    const info = Period.getPeriodOnDate(state, date);
+    if (!info) return;
+
+    const dayNum = info.dayNum;
+    const isToday = date === UI.today() && info.canEnd;
+
+    const banner = UI.createElement('div', 'entry-item');
+    banner.style.borderLeftColor = 'var(--color-period)';
+    banner.innerHTML = `
+      <div class="entry-icon" style="color: var(--color-period);">${UI.svg.period}</div>
+      <div class="entry-body">
+        <div class="entry-type" style="color: var(--color-period);">Period</div>
+        <div class="entry-notes">Day ${dayNum}${dayNum === 1 ? ' — started' : ''}</div>
+      </div>
+      ${isToday ? `<button class="btn btn-ghost period-end-btn" style="font-size: var(--text-xs); color: var(--color-period); white-space: nowrap;">Mark ended</button>` : ''}
+    `;
+
+    // Insert at the top of the entry list
+    entryList.insertBefore(banner, entryList.firstChild);
+
+    // Bind end button
+    banner.querySelector('.period-end-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      Period.end();
     });
   },
 };

@@ -208,6 +208,17 @@ const Fitness = {
     const exercises = Fitness.getExerciseList(todayPlan);
     let html = '';
 
+    // Day type header — context for what today's workout is
+    const typeLabel = todayPlan.type === 'cardio' ? 'Cardio Day' :
+                      todayPlan.type === 'strength' ? todayPlan.description || 'Strength Day' :
+                      todayPlan.description || todayPlan.type;
+    html += `
+      <div class="card fitness-day-header" style="text-align:center; padding:var(--space-sm) var(--space-md); margin-bottom:var(--space-sm);">
+        <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; font-weight:600;">${UI.escapeHtml(typeLabel)}</div>
+        <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-top:2px;">${exercises.length} exercise${exercises.length !== 1 ? 's' : ''}</div>
+      </div>
+    `;
+
     // Each exercise as its own card
     for (let i = 0; i < exercises.length; i++) {
       const ex = exercises[i];

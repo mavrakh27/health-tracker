@@ -534,6 +534,25 @@ async function exportDay(dateStr) {
     }
   }
 
+  // Include period state if this date falls within any period (active or historical)
+  const periodState = await getProfile('period').catch(() => null);
+  let periodInfo = null;
+  if (periodState) {
+    // Check active period
+    if (periodState.active && periodState.startDate && dateStr >= periodState.startDate) {
+      periodInfo = { day: Math.floor((new Date(dateStr + 'T12:00:00') - new Date(periodState.startDate + 'T12:00:00')) / 86400000) + 1 };
+    }
+    // Check history (for re-exports after period ended)
+    if (!periodInfo && periodState.history) {
+      for (const p of periodState.history) {
+        if (dateStr >= p.start && dateStr <= p.end) {
+          periodInfo = { day: Math.floor((new Date(dateStr + 'T12:00:00') - new Date(p.start + 'T12:00:00')) / 86400000) + 1 };
+          break;
+        }
+      }
+    }
+  }
+
   const log = {
     date: dateStr,
     entries,
@@ -544,6 +563,7 @@ async function exportDay(dateStr) {
     coachChat: summary.coachChat || null,
     fitness_checked: summary.fitness_checked || null,
     fitness_notes: summary.fitness_notes || null,
+    period: periodInfo,
   };
 
   return { log, photoFiles };

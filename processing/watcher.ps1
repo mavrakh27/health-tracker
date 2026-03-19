@@ -87,7 +87,11 @@ try {
         $batPath = Join-Path $PSScriptRoot 'process-day.bat'
         $env:CLAUDECODE = $null
         $env:WATCHER_OWNS_LOCK = "1"
-        $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`"" -PassThru -NoNewWindow
+        # Ensure sync env vars are in process environment for child bat
+        $env:HEALTH_SYNC_URL = $syncUrl
+        $env:HEALTH_SYNC_KEY = $syncKey
+        $dailyLog = Join-Path $dataDir "logs\$today.log"
+        $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`" >> `"$dailyLog`" 2>&1" -PassThru -NoNewWindow
         # 60-minute timeout — kill if hung
         if (-not $proc.WaitForExit(3600000)) {
             Log "[watcher] Processing timed out after 60 min. Killing."

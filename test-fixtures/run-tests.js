@@ -1280,13 +1280,120 @@ async function testSkincarePanel(page, fixtures) {
     await skinBtn.click().catch(() => {});
     await page.waitForTimeout(300);
 
-    // Panel activates — no hard assert on class since classList may differ pre-Phase 2
     assert(true, 'Skincare panel activates on tap');
   }
 
   // Skincare container should exist
   const skinContainer = await page.$('#today-skincare').catch(() => null);
   assert(!!skinContainer, 'Skincare panel container exists');
+
+  // Verify AM routine renders correct products
+  const amHeader = await page.$('.skincare-section-header:has-text("AM")').catch(() => null);
+  assert(!!amHeader, 'AM routine header renders');
+
+  // Count AM product rows
+  const skinContent = await page.evaluate(() => {
+    const container = document.getElementById('today-skincare');
+    if (!container) return null;
+    const sections = container.querySelectorAll('.skincare-section-header');
+    const amProducts = [];
+    const pmProducts = [];
+    let inPM = false;
+
+    // Walk through product rows between section headers
+    const allProducts = container.querySelectorAll('.skincare-product-row');
+    for (const row of allProducts) {
+      const name = row.querySelector('.fitness-exercise-name')?.textContent?.trim() || '';
+      const category = row.querySelector('.skincare-category-badge')?.textContent?.trim() || '';
+      // Determine if this is AM or PM by checking which section header precedes it
+      const prevHeader = row.closest('#today-skincare')?.querySelector('.skincare-section-header + .skincare-product-row') === row ? 'AM' : null;
+      // Simpler: check slot data attribute
+      const slot = row.querySelector('.skincare-check')?.dataset?.slot || '';
+      if (slot === 'am') amProducts.push({ name, category });
+      else if (slot === 'pm') pmProducts.push({ name, category });
+    }
+
+    // Progress summary
+    const progress = container.querySelector('.skincare-progress-summary')?.textContent?.trim() || '';
+
+    // Face photo button
+    const faceBtn = container.querySelector('#skincare-face-photo-btn');
+
+    return { amProducts, pmProducts, progress, hasFaceBtn: !!faceBtn };
+  });
+
+  if (skinContent) {
+    // AM routine: default template has 4 products (cleanser, vitamin_c, moisturizer, sunscreen)
+    assert(skinContent.amProducts.length === 4, `AM routine has 4 products (got ${skinContent.amProducts.length})`);
+
+    // Verify AM product names
+    const expectedAM = ['CeraVe Foaming', 'Vitamin C Serum', 'CeraVe Moisturizer', 'Supergoop SPF 40'];
+    const amNames = skinContent.amProducts.map(p => p.name);
+    const amMatch = expectedAM.every((name, i) => amNames[i] === name);
+    assert(amMatch, `AM products match fixture (got: ${amNames.join(', ')})`);
+
+    // PM routine: default template has 3 products (cleanser, retinol/aha rotation, moisturizer)
+    assert(skinContent.pmProducts.length === 3, `PM routine has 3 products (got ${skinContent.pmProducts.length})`);
+
+    // PM first and last should always be cleanser and moisturizer
+    if (skinContent.pmProducts.length >= 2) {
+      assert(skinContent.pmProducts[0].name === 'CeraVe Foaming', `PM first product is cleanser (got: ${skinContent.pmProducts[0].name})`);
+      assert(skinContent.pmProducts[skinContent.pmProducts.length - 1].name === 'CeraVe Moisturizer', `PM last product is moisturizer (got: ${skinContent.pmProducts[skinContent.pmProducts.length - 1].name})`);
+    }
+
+    // PM middle product should be retinol or aha (rotation)
+    if (skinContent.pmProducts.length === 3) {
+      const midName = skinContent.pmProducts[1].name;
+      const validRotation = midName === 'Tretinoin 0.025%' || midName === 'Glycolic Acid 7%';
+      assert(validRotation, `PM rotation product is retinol or AHA (got: ${midName})`);
+    }
+
+    // Progress summary should show counts
+    assert(skinContent.progress.includes('AM'), `Progress summary shows AM count (got: ${skinContent.progress})`);
+    assert(skinContent.progress.includes('PM'), `Progress summary shows PM count (got: ${skinContent.progress})`);
+
+    // Face photo button should appear (no face photos in fixtures for today)
+    assert(skinContent.hasFaceBtn, 'Face photo prompt appears for today');
+  }
+
+  // Verify all skincare items are scrollable (not clipped by overflow:hidden)
+  const scrollCheck = await page.evaluate(() => {
+    const screen = document.querySelector('.screen.active');
+    const container = document.getElementById('today-skincare');
+    if (!screen || !container) return null;
+
+    const navBar = document.querySelector('.bottom-nav');
+    const navTop = navBar ? navBar.getBoundingClientRect().top : window.innerHeight;
+
+    // Scroll to bottom to reveal all items
+    screen.scrollTop = screen.scrollHeight;
+
+    // Check if the last skincare item is above the nav bar after scrolling
+    const lastItem = container.querySelector('.skincare-product-row:last-of-type');
+    const faceBtn = container.querySelector('#skincare-face-photo-btn');
+    const lastEl = faceBtn || lastItem;
+
+    if (!lastEl) return null;
+    const rect = lastEl.getBoundingClientRect();
+
+    return {
+      scrollHeight: screen.scrollHeight,
+      clientHeight: screen.clientHeight,
+      canScroll: screen.scrollHeight > screen.clientHeight,
+      lastItemBottom: Math.round(rect.bottom),
+      navTop: Math.round(navTop),
+      lastItemVisible: rect.bottom <= navTop,
+    };
+  });
+
+  if (scrollCheck) {
+    assert(scrollCheck.canScroll || scrollCheck.lastItemVisible,
+      `Skincare content is scrollable or fully visible (scrollH=${scrollCheck.scrollHeight}, clientH=${scrollCheck.clientHeight}, lastBottom=${scrollCheck.lastItemBottom}, navTop=${scrollCheck.navTop})`);
+    assert(scrollCheck.lastItemVisible,
+      `Last skincare item is above nav bar after scroll (bottom=${scrollCheck.lastItemBottom}, navTop=${scrollCheck.navTop})`);
+  }
+
+  await screenshot(page, 'panel-skincare');
 
   // Switch back to diet
   const dietBtn = await page.$('.today-seg-btn[data-panel="diet"]').catch(() => null);
@@ -1298,6 +1405,416 @@ async function testSkincarePanel(page, fixtures) {
   // Verify all 3 segment buttons exist
   const segBtns = await page.$$('.today-seg-btn').catch(() => []);
   assert(segBtns.length === 3, `3 segment buttons exist (got ${segBtns.length})`);
+}
+
+async function testFitnessPanel(page, fixtures) {
+  console.log('\n--- Fitness Panel ---');
+
+  // Navigate to Today (today = day5, Thursday in fixtures = cardio day)
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(500);
+
+  // Switch to Fitness panel
+  const fitBtn = await page.$('.today-seg-btn[data-panel="fitness"]').catch(() => null);
+  assert(!!fitBtn, 'Fitness segment button exists');
+  if (fitBtn) {
+    await fitBtn.click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+
+  // Verify fitness panel content
+  const fitnessContent = await page.evaluate(() => {
+    const container = document.getElementById('today-workout');
+    if (!container) return null;
+
+    // Day type header
+    const dayHeader = container.querySelector('.fitness-day-header');
+    const dayType = dayHeader?.querySelector('div')?.textContent?.trim() || '';
+    const exerciseCount = dayHeader?.querySelectorAll('div')[1]?.textContent?.trim() || '';
+
+    // Exercise cards
+    const exerciseCards = container.querySelectorAll('.fitness-exercise');
+    const exercises = [];
+    for (const card of exerciseCards) {
+      const name = card.querySelector('.fitness-exercise-name')?.textContent?.trim() || '';
+      const setsReps = card.querySelector('[style*="accent-green"]')?.textContent?.trim() || '';
+      const formCue = card.querySelector('[style*="text-muted"]')?.textContent?.trim() || '';
+      const hasInfoBtn = !!card.querySelector('.fitness-info-btn');
+      const hasCheckbox = !!card.querySelector('.fitness-check');
+      exercises.push({ name, setsReps, formCue, hasInfoBtn, hasCheckbox });
+    }
+
+    // Notes section
+    const notesCard = container.querySelector('.fitness-notes-card');
+    const notesPrompt = container.querySelector('.fitness-notes-prompt');
+
+    return { dayType, exerciseCount, exercises, hasNotesCard: !!notesCard, hasNotesPrompt: !!notesPrompt };
+  });
+
+  if (fitnessContent) {
+    // Thursday = cardio day
+    assert(fitnessContent.dayType === 'Cardio Day', `Day type header shows "Cardio Day" (got: "${fitnessContent.dayType}")`);
+    assert(fitnessContent.exerciseCount.includes('1 exercise'), `Exercise count shows 1 exercise (got: "${fitnessContent.exerciseCount}")`);
+
+    // Should have 1 exercise (30-min jog)
+    assert(fitnessContent.exercises.length === 1, `Cardio day has 1 exercise (got ${fitnessContent.exercises.length})`);
+    if (fitnessContent.exercises.length > 0) {
+      assert(fitnessContent.exercises[0].name === '30-min jog', `Exercise is "30-min jog" (got: "${fitnessContent.exercises[0].name}")`);
+      assert(fitnessContent.exercises[0].hasCheckbox, 'Exercise has checkbox');
+      assert(fitnessContent.exercises[0].setsReps === '1x30 min', `Sets/reps shows "1x30 min" (got: "${fitnessContent.exercises[0].setsReps}")`);
+    }
+
+    // Notes section
+    assert(fitnessContent.hasNotesCard, 'Notes card renders');
+    assert(fitnessContent.hasNotesPrompt, 'Notes prompt shows (no notes logged)');
+  }
+
+  await screenshot(page, 'panel-fitness');
+
+  // Navigate to Day 1 (Sunday) — a rest day in the fixture
+  // Day 1 is 4 days ago = Sunday
+  const day1Date = fixtures.dates[0];
+  const day1DayName = new Date(day1Date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+
+  // Navigate back 4 days to day1
+  for (let i = 0; i < 4; i++) {
+    await page.click('#header-prev');
+    await page.waitForTimeout(200);
+  }
+  await page.waitForTimeout(300);
+
+  // Verify day1 fitness panel — Sunday is a rest day
+  const restContent = await page.evaluate(() => {
+    const container = document.getElementById('today-workout');
+    if (!container) return null;
+    const text = container.textContent || '';
+    const hasRestLabel = text.toLowerCase().includes('rest day');
+    const exerciseCards = container.querySelectorAll('.fitness-exercise');
+    return { hasRestLabel, exerciseCount: exerciseCards.length };
+  });
+
+  if (restContent) {
+    assert(restContent.hasRestLabel, 'Rest day shows "Rest Day" label');
+    assert(restContent.exerciseCount === 0, `Rest day has no exercise cards (got ${restContent.exerciseCount})`);
+  }
+
+  await screenshot(page, 'panel-fitness-rest');
+
+  // Navigate forward 2 days to Day 3 (Tuesday) — strength upper body push (3 exercises)
+  for (let i = 0; i < 2; i++) {
+    await page.click('#header-next');
+    await page.waitForTimeout(200);
+  }
+  await page.waitForTimeout(300);
+
+  const strengthContent = await page.evaluate(() => {
+    const container = document.getElementById('today-workout');
+    if (!container) return null;
+
+    const dayHeader = container.querySelector('.fitness-day-header');
+    const dayType = dayHeader?.querySelector('div')?.textContent?.trim() || '';
+
+    const exerciseCards = container.querySelectorAll('.fitness-exercise');
+    const exercises = [];
+    for (const card of exerciseCards) {
+      const name = card.querySelector('.fitness-exercise-name')?.textContent?.trim() || '';
+      const hasInfoBtn = !!card.querySelector('.fitness-info-btn');
+      exercises.push({ name, hasInfoBtn });
+    }
+
+    // Core section divider
+    const coreDivider = container.querySelector('[style*="uppercase"]');
+    const hasCoreSection = container.textContent.includes('Core');
+
+    return { dayType, exercises, hasCoreSection };
+  });
+
+  if (strengthContent) {
+    assert(strengthContent.dayType === 'Upper body push', `Strength day shows type "Upper body push" (got: "${strengthContent.dayType}")`);
+    assert(strengthContent.exercises.length === 3, `Strength day has 3 exercises (got ${strengthContent.exercises.length})`);
+
+    if (strengthContent.exercises.length >= 3) {
+      assert(strengthContent.exercises[0].name === 'Push-ups', `First exercise is Push-ups (got: "${strengthContent.exercises[0].name}")`);
+      assert(strengthContent.exercises[0].hasInfoBtn, 'Push-ups has info button (in exercise database)');
+      assert(strengthContent.exercises[2].name === 'Plank', `Third exercise is Plank (got: "${strengthContent.exercises[2].name}")`);
+    }
+
+    assert(strengthContent.hasCoreSection, 'Core section divider renders for strength day');
+  }
+
+  await screenshot(page, 'panel-fitness-strength');
+
+  // Navigate back to today
+  for (let i = 0; i < 2; i++) {
+    await page.click('#header-next');
+    await page.waitForTimeout(200);
+  }
+  await page.waitForTimeout(300);
+
+  // Switch back to diet panel
+  const dietBtn = await page.$('.today-seg-btn[data-panel="diet"]').catch(() => null);
+  if (dietBtn) {
+    await dietBtn.click().catch(() => {});
+    await page.waitForTimeout(300);
+  }
+}
+
+async function testVisualQA(page, fixtures) {
+  console.log('\n--- Visual QA ---');
+
+  // Ensure we're on the Today screen, Diet panel
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(500);
+  const dietBtn = await page.$('.today-seg-btn[data-panel="diet"]');
+  if (dietBtn) { await dietBtn.click(); await page.waitForTimeout(300); }
+
+  // 1. Touch target sizes — all interactive elements must be >= 44px in at least one dimension
+  const touchTargets = await page.evaluate(() => {
+    const MIN_SIZE = 44;
+    const interactive = document.querySelectorAll('button, [onclick], input, textarea, .entry-item, a');
+    const violations = [];
+    for (const el of interactive) {
+      // Skip hidden elements
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      // Skip elements outside viewport
+      if (rect.bottom < 0 || rect.top > window.innerHeight) continue;
+      if (rect.width < MIN_SIZE && rect.height < MIN_SIZE) {
+        const id = el.id || el.className?.split?.(' ')?.[0] || el.tagName;
+        const text = (el.textContent || '').trim().substring(0, 30);
+        violations.push({ id, text, w: Math.round(rect.width), h: Math.round(rect.height) });
+      }
+    }
+    return violations;
+  });
+
+  const touchOk = touchTargets.length === 0;
+  assert(touchOk, `All visible interactive elements >= 44px touch target (${touchTargets.length} violations${touchTargets.length > 0 ? ': ' + touchTargets.map(v => `${v.id}[${v.text}] ${v.w}x${v.h}`).join(', ') : ''})`);
+
+  // 2. Score chips all visible (not clipped by container)
+  const chipVisibility = await page.evaluate(() => {
+    const chips = document.querySelectorAll('.score-chip');
+    if (chips.length === 0) return { total: 0, visible: 0, clipped: [] };
+    const containerRect = document.querySelector('.score-breakdown-wrap')?.getBoundingClientRect();
+    if (!containerRect) return { total: chips.length, visible: 0, clipped: ['no container'] };
+    let visible = 0;
+    const clipped = [];
+    for (const chip of chips) {
+      const r = chip.getBoundingClientRect();
+      // Chip is visible if its right edge is within the viewport
+      if (r.right <= window.innerWidth + 2 && r.left >= -2) {
+        visible++;
+      } else {
+        clipped.push(chip.textContent.trim());
+      }
+    }
+    return { total: chips.length, visible, clipped };
+  });
+
+  assert(chipVisibility.total > 0 && chipVisibility.visible === chipVisibility.total,
+    `All ${chipVisibility.total} score chips fully visible (${chipVisibility.visible} visible${chipVisibility.clipped.length > 0 ? ', clipped: ' + chipVisibility.clipped.join(', ') : ''})`);
+
+  // 3. Content not hidden behind nav bar — check last visible element on each panel
+  const navOverlap = await page.evaluate(() => {
+    const nav = document.querySelector('.bottom-nav');
+    if (!nav) return { ok: true };
+    const navTop = nav.getBoundingClientRect().top;
+    const screen = document.querySelector('.screen.active');
+    if (!screen) return { ok: true };
+
+    // Scroll to bottom
+    screen.scrollTop = screen.scrollHeight;
+
+    // Check all entry items and cards
+    const items = screen.querySelectorAll('.entry-item, .card, .skincare-product-row');
+    const hidden = [];
+    for (const item of items) {
+      const r = item.getBoundingClientRect();
+      // Skip items that should be off-screen (other panels)
+      if (r.width === 0) continue;
+      // Item's bottom is below nav top AND item is not fully above nav
+      if (r.bottom > navTop + 5 && r.top < navTop) {
+        const text = (item.textContent || '').trim().substring(0, 40);
+        hidden.push(text);
+      }
+    }
+    // Reset scroll
+    screen.scrollTop = 0;
+    return { ok: hidden.length === 0, hidden };
+  });
+
+  assert(navOverlap.ok, `No content hidden behind nav bar after scroll (${navOverlap.hidden?.length || 0} items overlap${navOverlap.hidden?.length > 0 ? ': ' + navOverlap.hidden[0] : ''})`);
+
+  // 4. Inactive segment tabs are readable (contrast check)
+  const segContrast = await page.evaluate(() => {
+    const inactiveTabs = document.querySelectorAll('.today-seg-btn:not(.active)');
+    const results = [];
+    for (const tab of inactiveTabs) {
+      const style = getComputedStyle(tab);
+      const color = style.color;
+      // Parse rgb values
+      const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+      if (!match) continue;
+      const [, r, g, b] = match.map(Number);
+      // Calculate relative luminance (simplified)
+      const luminance = (0.299 * r + 0.587 * g + 0.114 * b);
+      results.push({ text: tab.textContent.trim(), luminance: Math.round(luminance), color });
+    }
+    return results;
+  });
+
+  // Inactive tabs should have luminance > 80 (not too dim against dark background)
+  const dimTabs = segContrast.filter(t => t.luminance < 80);
+  assert(dimTabs.length === 0, `Inactive segment tabs readable (luminance >= 80)${dimTabs.length > 0 ? ' — too dim: ' + dimTabs.map(t => `"${t.text}" lum=${t.luminance}`).join(', ') : ''}`);
+
+  // 5. Nav bar — all 4 tabs have visible text labels
+  const navLabels = await page.evaluate(() => {
+    const navBtns = document.querySelectorAll('.bottom-nav .nav-item');
+    return Array.from(navBtns).map(btn => {
+      const span = btn.querySelector('span');
+      const text = span?.textContent?.trim() || '';
+      const rect = btn.getBoundingClientRect();
+      return { text, w: Math.round(rect.width), h: Math.round(rect.height) };
+    });
+  });
+
+  assert(navLabels.length === 4, `Nav bar has 4 tabs (got ${navLabels.length})`);
+  const allLabeled = navLabels.every(n => n.text.length > 0);
+  assert(allLabeled, `All nav tabs have text labels (${navLabels.map(n => n.text || '""').join(', ')})`);
+
+  // 6. Check all panels for content clipping — switch to each panel, scroll to bottom
+  for (const panel of ['fitness', 'skin']) {
+    const panelBtn = await page.$(`.today-seg-btn[data-panel="${panel}"]`);
+    if (panelBtn) {
+      await panelBtn.click();
+      await page.waitForTimeout(400);
+
+      const panelClip = await page.evaluate((panelName) => {
+        const screen = document.querySelector('.screen.active');
+        const nav = document.querySelector('.bottom-nav');
+        if (!screen || !nav) return { ok: true, panel: panelName };
+        const navTop = nav.getBoundingClientRect().top;
+
+        screen.scrollTop = screen.scrollHeight;
+
+        // Find last visible content element in this panel
+        const panelEl = document.getElementById(`panel-${panelName}`) || document.getElementById(`today-${panelName === 'skin' ? 'skincare' : 'workout'}`);
+        if (!panelEl) return { ok: true, panel: panelName };
+
+        const children = panelEl.querySelectorAll('.card, .skincare-product-row, .fitness-exercise, button');
+        let lastVisible = null;
+        for (const child of children) {
+          const r = child.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) lastVisible = { bottom: r.bottom, text: (child.textContent || '').trim().substring(0, 30) };
+        }
+
+        screen.scrollTop = 0;
+        if (!lastVisible) return { ok: true, panel: panelName };
+        return { ok: lastVisible.bottom <= navTop + 5, panel: panelName, lastBottom: Math.round(lastVisible.bottom), navTop: Math.round(navTop), lastText: lastVisible.text };
+      }, panel);
+
+      assert(panelClip.ok, `${panel} panel content not clipped by nav (last=${panelClip.lastBottom}, nav=${panelClip.navTop}${!panelClip.ok ? ' — hidden: "' + panelClip.lastText + '"' : ''})`);
+    }
+  }
+
+  // Switch back to diet
+  if (dietBtn) { await dietBtn.click(); await page.waitForTimeout(300); }
+
+  // 7. Entry cards have adequate height for tapping
+  const entryHeights = await page.evaluate(() => {
+    const entries = document.querySelectorAll('.entry-item');
+    const short = [];
+    for (const e of entries) {
+      const rect = e.getBoundingClientRect();
+      if (rect.height > 0 && rect.height < 48) {
+        short.push({ text: (e.textContent || '').trim().substring(0, 30), h: Math.round(rect.height) });
+      }
+    }
+    return short;
+  });
+
+  assert(entryHeights.length === 0, `All entry cards >= 48px tall (${entryHeights.length} too short${entryHeights.length > 0 ? ': ' + entryHeights.map(e => `"${e.text}" ${e.h}px`).join(', ') : ''})`);
+
+  await screenshot(page, 'visual-qa');
+}
+
+async function testVisualQA320(page, context, fixtures) {
+  console.log('\n--- Visual QA (320px) ---');
+
+  // Create a 320px viewport page
+  const smallPage = await context.newPage();
+  await smallPage.setViewportSize({ width: 320, height: 568 });
+  await smallPage.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await smallPage.waitForTimeout(1500);
+
+  // Re-inject fixtures on the small page
+  await smallPage.evaluate(async (data) => {
+    const db = await DB.openDB();
+    for (const s of ['entries','dailySummary','analysis','profile','mealPlan','photos']) {
+      const tx = db.transaction(s, 'readwrite'); tx.objectStore(s).clear();
+      await new Promise(r => { tx.oncomplete = r; });
+    }
+    for (const e of data.entries) await DB.addEntry(e);
+    for (const s of data.summaries) await DB.updateDailySummary(s.date, s);
+    await DB.setProfile('goals', data.goals);
+    await DB.setProfile('regimen', data.regimen);
+    await DB.setProfile('mealPlan', data.mealPlan);
+    try { await DB.setProfile('skincare', data.skincareProfile); } catch(e){}
+  }, fixtures);
+  await smallPage.reload({ waitUntil: 'networkidle' });
+  await smallPage.waitForTimeout(1000);
+
+  // Navigate to Settings
+  await smallPage.click('nav button:has-text("Settings")');
+  await smallPage.waitForTimeout(500);
+
+  // 1. Check for overlapping interactive elements on Settings screen
+  const overlaps = await smallPage.evaluate(() => {
+    const screen = document.querySelector('.screen.active');
+    if (!screen) return [];
+    const buttons = screen.querySelectorAll('button');
+    const rects = [];
+    for (const btn of buttons) {
+      const r = btn.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      rects.push({ text: btn.textContent.trim().substring(0, 20), top: r.top, bottom: r.bottom, left: r.left, right: r.right, h: Math.round(r.height) });
+    }
+    const issues = [];
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i], b = rects[j];
+        if (a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top) {
+          issues.push(`"${a.text}" overlaps "${b.text}"`);
+        }
+      }
+    }
+    return issues;
+  });
+
+  assert(overlaps.length === 0, `No overlapping buttons on Settings at 320px (${overlaps.length} overlaps${overlaps.length > 0 ? ': ' + overlaps.join('; ') : ''})`);
+
+  // 2. Check that all Settings buttons meet 44px minimum touch target
+  const smallBtns = await smallPage.evaluate(() => {
+    const screen = document.querySelector('.screen.active');
+    if (!screen) return [];
+    const buttons = screen.querySelectorAll('button');
+    const violations = [];
+    for (const btn of buttons) {
+      const r = btn.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      if (r.height < 44 || r.width < 44) {
+        violations.push({ text: btn.textContent.trim().substring(0, 20), w: Math.round(r.width), h: Math.round(r.height) });
+      }
+    }
+    return violations;
+  });
+
+  assert(smallBtns.length === 0, `All Settings buttons >= 44px at 320px (${smallBtns.length} violations${smallBtns.length > 0 ? ': ' + smallBtns.map(b => `"${b.text}" ${b.w}x${b.h}`).join(', ') : ''})`);
+
+  await screenshot(smallPage, 'visual-qa-320-settings');
+  await smallPage.close();
 }
 
 async function run() {
@@ -1355,6 +1872,9 @@ async function run() {
     await testMultiViewport(page, context, fixtures);
     await testBugRegressions(page, fixtures);
     await testSkincarePanel(page, fixtures);
+    await testFitnessPanel(page, fixtures);
+    await testVisualQA(page, fixtures);
+    await testVisualQA320(page, context, fixtures);
     await testConsoleErrors(page);
 
   } catch (err) {
