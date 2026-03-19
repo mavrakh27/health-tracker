@@ -1,9 +1,23 @@
 # Health Tracker Watcher — polls relay for pending data, runs processing if found
 # Runs every 30 min via Task Scheduler. Quiet hours: midnight-8am.
 
+$dataDir = if ($env:HEALTH_DATA_DIR) { $env:HEALTH_DATA_DIR } else { "$env:USERPROFILE\HealthTracker" }
+$logDir = "$dataDir\logs"
+if (!(Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
+
+# Log every run for debugging (append to daily log)
+$today = Get-Date -Format 'yyyy-MM-dd'
+$logFile = "$logDir\watcher-$today.log"
+function Log($msg) {
+    $ts = Get-Date -Format 'HH:mm:ss'
+    $line = "[$ts] $msg"
+    Write-Output $line
+    Add-Content -Path $logFile -Value $line -ErrorAction SilentlyContinue
+}
+
 $hour = (Get-Date).Hour
 if ($hour -ge 0 -and $hour -lt 8) {
-    Write-Output "[watcher] Quiet hours (12am-8am). Exiting."
+    Log "Quiet hours (12am-8am). Exiting."
     exit 0
 }
 
@@ -24,17 +38,17 @@ try {
     # Lock exists — check if stale (>60 min)
     $lockAge = (Get-Date) - (Get-Item $lockFile).LastWriteTime
     if ($lockAge.TotalMinutes -lt 60) {
-        Write-Output "[watcher] Processing already in progress (lock age: $([int]$lockAge.TotalMinutes) min). Exiting."
+        Log "[watcher] Processing already in progress (lock age: $([int]$lockAge.TotalMinutes) min). Exiting."
         exit 0
     }
     # Stale lock — check if the PID is still alive
     $lockContent = Get-Content $lockFile -ErrorAction SilentlyContinue
     $lockPid = if ($lockContent -match '^\d+') { [int]$Matches[0] } else { 0 }
     if ($lockPid -and (Get-Process -Id $lockPid -ErrorAction SilentlyContinue)) {
-        Write-Output "[watcher] Stale lock but PID $lockPid is still running. Killing."
+        Log "[watcher] Stale lock but PID $lockPid is still running. Killing."
         Stop-Process -Id $lockPid -Force -ErrorAction SilentlyContinue
     }
-    Write-Output "[watcher] Removing stale lock file (age: $([int]$lockAge.TotalMinutes) min)."
+    Log "[watcher] Removing stale lock file (age: $([int]$lockAge.TotalMinutes) min)."
     Remove-Item $lockFile -Force
     # Re-acquire
     Get-Date -Format 'yyyy-MM-dd HH:mm:ss' | Out-File $lockFile -Encoding ascii
@@ -42,7 +56,7 @@ try {
 }
 
 if (-not $lockAcquired) {
-    Write-Output "[watcher] Failed to acquire lock. Exiting."
+    Log "[watcher] Failed to acquire lock. Exiting."
     exit 1
 }
 
@@ -50,7 +64,7 @@ $syncUrl = [System.Environment]::GetEnvironmentVariable('HEALTH_SYNC_URL', 'User
 $syncKey = [System.Environment]::GetEnvironmentVariable('HEALTH_SYNC_KEY', 'User')
 
 if (-not $syncUrl -or -not $syncKey) {
-    Write-Output "[watcher] HEALTH_SYNC_URL or HEALTH_SYNC_KEY not set. Exiting."
+    Log "[watcher] HEALTH_SYNC_URL or HEALTH_SYNC_KEY not set. Exiting."
     if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
     exit 0
 }
@@ -62,12 +76,12 @@ try {
     $pending = $resp.pending
 
     if (-not $pending -or $pending.Count -eq 0) {
-        Write-Output "[watcher] No pending data. Exiting."
+        Log "[watcher] No pending data. Exiting."
         if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
         exit 0
     }
 
-    Write-Output "[watcher] Pending dates: $($pending -join ', '). Launching processing..."
+    Log "[watcher] Pending dates: $($pending -join ', '). Launching processing..."
 
     try {
         $batPath = Join-Path $PSScriptRoot 'process-day.bat'
@@ -76,15 +90,15 @@ try {
         $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList "/c `"$batPath`"" -PassThru -NoNewWindow
         # 60-minute timeout — kill if hung
         if (-not $proc.WaitForExit(3600000)) {
-            Write-Output "[watcher] Processing timed out after 60 min. Killing."
+            Log "[watcher] Processing timed out after 60 min. Killing."
             $proc | Stop-Process -Force
         }
-        Write-Output "[watcher] Processing finished with exit code $($proc.ExitCode)."
+        Log "[watcher] Processing finished with exit code $($proc.ExitCode)."
     } finally {
         if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
     }
 } catch {
-    Write-Output "[watcher] Error: $_"
+    Log "[watcher] Error: $_"
     if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
     exit 1
 }
