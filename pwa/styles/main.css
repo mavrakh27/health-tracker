@@ -116,6 +116,23 @@ body {
   line-height: 1;
 }
 
+.header-today-btn {
+  background: var(--accent-primary);
+  color: #0d1117;
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  font-family: var(--font-sans);
+  padding: var(--space-xs) var(--space-md);
+  min-height: 32px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  margin-left: var(--space-xs);
+  display: inline-flex;
+  align-items: center;
+}
+
 .header-nav-btn:active {
   color: var(--accent-primary);
 }

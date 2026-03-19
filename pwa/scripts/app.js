@@ -826,6 +826,12 @@ const App = {
   setupDateNav() {
     document.getElementById('header-prev')?.addEventListener('click', () => App.navigateDay(-1));
     document.getElementById('header-next')?.addEventListener('click', () => App.navigateDay(1));
+    document.getElementById('header-today')?.addEventListener('click', () => {
+      App.selectedDate = UI.today();
+      App.updateHeaderDate();
+      if (App.currentScreen === 'today') App.loadDayView();
+      if (App.currentScreen === 'coach') App.loadCoachView();
+    });
   },
 
   navigateDay(offset) {
@@ -851,9 +857,12 @@ const App = {
   updateHeaderDate() {
     const el = document.querySelector('.header-date');
     if (el) el.textContent = UI.formatRelativeDate(App.selectedDate);
-    // Hide next button if already on today
+    const isToday = App.selectedDate >= UI.today();
+    // Hide next button if on today, show "Today" jump button if on a past date
     const nextBtn = document.getElementById('header-next');
-    if (nextBtn) nextBtn.style.visibility = App.selectedDate >= UI.today() ? 'hidden' : 'visible';
+    const todayBtn = document.getElementById('header-today');
+    if (nextBtn) nextBtn.style.visibility = isToday ? 'hidden' : 'visible';
+    if (todayBtn) todayBtn.style.display = isToday ? 'none' : 'inline-flex';
   },
 
   // --- Today/Day View ---
