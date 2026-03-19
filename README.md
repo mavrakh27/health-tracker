@@ -28,6 +28,72 @@ A personal health tracking PWA with AI-powered food analysis, workout planning, 
 
 ---
 
+## System Architecture
+
+```mermaid
+flowchart TB
+    subgraph Phone["Phone — PWA"]
+        PWA["Coach PWA\nvanilla HTML/CSS/JS"]
+        IDB[("IndexedDB\nentries, photos, analysis\ngoals, skincare, profile")]
+        SW["Service Worker\noffline cache"]
+        PWA --> IDB
+        PWA --> SW
+    end
+
+    subgraph Relay["Cloud Relay — Cloudflare"]
+        Worker["Cloudflare Worker\nREST API"]
+        R2["R2 Storage\nZIPs + analysis JSON"]
+        Worker --> R2
+    end
+
+    subgraph PC["Your Computer"]
+        Watcher["watcher.ps1\nruns every 30 min"]
+        ProcessDay["process-day.bat\norchestrates pipeline"]
+        Claude["Claude Code CLI\nfood photo analysis\nmeal plans, coaching"]
+        DataDir["~/HealthTracker/\ndaily, analysis, logs"]
+        Watcher --> ProcessDay
+        ProcessDay --> Claude
+        Claude --> DataDir
+    end
+
+    PWA -- "upload ZIPs\n(entries + photos)" --> Worker
+    Worker -- "download pending" --> ProcessDay
+    DataDir -- "upload analysis JSON" --> Worker
+    Worker -- "sync results" --> PWA
+```
+
+### Data Flow
+
+1. **Log** — Snap a meal photo or tap to log water/weight/workout on your phone
+2. **Upload** — PWA bundles entries + photos into a ZIP, uploads to the relay
+3. **Process** — Your computer's watcher downloads the ZIP every 30 min, runs Claude Code to analyze food photos, estimate calories, generate meal plans, and produce coaching feedback
+4. **Sync back** — Analysis JSON uploads to the relay, PWA pulls it down and shows inline calories, macro breakdowns, and coach messages
+
+### Today Screen
+
+```mermaid
+flowchart LR
+    Diet["Diet\nfood log, stats\nmeal suggestion"]
+    Fitness["Fitness\nexercise checklist\nform cues, notes"]
+    Skin["Skin\nAM/PM routine\nproduct checklist"]
+    Diet <--> Fitness <--> Skin
+```
+
+Three swipeable panels on the Today screen. Each panel has its own content and state, all sharing the same date context and score card.
+
+### Key Design Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| No framework | Zero build step, instant deploys, works forever |
+| IndexedDB | Structured storage with indexes, no size limits, offline-first |
+| Cloudflare Worker relay | Free tier covers personal use, global edge, no server to maintain |
+| Claude Code CLI (not API) | Runs on your existing subscription, no API key needed, full tool access |
+| Photos analyzed then deleted | Privacy-first: photos never leave your devices permanently |
+| Dual scoring (moderate/hardcore) | See progress against both a sustainable plan and a stretch target |
+
+---
+
 ## Quick Start
 
 1. **Install the app** — visit the GitHub Pages URL in Safari or Chrome, then Add to Home Screen
