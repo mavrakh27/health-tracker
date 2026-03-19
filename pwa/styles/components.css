@@ -1290,7 +1290,8 @@ input[type="range"]::-webkit-slider-thumb {
 /* Swipe-to-delete */
 .entry-swipe-wrap {
   position: relative;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   border-radius: var(--radius-md);
 }
 

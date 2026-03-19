@@ -1912,7 +1912,24 @@ async function testVisualQA(page, fixtures) {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
 
-  // 11. No excessive empty gaps on any screen (> 40% of viewport between content and nav)
+  // 11. Entry swipe wrappers don't clip entry content vertically
+  const wrapClipping = await page.evaluate(() => {
+    const wraps = document.querySelectorAll('.entry-swipe-wrap');
+    const issues = [];
+    for (const w of wraps) {
+      const ws = getComputedStyle(w);
+      const overflowY = ws.overflowY;
+      // overflow-y should NOT be 'hidden' — it clips slideInUp animation and borders
+      if (overflowY === 'hidden') {
+        issues.push({ overflowY });
+      }
+    }
+    return issues;
+  });
+
+  assert(wrapClipping.length === 0, `Entry swipe wrappers don't clip vertically (${wrapClipping.length} have overflow-y:hidden)`);
+
+  // 12. No excessive empty gaps on any screen (> 40% of viewport between content and nav)
   for (const scr of ['Today', 'Coach', 'Progress', 'Settings']) {
     await page.click(`nav button:has-text("${scr}")`);
     await page.waitForTimeout(500);
