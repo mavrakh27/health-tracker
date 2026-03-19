@@ -963,6 +963,8 @@ textarea.coach-input {
   resize: none;
   min-height: 44px;
   overflow-y: hidden;
+  /* Ensure caret stays visible — extra bottom padding for cursor rendering */
+  padding-bottom: var(--space-md);
 }
 
 /* Slider (Water) */

@@ -147,7 +147,8 @@ const UI = {
   autoResize(el) {
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
+    el.style.height = (el.scrollHeight + 2) + 'px';
+    el.style.overflowY = 'hidden';
   },
 
   // Close any open modal before opening a new one (prevents stacking)
@@ -471,7 +472,14 @@ const UI = {
     }
 
     const editNotes = document.getElementById('edit-notes');
-    if (editNotes) { UI.autoResize(editNotes); editNotes.addEventListener('input', () => UI.autoResize(editNotes)); }
+    if (editNotes) {
+      UI.autoResize(editNotes);
+      editNotes.addEventListener('input', () => UI.autoResize(editNotes));
+      editNotes.addEventListener('focus', () => {
+        // When keyboard opens, scroll textarea into view within the modal
+        setTimeout(() => editNotes.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+      });
+    }
 
     // Save
     document.getElementById('edit-save').addEventListener('click', async () => {
