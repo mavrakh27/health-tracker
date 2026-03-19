@@ -63,6 +63,37 @@ const Camera = {
     });
   },
 
+  // Pick multiple photos from gallery
+  // Returns array of { blob, url, takenAt } or empty array if cancelled
+  pickMultiple(preset = 'meal') {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.multiple = true;
+
+      input.addEventListener('change', async () => {
+        const files = Array.from(input.files);
+        if (files.length === 0) return resolve([]);
+
+        const results = [];
+        for (const file of files) {
+          try {
+            const compressed = await Camera.compress(file, preset);
+            compressed.takenAt = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+            results.push(compressed);
+          } catch (err) {
+            console.error('Photo compression failed:', err);
+          }
+        }
+        resolve(results);
+      });
+
+      input.addEventListener('cancel', () => resolve([]));
+      input.click();
+    });
+  },
+
   // Compress an image file to target dimensions and quality
   // Returns { blob, url }
   async compress(file, preset = 'meal') {

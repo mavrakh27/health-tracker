@@ -20,6 +20,7 @@ const QuickLog = {
       { type: 'workout', icon: UI.svg.workout, label: 'Workout', color: 'var(--color-workout)', desc: 'Log a gym session' },
       { type: 'weight', icon: UI.svg.weight, label: 'Weight', color: 'var(--color-weight)', desc: 'Record today\'s weight' },
       { type: 'bodyPhoto', icon: UI.svg.bodyPhoto, label: 'Body Photo', color: 'var(--color-body-photo, var(--accent-primary))', desc: 'Progress photos' },
+      { type: 'batchPhotos', icon: UI.svg.gallery, label: 'Batch Photos', color: 'var(--color-meal)', desc: 'Upload multiple meal photos at once' },
     ];
 
     // Add period option with dynamic label
@@ -64,13 +65,15 @@ const QuickLog = {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
 
     sheet.querySelectorAll('[data-more-type]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const type = btn.dataset.moreType;
         closeModal();
         if (type === 'meal') {
           QuickLog.showFoodNote();
         } else if (type === 'weight') {
           QuickLog.showWeightEntry();
+        } else if (type === 'batchPhotos') {
+          QuickLog.batchPhotos();
         } else if (type === 'period') {
           const fresh = await Period.getState();
           if (fresh.active) Period.end(); else Period.start();
@@ -85,6 +88,42 @@ const QuickLog = {
         }
       });
     });
+  },
+
+  // --- Batch photos → pick multiple, each becomes a meal entry ---
+  async batchPhotos() {
+    const photos = await Camera.pickMultiple('meal');
+    if (photos.length === 0) return;
+
+    const date = App.selectedDate;
+    let saved = 0;
+
+    for (const photo of photos) {
+      const entry = {
+        id: UI.generateId('meal'),
+        type: 'meal',
+        subtype: null,
+        date,
+        timestamp: photo.takenAt && photo.takenAt.startsWith(date) ? photo.takenAt : new Date().toISOString(),
+        notes: '',
+        photo: true,
+        duration_minutes: null,
+      };
+
+      try {
+        await DB.addEntry(entry, photo.blob);
+        Camera.revokeURL(photo.url);
+        saved++;
+      } catch (err) {
+        console.error('Batch photo save failed:', err);
+      }
+    }
+
+    if (saved > 0) {
+      UI.toast(`${saved} photo${saved !== 1 ? 's' : ''} saved`);
+      CloudRelay.queueUpload(date);
+      App.loadDayView();
+    }
   },
 
   // --- Snap food → camera opens, auto-saves on capture ---
