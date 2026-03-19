@@ -292,18 +292,26 @@ const ProgressView = {
     const delta = (latest.weight - first.weight).toFixed(1);
     const deltaColor = delta <= 0 ? 'var(--accent-green)' : 'var(--accent-orange)';
 
-    let html = '<h2 class="section-header">Weight</h2><div class="card">';
+    const pointsJson = JSON.stringify(points.map(p => ({ date: p.date, weight: p.weight })));
+
+    let html = '<h2 class="section-header">Weight</h2><div class="card" id="weight-trend-card">';
     html += `<div style="display:flex; justify-content:space-between; margin-bottom:var(--space-xs); font-size:var(--text-sm);">
       <span style="font-weight:600;">${latest.weight} lbs</span>
       <span style="color:${deltaColor};">${delta > 0 ? '+' : ''}${delta} lbs</span>
     </div>`;
-    html += `<svg viewBox="0 0 ${svgW} ${svgH}" width="100%" height="${svgH}" preserveAspectRatio="none">
-      <path d="${pathD}" fill="none" stroke="var(--accent-primary)" stroke-width="2"/>
-    </svg>`;
+    html += `<div style="position:relative; touch-action:pan-y;">
+      <svg id="weight-trend-svg" viewBox="0 0 ${svgW} ${svgH}" width="100%" height="${svgH}" preserveAspectRatio="none"
+           data-points='${pointsJson.replace(/'/g, '&apos;')}' data-minw="${minW}" data-maxw="${maxW}" data-svgw="${svgW}" data-svgh="${svgH}" style="display:block; overflow:visible;">
+        <path d="${pathD}" fill="none" stroke="var(--accent-primary)" stroke-width="2"/>
+      </svg>
+    </div>`;
     html += `<div style="display:flex; justify-content:space-between; font-size:var(--text-xs); color:var(--text-muted);">
       <span>${UI.formatDate(first.date)}</span><span>${UI.formatDate(latest.date)}</span>
     </div>`;
     html += '</div>';
+
+    // Wire touch interaction after DOM paint
+    setTimeout(() => ProgressView._initWeightChartTouch(), 0);
 
     // AM vs PM pattern — only show when there are enough timestamped measurements
     if (allMeasurements.length >= 5) {
@@ -324,6 +332,151 @@ const ProgressView = {
     return html;
   },
 
+  _initWeightChartTouch() {
+    const svg = document.getElementById('weight-trend-svg');
+    if (!svg) return;
+
+    const points = JSON.parse(svg.dataset.points || '[]');
+    if (points.length < 2) return;
+
+    const svgW = parseFloat(svg.dataset.svgw);
+    const svgH = parseFloat(svg.dataset.svgh);
+    const minW = parseFloat(svg.dataset.minw);
+    const maxW = parseFloat(svg.dataset.maxw);
+    const range = maxW - minW || 1;
+
+    // Create indicator elements inside the SVG
+    const ns = 'http://www.w3.org/2000/svg';
+
+    const indicator = document.createElementNS(ns, 'line');
+    indicator.setAttribute('x1', '0');
+    indicator.setAttribute('x2', '0');
+    indicator.setAttribute('y1', '0');
+    indicator.setAttribute('y2', svgH);
+    indicator.setAttribute('stroke', 'var(--accent-primary)');
+    indicator.setAttribute('stroke-width', '1.5');
+    indicator.setAttribute('stroke-dasharray', '3,2');
+    indicator.setAttribute('opacity', '0');
+    indicator.setAttribute('pointer-events', 'none');
+    svg.appendChild(indicator);
+
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('r', '4');
+    dot.setAttribute('fill', 'var(--accent-primary)');
+    dot.setAttribute('stroke', 'var(--bg-primary)');
+    dot.setAttribute('stroke-width', '2');
+    dot.setAttribute('opacity', '0');
+    dot.setAttribute('pointer-events', 'none');
+    svg.appendChild(dot);
+
+    // Tooltip — rendered as a foreign element approach would be complex in SVG;
+    // use a regular HTML element absolutely positioned over the chart wrapper
+    const wrapper = svg.parentElement;
+    wrapper.style.position = 'relative';
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'weight-chart-tooltip';
+    tooltip.style.display = 'none';
+    wrapper.appendChild(tooltip);
+
+    let hideTimer = null;
+
+    const showPoint = (touch) => {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width === 0) return;
+
+      // Map touch X to SVG coordinate space
+      const touchX = touch.clientX - rect.left;
+      const svgX = (touchX / rect.width) * svgW;
+
+      // Find nearest data point by X position
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < points.length; i++) {
+        const px = (i / (points.length - 1)) * svgW;
+        const dist = Math.abs(px - svgX);
+        if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+      }
+
+      const pt = points[bestIdx];
+      const px = (bestIdx / (points.length - 1)) * svgW;
+      const py = svgH - ((pt.weight - minW) / range) * svgH;
+
+      // Position indicator line
+      indicator.setAttribute('x1', px);
+      indicator.setAttribute('x2', px);
+      indicator.setAttribute('opacity', '0.7');
+
+      // Position dot
+      dot.setAttribute('cx', px);
+      dot.setAttribute('cy', py);
+      dot.setAttribute('opacity', '1');
+
+      // Tooltip content
+      const dateLabel = new Date(pt.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      tooltip.textContent = `${pt.weight} lbs · ${dateLabel}`;
+      tooltip.style.display = 'block';
+
+      // Position tooltip: center on the touch X, keep within wrapper
+      const tooltipW = tooltip.offsetWidth || 110;
+      const wrapperW = wrapper.offsetWidth || rect.width;
+      let tipLeft = touchX - tooltipW / 2;
+      tipLeft = Math.max(0, Math.min(wrapperW - tooltipW, tipLeft));
+      tooltip.style.left = tipLeft + 'px';
+
+      // Place above the dot if room, else below
+      const dotScreenY = (py / svgH) * rect.height;
+      tooltip.style.top = dotScreenY > 28 ? (dotScreenY - 28) + 'px' : (dotScreenY + 8) + 'px';
+    };
+
+    const hideAll = (delay = 300) => {
+      if (hideTimer) clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        indicator.setAttribute('opacity', '0');
+        dot.setAttribute('opacity', '0');
+        tooltip.style.display = 'none';
+        hideTimer = null;
+      }, delay);
+    };
+
+    let touchStartX = null;
+    let touchStartY = null;
+    let tracking = false;
+
+    svg.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) return;
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      tracking = false;
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    }, { passive: true });
+
+    svg.addEventListener('touchmove', (e) => {
+      if (e.touches.length !== 1) return;
+      const dx = Math.abs(e.touches[0].clientX - touchStartX);
+      const dy = Math.abs(e.touches[0].clientY - touchStartY);
+
+      // Only activate on primarily horizontal movement
+      if (!tracking && dy > dx && dy > 6) return; // vertical scroll — stay out of the way
+      if (!tracking && dx > 4) tracking = true;
+
+      if (tracking) {
+        e.preventDefault(); // prevent scroll only when we're handling it
+        showPoint(e.touches[0]);
+      }
+    }, { passive: false });
+
+    svg.addEventListener('touchend', () => {
+      tracking = false;
+      hideAll(300);
+    }, { passive: true });
+
+    svg.addEventListener('touchcancel', () => {
+      tracking = false;
+      hideAll(0);
+    }, { passive: true });
+  },
+
   async renderProgressPhotos() {
     // Limit to last 30 days
     const today = UI.today();
@@ -332,72 +485,110 @@ const ProgressView = {
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
     const startDate = fmt(thirtyDaysAgo);
 
-    // Get all bodyPhoto entries in range
-    const entries = await DB.getEntriesByType('bodyPhoto', startDate, today);
-    if (!entries || entries.length === 0) return '';
+    // Load entries and user's subtype config in parallel
+    const [entries, rawTypes] = await Promise.all([
+      DB.getEntriesByType('bodyPhoto', startDate, today),
+      DB.getProfile('bodyPhotoTypes'),
+    ]);
 
-    // Group by date — one photo per date (first entry per date), newest-first
-    const byDate = {};
-    for (const e of entries) {
-      if (!byDate[e.date]) byDate[e.date] = e;
+    // Determine which subtypes to display (fall back to just 'body')
+    const types = rawTypes && rawTypes.length
+      ? rawTypes
+      : [{ key: 'body', name: 'Body' }];
+
+    // Build map: subtype key → { date → entry } (first entry per date wins)
+    const byTypeDate = {};
+    for (const t of types) byTypeDate[t.key] = {};
+
+    for (const e of (entries || [])) {
+      const key = e.subtype || 'body';
+      if (!byTypeDate[key]) byTypeDate[key] = {};  // handle unknown subtypes gracefully
+      if (!byTypeDate[key][e.date]) byTypeDate[key][e.date] = e;
     }
-    const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
-    if (dates.length === 0) return '';
+
+    // Only render section when at least one subtype has photos
+    const anyPhotos = types.some(t => Object.keys(byTypeDate[t.key] || {}).length > 0);
+    if (!anyPhotos) return '';
 
     let html = '<h2 class="section-header">Progress Photos</h2>';
-    html += '<div class="progress-photos-scroll">';
+    html += '<div class="card" style="padding:var(--space-sm) var(--space-md);">';
 
-    for (const date of dates) {
-      const entry = byDate[date];
-      const d = new Date(date + 'T12:00:00');
-      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      const cardId = `pp-card-${date}`;
-      html += `<div class="progress-photo-card" id="${cardId}" data-entry-id="${UI.escapeHtml(entry.id)}" data-date="${date}">
-        <div class="progress-photo-thumb entry-photo-locked">
-          ${UI.svg.lock}
-        </div>
-        <div class="progress-photo-label">${label}</div>
-      </div>`;
+    const scrollIds = [];
+
+    for (const type of types) {
+      const dateMap = byTypeDate[type.key] || {};
+      const dates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
+
+      html += '<div class="progress-photos-subtype">';
+      html += `<div class="progress-photos-subtype-label">${UI.escapeHtml(type.name)}</div>`;
+
+      if (dates.length === 0) {
+        html += `<div class="progress-photos-empty">No ${UI.escapeHtml(type.name.toLowerCase())} photos yet</div>`;
+      } else {
+        const scrollId = `pp-scroll-${type.key}`;
+        scrollIds.push(scrollId);
+        html += `<div class="progress-photos-scroll" id="${scrollId}">`;
+        for (const date of dates) {
+          const entry = dateMap[date];
+          const d = new Date(date + 'T12:00:00');
+          const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          html += `<div class="progress-photo-card" data-entry-id="${UI.escapeHtml(entry.id)}" data-date="${date}">
+            <div class="progress-photo-thumb entry-photo-locked">
+              ${UI.svg.lock}
+            </div>
+            <div class="progress-photo-label">${label}</div>
+          </div>`;
+        }
+        html += '</div>';
+      }
+
+      html += '</div>'; // .progress-photos-subtype
     }
 
-    html += '</div>';
+    html += '</div>'; // .card
 
-    // Wire up tap-to-reveal after DOM is painted
+    // Wire tap-to-reveal for all scroll rows after paint
     setTimeout(() => {
-      const container = document.querySelector('.progress-photos-scroll');
-      if (!container) return;
-      container.querySelectorAll('.progress-photo-card').forEach(card => {
-        const thumb = card.querySelector('.progress-photo-thumb');
-        if (!thumb) return;
-        let currentUrl = null;
-        let hideTimer = null;
-        const hide = () => {
-          thumb.classList.remove('revealed');
-          thumb.innerHTML = UI.svg.lock;
-          thumb.style.backgroundImage = '';
-          if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
-          if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-        };
-        thumb.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (thumb.classList.contains('revealed')) { hide(); return; }
-          const entryId = card.dataset.entryId;
-          DB.getPhotos(entryId).then(photos => {
-            if (photos.length > 0 && photos[0].blob) {
-              currentUrl = URL.createObjectURL(photos[0].blob);
-              thumb.innerHTML = '';
-              thumb.style.backgroundImage = `url(${currentUrl})`;
-              thumb.style.backgroundSize = 'cover';
-              thumb.style.backgroundPosition = 'center';
-              thumb.classList.add('revealed');
-              hideTimer = setTimeout(() => { if (thumb.classList.contains('revealed')) hide(); }, 5000);
-            }
-          });
-        });
-      });
+      for (const id of scrollIds) {
+        const el = document.getElementById(id);
+        if (el) ProgressView._wirePhotoScroll(el);
+      }
     }, 0);
 
     return html;
+  },
+
+  // Shared tap-to-reveal wiring for a .progress-photos-scroll element
+  _wirePhotoScroll(scrollEl) {
+    scrollEl.querySelectorAll('.progress-photo-card').forEach(card => {
+      const thumb = card.querySelector('.progress-photo-thumb');
+      if (!thumb) return;
+      let currentUrl = null;
+      let hideTimer = null;
+      const hide = () => {
+        thumb.classList.remove('revealed');
+        thumb.innerHTML = UI.svg.lock;
+        thumb.style.backgroundImage = '';
+        if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
+        if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+      };
+      thumb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (thumb.classList.contains('revealed')) { hide(); return; }
+        const entryId = card.dataset.entryId;
+        DB.getPhotos(entryId).then(photos => {
+          if (photos.length > 0 && photos[0].blob) {
+            currentUrl = URL.createObjectURL(photos[0].blob);
+            thumb.innerHTML = '';
+            thumb.style.backgroundImage = `url(${currentUrl})`;
+            thumb.style.backgroundSize = 'cover';
+            thumb.style.backgroundPosition = 'center';
+            thumb.classList.add('revealed');
+            hideTimer = setTimeout(() => { if (thumb.classList.contains('revealed')) hide(); }, 5000);
+          }
+        });
+      });
+    });
   },
 
   // --- Shared render methods ---
@@ -867,36 +1058,7 @@ const ProgressView = {
     // Wire up tap-to-reveal after DOM is painted
     setTimeout(() => {
       const scroll = document.getElementById('face-photos-scroll');
-      if (!scroll) return;
-      scroll.querySelectorAll('.progress-photo-card').forEach(card => {
-        const thumb = card.querySelector('.progress-photo-thumb');
-        if (!thumb) return;
-        let currentUrl = null;
-        let hideTimer = null;
-        const hide = () => {
-          thumb.classList.remove('revealed');
-          thumb.innerHTML = UI.svg.lock;
-          thumb.style.backgroundImage = '';
-          if (currentUrl) { URL.revokeObjectURL(currentUrl); currentUrl = null; }
-          if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-        };
-        thumb.addEventListener('click', (e) => {
-          e.stopPropagation();
-          if (thumb.classList.contains('revealed')) { hide(); return; }
-          const entryId = card.dataset.entryId;
-          DB.getPhotos(entryId).then(photos => {
-            if (photos.length > 0 && photos[0].blob) {
-              currentUrl = URL.createObjectURL(photos[0].blob);
-              thumb.innerHTML = '';
-              thumb.style.backgroundImage = `url(${currentUrl})`;
-              thumb.style.backgroundSize = 'cover';
-              thumb.style.backgroundPosition = 'center';
-              thumb.classList.add('revealed');
-              hideTimer = setTimeout(() => { if (thumb.classList.contains('revealed')) hide(); }, 5000);
-            }
-          });
-        });
-      });
+      if (scroll) ProgressView._wirePhotoScroll(scroll);
     }, 0);
 
     return html;
