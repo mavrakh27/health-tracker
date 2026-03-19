@@ -1861,7 +1861,7 @@ async function testVisualQA(page, fixtures) {
   // 10. Photo thumbnails — entries with photos must render actual images (not empty boxes)
   await page.click('nav button:has-text("Today")');
   await page.waitForTimeout(300);
-  if (dietBtn) { await dietBtn.click(); await page.waitForTimeout(300); }
+  await page.click('.today-seg-btn[data-panel="diet"]').catch(() => {});
 
   const brokenPhotos = await page.evaluate(() => {
     const thumbs = document.querySelectorAll('.entry-photo-thumb');
@@ -1912,7 +1912,38 @@ async function testVisualQA(page, fixtures) {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
 
-  // 11. Entry swipe wrappers don't clip entry content vertically
+  // 11. Today screen section spacing is consistent (>= 12px between major sections)
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.click('.today-seg-btn[data-panel="diet"]').catch(() => {});
+
+  const sectionGaps = await page.evaluate(() => {
+    const score = document.querySelector('#today-score');
+    const segments = document.querySelector('.today-segments');
+    const statsCards = document.querySelectorAll('.stat-card');
+    const quickActions = document.querySelector('.quick-actions');
+    const entryList = document.querySelector('.entry-list, #today-entries');
+
+    const gaps = [];
+    const measure = (nameA, elA, nameB, elB) => {
+      if (!elA || !elB) return;
+      const gap = Math.round(elB.getBoundingClientRect().top - elA.getBoundingClientRect().bottom);
+      gaps.push({ between: `${nameA}→${nameB}`, gap });
+    };
+
+    measure('score', score, 'segments', segments);
+    if (statsCards.length > 0) measure('segments', segments, 'stats', statsCards[0]);
+    if (statsCards.length >= 4) measure('stats', statsCards[3], 'quickActions', quickActions);
+    measure('quickActions', quickActions, 'entries', entryList);
+
+    return gaps;
+  });
+
+  for (const g of sectionGaps) {
+    assert(g.gap >= 12, `Section spacing ${g.between} >= 12px (got ${g.gap}px)`);
+  }
+
+  // 11b. Entry swipe wrappers don't clip entry content vertically
   const wrapClipping = await page.evaluate(() => {
     const wraps = document.querySelectorAll('.entry-swipe-wrap');
     const issues = [];
