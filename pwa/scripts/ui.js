@@ -41,7 +41,11 @@ const UI = {
   },
 
   // --- Toast Notifications ---
-  toast(message, type = 'success', duration = 2500) {
+  toast(message, type = 'success', opts) {
+    // opts can be a number (legacy duration) or { action, onAction, duration }
+    const options = typeof opts === 'number' ? { duration: opts } : (opts || {});
+    const duration = options.duration || 2500;
+
     let container = document.querySelector('.toast-container');
     if (!container) {
       container = document.createElement('div');
@@ -56,12 +60,28 @@ const UI = {
 
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.textContent = message;
+
+    if (options.action) {
+      const textSpan = document.createElement('span');
+      textSpan.textContent = message;
+      const actionBtn = document.createElement('button');
+      actionBtn.className = 'toast-action';
+      actionBtn.textContent = options.action;
+      actionBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (options.onAction) options.onAction();
+        toast.remove();
+      });
+      toast.appendChild(textSpan);
+      toast.appendChild(actionBtn);
+    } else {
+      toast.textContent = message;
+    }
+
     container.appendChild(toast);
 
     setTimeout(() => {
       toast.classList.add('leaving');
-      // Fallback removal if animationend doesn't fire (backgrounded tab, iOS quirks)
       const fallback = setTimeout(() => toast.remove(), 500);
       toast.addEventListener('animationend', () => {
         clearTimeout(fallback);
@@ -180,6 +200,8 @@ const UI = {
 
   // --- Render an entry item ---
   renderEntryItem(entry, analysisEntry) {
+    // Wrapper for swipe-to-delete positioning
+    const wrapper = UI.createElement('div', 'entry-swipe-wrap');
     const div = UI.createElement('div', 'entry-item');
     div.dataset.type = entry.type;
 
@@ -219,11 +241,12 @@ const UI = {
     }
 
     // Pending/stale analysis indicator
-    if (!analysisEntry && (isFood || entry.type === 'workout')) {
+    const showPending = isFood || entry.type === 'workout' || entry.type === 'supplement' || entry.type === 'custom';
+    if (!analysisEntry && showPending) {
       const pending = UI.createElement('div', 'entry-pending');
       pending.textContent = 'Pending analysis';
       body.appendChild(pending);
-    } else if (isStale && (isFood || entry.type === 'workout')) {
+    } else if (isStale && showPending) {
       const stale = UI.createElement('div', 'entry-pending');
       stale.textContent = 'Updated · pending re-analysis';
       body.appendChild(stale);
@@ -243,8 +266,11 @@ const UI = {
     div.appendChild(icon);
     div.appendChild(body);
 
-    // Tap entry to open edit modal
-    div.addEventListener('click', () => UI.showEditModal(entry));
+    // Tap entry to open edit modal (only if not mid-swipe)
+    div.addEventListener('click', () => {
+      if (div.classList.contains('swiped')) return;
+      UI.showEditModal(entry);
+    });
 
     // Load photo thumbnail if entry has a photo
     if (entry.photo) {
@@ -293,7 +319,10 @@ const UI = {
       }
     }
 
-    return div;
+    // Swipe-to-delete setup
+    UI._setupSwipeDelete(wrapper, div, entry);
+    wrapper.appendChild(div);
+    return wrapper;
   },
 
   // Render an entry from analysis data (read-only, used when IndexedDB entries are missing)
@@ -480,6 +509,86 @@ const UI = {
         console.error('Delete failed:', err);
         UI.toast('Failed to delete', 'error');
       }
+    });
+  },
+
+  // --- Swipe-to-delete on entry cards ---
+  _setupSwipeDelete(wrapper, card, entry) {
+    let startX = 0, startY = 0, currentX = 0, swiping = false;
+    const THRESHOLD = 80;
+
+    const deleteBtn = document.createElement('div');
+    deleteBtn.className = 'entry-delete-bg';
+    deleteBtn.textContent = 'Delete';
+    wrapper.appendChild(deleteBtn);
+
+    card.addEventListener('touchstart', (e) => {
+      // Reset any other swiped entries first
+      document.querySelectorAll('.entry-item.swiped').forEach(other => {
+        if (other !== card) { other.style.transform = ''; other.classList.remove('swiped'); }
+      });
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      currentX = 0;
+      swiping = false;
+      card.style.transition = 'none';
+    }, { passive: true });
+
+    card.addEventListener('touchmove', (e) => {
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+      if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) swiping = true;
+      if (!swiping) return;
+      currentX = Math.min(0, dx);
+      card.style.transform = `translateX(${currentX}px)`;
+    }, { passive: true });
+
+    card.addEventListener('touchend', () => {
+      card.style.transition = 'transform 0.2s ease';
+      if (currentX < -THRESHOLD) {
+        card.style.transform = `translateX(-${THRESHOLD}px)`;
+        card.classList.add('swiped');
+      } else {
+        card.style.transform = '';
+        card.classList.remove('swiped');
+      }
+      swiping = false;
+    });
+
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Slide out
+      card.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+      card.style.transform = 'translateX(-100%)';
+      card.style.opacity = '0';
+      deleteBtn.style.opacity = '0';
+
+      let undone = false;
+      const timer = setTimeout(async () => {
+        if (undone) return;
+        try {
+          await DB.deleteEntry(entry.id);
+          wrapper.remove();
+          CloudRelay.queueUpload(entry.date);
+        } catch (err) {
+          console.error('Delete failed:', err);
+          UI.toast('Failed to delete', 'error');
+        }
+      }, 4000);
+
+      UI.toast(`Deleted ${UI.entryLabel(entry.type, entry.subtype).toLowerCase()}`, 'info', {
+        action: 'Undo',
+        onAction: () => {
+          undone = true;
+          clearTimeout(timer);
+          card.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+          card.style.transform = '';
+          card.style.opacity = '';
+          deleteBtn.style.opacity = '';
+          card.classList.remove('swiped');
+        },
+        duration: 4000,
+      });
     });
   },
 };
