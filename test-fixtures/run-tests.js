@@ -1931,9 +1931,9 @@ async function testVisualQA(page, fixtures) {
       gaps.push({ between: `${nameA}→${nameB}`, gap });
     };
 
-    measure('score', score, 'segments', segments);
-    if (statsCards.length > 0) measure('segments', segments, 'stats', statsCards[0]);
-    if (statsCards.length >= 4) measure('stats', statsCards[3], 'quickActions', quickActions);
+    measure('score', score, 'stats', statsCards[0]);
+    if (statsCards.length >= 4) measure('stats', statsCards[3], 'segments', segments);
+    measure('segments', segments, 'quickActions', quickActions);
     measure('quickActions', quickActions, 'entries', entryList);
 
     return gaps;

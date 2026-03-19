@@ -1162,6 +1162,7 @@ input[type="range"]::-webkit-slider-thumb {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-sm);
+  margin-top: var(--space-md);
 }
 
 .stat-card {
