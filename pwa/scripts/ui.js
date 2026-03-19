@@ -527,6 +527,13 @@ const UI = {
       document.querySelectorAll('.entry-item.swiped').forEach(other => {
         if (other !== card) { other.style.transform = ''; other.classList.remove('swiped'); }
       });
+      // If this card is already swiped, reset it on new touch
+      if (card.classList.contains('swiped')) {
+        card.style.transition = 'transform 0.2s ease';
+        card.style.transform = '';
+        card.classList.remove('swiped');
+        return;
+      }
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
       currentX = 0;
@@ -564,21 +571,22 @@ const UI = {
       deleteBtn.style.opacity = '0';
 
       let undone = false;
-      const timer = setTimeout(async () => {
+      const timer = setTimeout(() => {
         if (undone) return;
-        try {
-          await DB.deleteEntry(entry.id);
+        undone = true; // Prevent undo after timer fires
+        DB.deleteEntry(entry.id).then(() => {
           wrapper.remove();
           CloudRelay.queueUpload(entry.date);
-        } catch (err) {
+        }).catch(err => {
           console.error('Delete failed:', err);
           UI.toast('Failed to delete', 'error');
-        }
+        });
       }, 4000);
 
       UI.toast(`Deleted ${UI.entryLabel(entry.type, entry.subtype).toLowerCase()}`, 'info', {
         action: 'Undo',
         onAction: () => {
+          if (undone) return; // Timer already fired
           undone = true;
           clearTimeout(timer);
           card.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
