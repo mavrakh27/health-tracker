@@ -60,11 +60,11 @@ function buildFixtures() {
 
   // --- DAILY SUMMARIES ---
   const summaries = [
-    { date: day1, water_oz: 72, weight: 145.2, sleep: { hours: 7.5, quality: 'good' } },
-    { date: day2, water_oz: 32, weight: 145.0 },
-    { date: day3, water_oz: 64, weight: 144.8, sleep: { hours: 8, quality: 'great' } },
+    { date: day1, water_oz: 72, weight: { value: 145.2, unit: 'lbs', timestamp: ts(day1, 7, 0) }, sleep: { hours: 7.5, quality: 'good' } },
+    { date: day2, water_oz: 32, weight: { value: 145.0, unit: 'lbs', timestamp: ts(day2, 7, 30) } },
+    { date: day3, water_oz: 64, weight: { value: 144.8, unit: 'lbs', timestamp: ts(day3, 8, 0) }, sleep: { hours: 8, quality: 'great' } },
     { date: day4, water_oz: 8 },
-    { date: day5, water_oz: 24, weight: 145.5 },
+    { date: day5, water_oz: 24, weight: { value: 145.5, unit: 'lbs', timestamp: ts(day5, 7, 0) } },
   ];
 
   // --- ANALYSIS (mirrors what Claude processing would produce) ---
@@ -319,7 +319,12 @@ function buildFixtures() {
     { date: day3, am: [], pm: [] }, // skipped everything
   ];
 
-  return { entries, summaries, analyses, goals, regimen, mealPlan, photos, skincareProfile, skincareLogs, dates: [day1, day2, day3, day4, day5] };
+  const bodyPhotoTypes = [
+    { key: 'body', name: 'Body' },
+    { key: 'face', name: 'Face' },
+  ];
+
+  return { entries, summaries, analyses, goals, regimen, mealPlan, photos, skincareProfile, skincareLogs, bodyPhotoTypes, dates: [day1, day2, day3, day4, day5] };
 }
 
 module.exports = { buildFixtures, generateTestDates };

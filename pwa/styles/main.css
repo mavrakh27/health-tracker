@@ -125,7 +125,7 @@ body {
   font-weight: 700;
   font-family: var(--font-sans);
   padding: var(--space-xs) var(--space-md);
-  min-height: 32px;
+  min-height: 44px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   margin-left: var(--space-xs);

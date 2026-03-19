@@ -40,6 +40,18 @@ const ProgressView = {
     container.querySelectorAll('.cal-day:not(.empty)').forEach(el => {
       el.addEventListener('click', () => App.goToDate(el.dataset.date));
     });
+
+    // Wire weight chart touch interaction (Trends tab)
+    if (activeTab === 'trends') {
+      ProgressView._initWeightChartTouch();
+      // Wire photo scroll reveal
+      container.querySelectorAll('.progress-photos-scroll').forEach(el => ProgressView._wirePhotoScroll(el));
+    }
+    // Wire face photo scroll (Skin tab)
+    if (activeTab === 'skin') {
+      const faceScroll = container.querySelector('.progress-photos-scroll');
+      if (faceScroll) ProgressView._wirePhotoScroll(faceScroll);
+    }
   },
 
   // --- Insights ---
@@ -310,8 +322,7 @@ const ProgressView = {
     </div>`;
     html += '</div>';
 
-    // Wire touch interaction after DOM paint
-    setTimeout(() => ProgressView._initWeightChartTouch(), 0);
+    // Touch interaction is wired in init() after innerHTML is set
 
     // AM vs PM pattern — only show when there are enough timestamped measurements
     if (allMeasurements.length >= 5) {

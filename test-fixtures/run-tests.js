@@ -208,6 +208,11 @@ async function injectFixtures(page) {
       }
     }
 
+    // Inject body photo types
+    if (data.bodyPhotoTypes) {
+      try { await DB.setProfile('bodyPhotoTypes', data.bodyPhotoTypes); } catch (e) {}
+    }
+
     // Inject skincare daily logs (Phase 1+ only — store may not exist yet)
     if (data.skincareLogs) {
       for (const log of data.skincareLogs) {
@@ -1912,7 +1917,66 @@ async function testVisualQA(page, fixtures) {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
 
-  // 11. Today screen section spacing is consistent (>= 12px between major sections)
+  // 11. Today button — appears on past dates, hidden on today, meets touch target
+  for (let i = 0; i < 2; i++) { await page.click('#header-prev'); await page.waitForTimeout(200); }
+  await page.waitForTimeout(300);
+
+  const todayBtnCheck = await page.evaluate(() => {
+    const btn = document.getElementById('header-today');
+    if (!btn) return { found: false };
+    const rect = btn.getBoundingClientRect();
+    const style = getComputedStyle(btn);
+    return { found: true, display: style.display, h: Math.round(rect.height), w: Math.round(rect.width), visible: style.display !== 'none' && rect.width > 0 };
+  });
+  assert(todayBtnCheck.found && todayBtnCheck.visible, 'Today button visible on past date');
+  assert(todayBtnCheck.h >= 44, `Today button meets 44px touch target (got ${todayBtnCheck.h}px)`);
+
+  // Click Today to go back
+  await page.click('#header-today');
+  await page.waitForTimeout(500);
+
+  const todayBtnHidden = await page.evaluate(() => {
+    const btn = document.getElementById('header-today');
+    return btn ? getComputedStyle(btn).display : 'missing';
+  });
+  assert(todayBtnHidden === 'none', 'Today button hidden when on today');
+
+  // 11b. Weight chart renders with fixture data
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  await page.click('.segment-btn[data-ptab="trends"]');
+  await page.waitForTimeout(500);
+
+  const weightChartCheck = await page.evaluate(() => {
+    const svg = document.getElementById('weight-trend-svg');
+    if (!svg) return { found: false };
+    const points = JSON.parse(svg.dataset.points || '[]');
+    const tooltip = document.querySelector('.weight-chart-tooltip');
+    return { found: true, pointCount: points.length, hasTooltip: !!tooltip, h: Math.round(svg.getBoundingClientRect().height) };
+  });
+  assert(weightChartCheck.found, 'Weight trend chart renders');
+  assert(weightChartCheck.pointCount >= 3, `Weight chart has data points (got ${weightChartCheck.pointCount})`);
+  assert(weightChartCheck.hasTooltip, 'Weight chart has tooltip element for touch interaction');
+
+  // 11c. Progress photos grouped by subtype
+  const photoSubtypes = await page.evaluate(() => {
+    const subtypes = document.querySelectorAll('.progress-photos-subtype');
+    return Array.from(subtypes).map(st => ({
+      label: st.querySelector('.progress-photos-subtype-label')?.textContent?.trim() || '',
+      hasPhotos: st.querySelectorAll('.progress-photo-card').length > 0,
+      hasEmpty: !!st.querySelector('.progress-photos-empty'),
+    }));
+  });
+  assert(photoSubtypes.length >= 2, `Progress photos has ${photoSubtypes.length} subtype sections (expected >= 2)`);
+  const bodySection = photoSubtypes.find(s => s.label === 'Body');
+  assert(bodySection, 'Progress photos has Body section');
+
+  // Go back to Today screen for remaining tests
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.click('.today-seg-btn[data-panel="diet"]').catch(() => {});
+
+  // 11d. Today screen section spacing is consistent (>= 12px between major sections)
   await page.click('nav button:has-text("Today")');
   await page.waitForTimeout(300);
   await page.click('.today-seg-btn[data-panel="diet"]').catch(() => {});
