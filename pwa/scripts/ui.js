@@ -306,6 +306,7 @@ const UI = {
         const thumb = UI.createElement('img', 'entry-photo-thumb');
         thumb.alt = '';
         thumb.loading = 'lazy';
+        thumb.style.display = 'none'; // Hidden until photo loads
         DB.getPhotos(entry.id).then(photos => {
           if (photos.length > 0 && photos[0].blob) {
             const blobUrl = URL.createObjectURL(photos[0].blob);
@@ -314,6 +315,9 @@ const UI = {
               return;
             }
             thumb.src = blobUrl;
+            thumb.style.display = ''; // Show once loaded
+          } else {
+            thumb.remove(); // No photo blob — remove empty box
           }
         });
         div.appendChild(thumb);

@@ -1858,6 +1858,89 @@ async function testVisualQA(page, fixtures) {
     assert(textareaIssues.length === 0, `${scr}: all textareas have adequate padding (${textareaIssues.length} issues${textareaIssues.length > 0 ? ': ' + textareaIssues.map(t => `${t.id}[${t.issue}${t.paddingBottom != null ? '=' + t.paddingBottom + 'px' : ''}]`).join(', ') : ''})`);
   }
 
+  // 10. Photo thumbnails — entries with photos must render actual images (not empty boxes)
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  if (dietBtn) { await dietBtn.click(); await page.waitForTimeout(300); }
+
+  const brokenPhotos = await page.evaluate(() => {
+    const thumbs = document.querySelectorAll('.entry-photo-thumb');
+    const broken = [];
+    for (const el of thumbs) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      if (el.tagName === 'IMG' && (!el.src || el.naturalWidth === 0)) {
+        broken.push({ w: Math.round(rect.width), h: Math.round(rect.height) });
+      }
+    }
+    return broken;
+  });
+
+  assert(brokenPhotos.length === 0, `No broken/empty photo thumbnails (${brokenPhotos.length} entries show empty ${brokenPhotos.length > 0 ? brokenPhotos[0].w + 'x' + brokenPhotos[0].h + ' boxes' : ''})`);
+
+  // 10b. Orphan photo resilience — entry with photo:true but no blob should NOT show empty gray box
+  await page.evaluate(async () => {
+    await DB.addEntry({
+      id: 'test_orphan_photo',
+      type: 'meal', subtype: null,
+      date: new Date().toISOString().split('T')[0],
+      timestamp: new Date().toISOString(),
+      notes: 'Orphan photo test', photo: true, duration_minutes: null,
+    });
+  });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1500);
+
+  const orphanCheck = await page.evaluate(() => {
+    const thumbs = document.querySelectorAll('.entry-photo-thumb');
+    const visible = [];
+    for (const el of thumbs) {
+      const rect = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      if (style.display === 'none' || rect.width === 0) continue;
+      if (el.tagName === 'IMG' && (!el.src || el.src === '' || el.naturalWidth === 0)) {
+        visible.push({ w: Math.round(rect.width), h: Math.round(rect.height) });
+      }
+    }
+    return visible;
+  });
+
+  assert(orphanCheck.length === 0, `Orphan photo entries don't show empty gray box (${orphanCheck.length} visible${orphanCheck.length > 0 ? ': ' + orphanCheck[0].w + 'x' + orphanCheck[0].h : ''})`);
+
+  // Clean up test entry
+  await page.evaluate(async () => { await DB.deleteEntry('test_orphan_photo'); });
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1000);
+
+  // 11. No excessive empty gaps on any screen (> 40% of viewport between content and nav)
+  for (const scr of ['Today', 'Coach', 'Progress', 'Settings']) {
+    await page.click(`nav button:has-text("${scr}")`);
+    await page.waitForTimeout(500);
+
+    const gap = await page.evaluate((name) => {
+      const screen = document.querySelector('.screen.active');
+      const nav = document.querySelector('.bottom-nav');
+      if (!screen || !nav) return { ok: true };
+
+      const allContent = screen.querySelectorAll('*');
+      let lastBottom = 0;
+      for (const el of allContent) {
+        if (el.children.length > 0) continue; // only leaf nodes
+        const style = getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') continue;
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0 && r.bottom > lastBottom) lastBottom = r.bottom;
+      }
+
+      const navTop = nav.getBoundingClientRect().top;
+      const emptyGap = navTop - lastBottom;
+      const gapPct = Math.round((emptyGap / window.innerHeight) * 100);
+      return { ok: gapPct <= 40, screen: name, gapPct, emptyGap: Math.round(emptyGap) };
+    }, scr);
+
+    assert(gap.ok, `${gap.screen}: no excessive empty space (${gap.gapPct}% gap = ${gap.emptyGap}px between content and nav)`);
+  }
+
   await screenshot(page, 'visual-qa');
 }
 
