@@ -72,7 +72,8 @@ const QuickLog = {
         } else if (type === 'weight') {
           QuickLog.showWeightEntry();
         } else if (type === 'period') {
-          if (periodState.active) Period.end(); else Period.start();
+          const fresh = await Period.getState();
+          if (fresh.active) Period.end(); else Period.start();
         } else {
           // Show inline form for this type
           const logGrid = document.getElementById('log-type-grid-inline');

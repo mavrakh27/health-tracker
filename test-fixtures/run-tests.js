@@ -1748,6 +1748,7 @@ async function testVisualQA320(page, context, fixtures) {
   await smallPage.setViewportSize({ width: 320, height: 568 });
   await smallPage.goto(BASE_URL, { waitUntil: 'networkidle' });
   await smallPage.waitForTimeout(1500);
+  await smallPage.waitForFunction(() => typeof DB !== 'undefined' && typeof DB.openDB === 'function');
 
   // Re-inject fixtures on the small page
   await smallPage.evaluate(async (data) => {

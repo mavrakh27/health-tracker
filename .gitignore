@@ -23,6 +23,7 @@ data/
 .claude/session-log.md
 .claude/notes/
 .claude/.last-reviewed-commit
+.claude/test-screenshots/
 
 # Processing runtime
 processing/setup-task.ps1
