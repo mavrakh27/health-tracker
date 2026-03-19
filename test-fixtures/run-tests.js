@@ -2004,7 +2004,7 @@ async function testVisualQA(page, fixtures) {
   });
 
   for (const g of sectionGaps) {
-    assert(g.gap >= 12, `Section spacing ${g.between} >= 12px (got ${g.gap}px)`);
+    assert(g.gap >= 12 && g.gap <= 24, `Section spacing ${g.between} is 12-24px (got ${g.gap}px)`);
   }
 
   // 11b. Entry swipe wrappers don't clip entry content vertically
