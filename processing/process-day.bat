@@ -4,7 +4,7 @@ REM Runs Claude Code to analyze health data.
 REM Downloads pending ZIPs from cloud relay.
 REM
 REM IMPORTANT: Never deletes raw data. Archives instead.
-REM IMPORTANT: Never re-processes dates that already have analysis.
+REM IMPORTANT: Re-processes dates when the relay has new pending data (relay = new data = re-analyze).
 
 setlocal enabledelayedexpansion
 
@@ -64,13 +64,21 @@ for /f "usebackq delims=" %%d in (`powershell -NoProfile -Command "try { ($env:P
 if not "!RELAY_DATES!"=="" (
     echo [%TODAY%] Cloud relay has pending dates: !RELAY_DATES!
 
-    REM Download each pending day - always download, reprocess if data is newer than analysis
+    REM Download each pending day - relay only marks dates pending when new data is uploaded,
+    REM so always download and re-process, even if an analysis file already exists.
     for %%d in (!RELAY_DATES!) do (
         echo [%TODAY%] Downloading %%d from relay...
         curl -sf -o "%EXTRACT_DIR%\health-%%d.zip" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/%%d"
         if not errorlevel 1 (
             set /a ZIP_COUNT+=1
             set NEW_DATES=!NEW_DATES! %%d
+            REM If an analysis file exists for this date, remove it so Claude does full re-processing.
+            REM The relay only marks a date pending when the phone uploads new data, so pending = new data = re-analyze.
+            if exist "%DATA_DIR%\analysis\%%d.json" (
+                echo [%TODAY%] Removing stale analysis for %%d - relay has newer data.
+                del "%DATA_DIR%\analysis\%%d.json" >nul 2>&1
+                del "%DATA_DIR%\analysis\%%d.json.uploaded" >nul 2>&1
+            )
             REM Backup raw ZIP locally before any processing
             copy "%EXTRACT_DIR%\health-%%d.zip" "%BACKUP_DIR%\raw\" >nul 2>&1
             REM Extract the downloaded ZIP
