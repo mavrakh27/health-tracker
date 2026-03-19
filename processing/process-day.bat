@@ -21,7 +21,9 @@ if "%TODAY%"=="" (
 )
 
 REM --- Lock file check (watcher.ps1 owns lock lifecycle, but guard against direct runs) ---
-if exist "%LOCK_FILE%" (
+if defined WATCHER_OWNS_LOCK (
+    echo [%TODAY%] Lock owned by watcher - proceeding.
+) else if exist "%LOCK_FILE%" (
     echo [%TODAY%] Another processing run is in progress - lock file exists. Aborting.
     exit /b 0
 )
