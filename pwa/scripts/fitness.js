@@ -194,11 +194,11 @@ const Fitness = {
         <div class="card fitness-notes-card" id="fitness-notes-card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
           ${notes ? `
             <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; font-weight:600; margin-bottom:var(--space-xs);">Notes</div>
-            <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did it feel? Any modifications?" rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes)}</textarea>
+            <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did it feel? Any modifications?" rows="1" style="border:none; padding:0 0 8px; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes)}</textarea>
             <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); font-size:var(--text-xs); opacity:0.6;">Save</button>
           ` : `
             <button class="btn btn-ghost fitness-notes-prompt" id="fitness-notes-prompt" style="width:100%; text-align:left; color:var(--text-muted); font-size:var(--text-sm); padding:0;">+ Add notes...</button>
-            <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did it feel? Any modifications?" rows="2" style="display:none; border:none; padding:0; background:transparent; font-size:var(--text-sm);"></textarea>
+            <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did it feel? Any modifications?" rows="2" style="display:none; border:none; padding:0 0 8px; background:transparent; font-size:var(--text-sm);"></textarea>
             <button class="btn btn-ghost" id="fitness-save-btn" style="display:none; margin-top:var(--space-xs); font-size:var(--text-xs); opacity:0.6;">Save</button>
           `}
         </div>
@@ -274,11 +274,11 @@ const Fitness = {
       <div class="card fitness-notes-card" id="fitness-notes-card" style="margin-top:var(--space-sm); padding:var(--space-sm) var(--space-md);">
         ${notes ? `
           <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:uppercase; font-weight:600; margin-bottom:var(--space-xs);">Notes</div>
-          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did the workout feel? Any modifications?" rows="1" style="border:none; padding:0; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes)}</textarea>
+          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did the workout feel? Any modifications?" rows="1" style="border:none; padding:0 0 8px; background:transparent; font-size:var(--text-sm);">${UI.escapeHtml(notes)}</textarea>
           <button class="btn btn-ghost" id="fitness-save-btn" style="margin-top:var(--space-xs); font-size:var(--text-xs); opacity:0.6;">Save</button>
         ` : `
           <button class="btn btn-ghost fitness-notes-prompt" id="fitness-notes-prompt" style="width:100%; text-align:left; color:var(--text-muted); font-size:var(--text-sm); padding:0;">+ Add notes...</button>
-          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did the workout feel? Any modifications?" rows="2" style="display:none; border:none; padding:0; background:transparent; font-size:var(--text-sm);"></textarea>
+          <textarea class="form-input fitness-notes" id="fitness-notes" placeholder="How did the workout feel? Any modifications?" rows="2" style="display:none; border:none; padding:0 0 8px; background:transparent; font-size:var(--text-sm);"></textarea>
           <button class="btn btn-ghost" id="fitness-save-btn" style="display:none; margin-top:var(--space-xs); font-size:var(--text-xs); opacity:0.6;">Save</button>
         `}
       </div>

@@ -1737,6 +1737,127 @@ async function testVisualQA(page, fixtures) {
 
   assert(entryHeights.length === 0, `All entry cards >= 48px tall (${entryHeights.length} too short${entryHeights.length > 0 ? ': ' + entryHeights.map(e => `"${e.text}" ${e.h}px`).join(', ') : ''})`);
 
+  // 8. Edit modal textarea — caret visible, content not clipped
+  // Navigate to a day with entries and open the edit modal
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+
+  const entryItem = await page.$('.entry-swipe-wrap .entry-item');
+  if (entryItem) {
+    await entryItem.click();
+    await page.waitForTimeout(500);
+
+    const textareaCheck = await page.evaluate(() => {
+      const textarea = document.getElementById('edit-notes');
+      if (!textarea) return { found: false };
+
+      const style = getComputedStyle(textarea);
+      const rect = textarea.getBoundingClientRect();
+
+      // Check that textarea has enough height for its content
+      const contentOverflows = textarea.scrollHeight > textarea.clientHeight + 4;
+
+      // Check padding — bottom padding should be adequate for cursor
+      const paddingBottom = parseFloat(style.paddingBottom);
+
+      // Focus and check caret would be visible
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+
+      // After focus, textarea rect should be within the modal sheet
+      const sheet = textarea.closest('.modal-sheet');
+      const sheetRect = sheet ? sheet.getBoundingClientRect() : null;
+      const textareaInSheet = sheetRect ? (rect.bottom <= sheetRect.bottom + 2) : true;
+
+      return {
+        found: true,
+        height: Math.round(rect.height),
+        scrollHeight: textarea.scrollHeight,
+        clientHeight: textarea.clientHeight,
+        contentOverflows,
+        paddingBottom: Math.round(paddingBottom),
+        overflowY: style.overflowY,
+        textareaInSheet,
+      };
+    });
+
+    if (textareaCheck.found) {
+      assert(!textareaCheck.contentOverflows, `Edit modal textarea content not clipped (scrollH=${textareaCheck.scrollHeight}, clientH=${textareaCheck.clientHeight})`);
+      assert(textareaCheck.paddingBottom >= 8, `Edit modal textarea has adequate bottom padding for cursor (${textareaCheck.paddingBottom}px)`);
+      assert(textareaCheck.textareaInSheet, 'Edit modal textarea is within modal sheet bounds');
+    }
+
+    // Close modal
+    const closeBtn = await page.$('#edit-close');
+    if (closeBtn) { await closeBtn.click(); await page.waitForTimeout(300); }
+  }
+
+  // 9. All textareas — verify none clip content AND all have adequate bottom padding for cursor
+  // Check each screen AND each Today panel (fitness has its own textareas)
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+
+  // Expand fitness notes textarea (hidden behind prompt by default)
+  const fitSeg = await page.$('.today-seg-btn[data-panel="fitness"]');
+  if (fitSeg) { await fitSeg.click(); await page.waitForTimeout(400); }
+  const notesPrompt = await page.$('.fitness-notes-prompt');
+  if (notesPrompt) { await notesPrompt.click(); await page.waitForTimeout(300); }
+
+  // Check fitness panel textarea while it's the active panel
+  const fitTextareaIssues = await page.evaluate(() => {
+    const issues = [];
+    const textareas = document.querySelectorAll('#panel-fitness textarea, #today-workout textarea');
+    for (const ta of textareas) {
+      const style = getComputedStyle(ta);
+      if (style.display === 'none') continue;
+
+      const paddingBottom = parseFloat(style.paddingBottom);
+      if (paddingBottom < 8) {
+        issues.push({ id: ta.id || '', placeholder: ta.placeholder || '', issue: 'low padding-bottom', paddingBottom: Math.round(paddingBottom) });
+      }
+      if (ta.scrollHeight > ta.clientHeight + 4 && style.overflowY === 'hidden') {
+        issues.push({ id: ta.id || '', placeholder: ta.placeholder || '', issue: 'content clipped', scrollH: ta.scrollHeight, clientH: ta.clientHeight });
+      }
+    }
+    return issues;
+  });
+
+  assert(fitTextareaIssues.length === 0, `Fitness panel textareas have adequate padding (${fitTextareaIssues.length} issues${fitTextareaIssues.length > 0 ? ': ' + fitTextareaIssues.map(t => `${t.id}[${t.issue}${t.paddingBottom != null ? '=' + t.paddingBottom + 'px' : ''}]`).join(', ') : ''})`);
+
+  // Switch back to diet
+  const dietSeg2 = await page.$('.today-seg-btn[data-panel="diet"]');
+  if (dietSeg2) { await dietSeg2.click(); await page.waitForTimeout(300); }
+
+  // Check Coach and Settings screens
+  for (const scr of ['Coach', 'Settings']) {
+    await page.click(`nav button:has-text("${scr}")`);
+    await page.waitForTimeout(400);
+
+    const textareaIssues = await page.evaluate((screenName) => {
+      const screen = document.querySelector('.screen.active');
+      if (!screen) return [];
+      const textareas = screen.querySelectorAll('textarea');
+      const issues = [];
+      for (const ta of textareas) {
+        const style = getComputedStyle(ta);
+        if (style.display === 'none') continue;
+        const rect = ta.getBoundingClientRect();
+        if (rect.height === 0) continue;
+
+        if (ta.scrollHeight > ta.clientHeight + 4 && style.overflowY === 'hidden') {
+          issues.push({ screen: screenName, id: ta.id || '', issue: 'content clipped' });
+        }
+        const paddingBottom = parseFloat(style.paddingBottom);
+        if (paddingBottom < 8) {
+          issues.push({ screen: screenName, id: ta.id || '', issue: 'low padding-bottom', paddingBottom: Math.round(paddingBottom) });
+        }
+      }
+      return issues;
+    }, scr);
+
+    assert(textareaIssues.length === 0, `${scr}: all textareas have adequate padding (${textareaIssues.length} issues${textareaIssues.length > 0 ? ': ' + textareaIssues.map(t => `${t.id}[${t.issue}${t.paddingBottom != null ? '=' + t.paddingBottom + 'px' : ''}]`).join(', ') : ''})`);
+  }
+
   await screenshot(page, 'visual-qa');
 }
 
