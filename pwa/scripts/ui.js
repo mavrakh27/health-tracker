@@ -161,12 +161,32 @@ const UI = {
     document.addEventListener('focusin', (e) => {
       const el = e.target;
       if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-        // Delay to let keyboard animation finish
         setTimeout(() => {
+          // If inside a modal, scroll within the modal sheet
+          const sheet = el.closest('.modal-sheet');
+          if (sheet) {
+            sheet.scrollTop = el.offsetTop - sheet.clientHeight / 3;
+          }
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 300);
       }
     });
+
+    // Adjust modals when virtual keyboard opens (iOS)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => {
+        const focused = document.activeElement;
+        if (focused && (focused.tagName === 'INPUT' || focused.tagName === 'TEXTAREA')) {
+          const sheet = focused.closest('.modal-sheet');
+          if (sheet) {
+            // Shrink modal to fit above keyboard
+            const vvh = window.visualViewport.height;
+            sheet.style.maxHeight = (vvh - 20) + 'px';
+            setTimeout(() => focused.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+          }
+        }
+      });
+    }
   },
 
   // --- DOM Helpers ---

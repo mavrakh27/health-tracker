@@ -368,8 +368,14 @@ const QuickLog = {
       if (result) showPreview(result);
     });
 
-    // Focus textarea after render
-    requestAnimationFrame(() => document.getElementById('fn-notes')?.focus());
+    // Focus textarea and scroll into view when keyboard opens
+    const fnNotes = document.getElementById('fn-notes');
+    if (fnNotes) {
+      fnNotes.addEventListener('focus', () => {
+        setTimeout(() => fnNotes.scrollIntoView({ behavior: 'smooth', block: 'center' }), 300);
+      });
+      requestAnimationFrame(() => fnNotes.focus());
+    }
 
     let saving = false;
     document.getElementById('fn-save').addEventListener('click', async () => {
