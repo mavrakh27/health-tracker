@@ -1310,13 +1310,18 @@ input[type="range"]::-webkit-slider-thumb {
   width: 80px;
   background: var(--accent-red);
   color: #fff;
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: var(--text-sm);
   cursor: pointer;
   transition: opacity 0.2s ease;
+}
+
+.entry-item.swiped ~ .entry-delete-bg,
+.entry-swipe-wrap.swiping .entry-delete-bg {
+  display: flex;
 }
 
 @keyframes toastIn {

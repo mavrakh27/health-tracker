@@ -556,7 +556,10 @@ const UI = {
     card.addEventListener('touchmove', (e) => {
       const dx = e.touches[0].clientX - startX;
       const dy = e.touches[0].clientY - startY;
-      if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) swiping = true;
+      if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        swiping = true;
+        wrapper.classList.add('swiping');
+      }
       if (!swiping) return;
       currentX = Math.min(0, dx);
       card.style.transform = `translateX(${currentX}px)`;
@@ -564,6 +567,7 @@ const UI = {
 
     card.addEventListener('touchend', () => {
       card.style.transition = 'transform 0.2s ease';
+      if (!card.classList.contains('swiped')) wrapper.classList.remove('swiping');
       if (currentX < -THRESHOLD) {
         card.style.transform = `translateX(-${THRESHOLD}px)`;
         card.classList.add('swiped');

@@ -2007,7 +2007,22 @@ async function testVisualQA(page, fixtures) {
     assert(g.gap >= 12 && g.gap <= 24, `Section spacing ${g.between} is 12-24px (got ${g.gap}px)`);
   }
 
-  // 11b. Entry swipe wrappers don't clip entry content vertically
+  // 11b. Delete-bg not visible when entry is not swiped (no red corner peek)
+  const deleteBgVisible = await page.evaluate(() => {
+    const bgs = document.querySelectorAll('.entry-delete-bg');
+    const visible = [];
+    for (const bg of bgs) {
+      const style = getComputedStyle(bg);
+      if (style.display !== 'none') {
+        visible.push({ display: style.display });
+      }
+    }
+    return visible;
+  });
+
+  assert(deleteBgVisible.length === 0, `No delete-bg visible when not swiping (${deleteBgVisible.length} visible)`);
+
+  // 11c. Entry swipe wrappers don't clip entry content vertically
   const wrapClipping = await page.evaluate(() => {
     const wraps = document.querySelectorAll('.entry-swipe-wrap');
     const issues = [];
