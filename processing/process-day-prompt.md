@@ -69,8 +69,10 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
 2. **Analyze each meal/snack/drink entry:**
    - Look at the photo (if present) and read the text notes
    - Identify the food items and estimate portion sizes
-   - Calculate calories, protein, carbs, and fat
-   - **Always round up / over-estimate** when uncertain — better to over-count than under-count. If a portion could be 300-400 cal, call it 400. If size is ambiguous, assume the larger portion.
+   - **Use WebSearch to look up actual calorie/nutrition data** for identified foods. Search for specific items (e.g. "pork belly bao calories", "salmon sashimi nutrition per oz"). Use real data from USDA, restaurant nutrition pages, or reliable nutrition databases - don't guess from memory.
+   - If a photo shows a label or menu item, search for that specific product/restaurant item's published nutrition facts.
+   - Calculate calories, protein, carbs, and fat based on looked-up data and estimated portions
+   - **Always round up / over-estimate** when uncertain - better to over-count than under-count. If a portion could be 300-400 cal, call it 400. If size is ambiguous, assume the larger portion.
    - Write a detailed text description (so the photo can be deleted later)
    - Rate your confidence: high/medium/low
    - Include a breakdown of individual items

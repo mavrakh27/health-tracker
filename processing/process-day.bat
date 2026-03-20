@@ -106,7 +106,7 @@ echo [%TODAY%] Processing !ZIP_COUNT! new days of data...
 
 REM --- Run Claude Code to process extracted data ---
 echo [%TODAY%] Running Claude Code analysis...
-claude -p "Process the health data that has been extracted to %EXTRACT_DIR%. Today is %TODAY%. The data root is %DATA_DIR%. Follow the instructions in %REPO_DIR%\processing\process-day-prompt.md. There may be data from multiple days - process each day found." --allowedTools "Read,Write,Glob,Grep,Bash" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
+claude -p "Process the health data that has been extracted to %EXTRACT_DIR%. Today is %TODAY%. The data root is %DATA_DIR%. Follow the instructions in %REPO_DIR%\processing\process-day-prompt.md. There may be data from multiple days - process each day found." --allowedTools "Read,Write,Glob,Grep,Bash,WebSearch,WebFetch" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
 
 echo MARKER:claude-done >>"%DATA_DIR%\logs\%TODAY%.log"
 if errorlevel 1 (
