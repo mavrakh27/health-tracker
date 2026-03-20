@@ -124,10 +124,10 @@ REM --- Upload results back to cloud relay ---
 REM Upload analysis files that are new or modified since last upload.
 REM Uses .uploaded marker files to track state. Catches crashed runs.
 REM Always runs — even when no new ZIPs — to catch files from previous failed uploads.
-echo [%TODAY%] Uploading analysis results to cloud relay...
+echo [%TODAY%] Uploading analysis results to cloud relay... >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
 
 if not defined HEALTH_SYNC_URL (
-    echo [%TODAY%] WARNING: HEALTH_SYNC_URL not set — skipping upload.
+    echo [%TODAY%] WARNING: HEALTH_SYNC_URL not set — skipping upload. >>"%DATA_DIR%\logs\%TODAY%.log"
     goto :upload_done
 )
 
@@ -145,25 +145,25 @@ for %%f in ("%DATA_DIR%\analysis\????-??-??.json") do (
         )
     )
     if "!NEED_UPLOAD!"=="1" (
-        echo [%TODAY%] Uploading analysis for !ADATE!...
-        curl -sf -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%%f" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/!ADATE!/done"
+        echo [%TODAY%] Uploading analysis for !ADATE!... >>"%DATA_DIR%\logs\%TODAY%.log"
+        curl -sf -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%%f" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/!ADATE!/done" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
         if not errorlevel 1 (
-            echo [%TODAY%] Uploaded results for !ADATE!
+            echo [%TODAY%] Uploaded results for !ADATE! >>"%DATA_DIR%\logs\%TODAY%.log"
             echo %TODAY% %TIME% > "%%f.uploaded"
             set /a UPLOAD_COUNT+=1
         ) else (
-            echo [%TODAY%] WARNING: Failed to upload results for !ADATE! [curl exit !ERRORLEVEL!]
+            echo [%TODAY%] WARNING: Failed to upload results for !ADATE! [curl exit !ERRORLEVEL!] >>"%DATA_DIR%\logs\%TODAY%.log"
             set /a UPLOAD_FAIL+=1
         )
     )
 )
 if !UPLOAD_COUNT! gtr 0 (
-    echo [%TODAY%] Uploaded !UPLOAD_COUNT! analysis files.
+    echo [%TODAY%] Uploaded !UPLOAD_COUNT! analysis files. >>"%DATA_DIR%\logs\%TODAY%.log"
 ) else (
-    echo [%TODAY%] All analysis files up to date.
+    echo [%TODAY%] All analysis files up to date. >>"%DATA_DIR%\logs\%TODAY%.log"
 )
 if !UPLOAD_FAIL! gtr 0 (
-    echo [%TODAY%] WARNING: !UPLOAD_FAIL! upload(s) failed — will retry next run.
+    echo [%TODAY%] WARNING: !UPLOAD_FAIL! upload(s) failed — will retry next run. >>"%DATA_DIR%\logs\%TODAY%.log"
 )
 :upload_done
 REM Clean up old upload markers (>30 days)
