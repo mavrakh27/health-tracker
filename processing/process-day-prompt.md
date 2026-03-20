@@ -2,6 +2,10 @@
 
 You are analyzing today's health data exported from the Health Tracker PWA. The data arrives as a ZIP file extracted into the extracted folder.
 
+## Timezone (CRITICAL)
+
+**All timestamps in the data are UTC (ISO 8601).** The user is in US Pacific time (UTC-7 PDT / UTC-8 PST). A timestamp of `2026-03-19T01:57:00.000Z` is actually **6:57 PM PDT on March 18**, not 2 AM on March 19. Always convert timestamps to Pacific time before interpreting meal timing, workout timing, or categorizing entries as "morning", "evening", "late-night", etc. A meal at 7 PM local should not be called a "midnight snack."
+
 ## Day-of-Week Verification (CRITICAL)
 
 **Always compute the day of the week from the date string before processing.** The day of the week determines the workout regimen (e.g., Monday = cardio + core, Sunday = rest) and meal structure (office days vs home days). Never assume or guess the day — calculate it. Getting this wrong cascades into wrong regimen comparisons, wrong meal plans, and wrong weekly reviews.
