@@ -1,4 +1,5 @@
 @echo off
+chcp 65001 >nul 2>&1
 REM Health Tracker - Periodic Processing via Task Scheduler
 REM Runs Claude Code to analyze health data.
 REM Downloads pending ZIPs from cloud relay.
@@ -19,6 +20,10 @@ if "%TODAY%"=="" (
     echo [ERROR] Failed to determine today's date. Aborting.
     exit /b 1
 )
+
+echo [%TODAY%] process-day.bat starting >>"%DATA_DIR%\logs\%TODAY%.log"
+echo [%TODAY%] SYNC_URL defined: %HEALTH_SYNC_URL:~0,10% >>"%DATA_DIR%\logs\%TODAY%.log"
+echo [%TODAY%] WATCHER_LOCK: %WATCHER_OWNS_LOCK% >>"%DATA_DIR%\logs\%TODAY%.log"
 
 REM --- Lock file check (watcher.ps1 owns lock lifecycle, but guard against direct runs) ---
 if defined WATCHER_OWNS_LOCK (
@@ -45,12 +50,14 @@ set NEW_DATES=
 
 REM --- Download pending data from cloud relay ---
 if not defined HEALTH_SYNC_URL (
-    echo [%TODAY%] HEALTH_SYNC_URL not set. Cannot sync.
-    exit /b 1
+    echo [%TODAY%] HEALTH_SYNC_URL not set. Skipping download, checking local data... >>"%DATA_DIR%\logs\%TODAY%.log"
+    set ZIP_COUNT=0
+    goto :check_local
 )
 if not defined HEALTH_SYNC_KEY (
-    echo [%TODAY%] HEALTH_SYNC_KEY not set. Cannot sync.
-    exit /b 1
+    echo [%TODAY%] HEALTH_SYNC_KEY not set. Skipping download, checking local data... >>"%DATA_DIR%\logs\%TODAY%.log"
+    set ZIP_COUNT=0
+    goto :check_local
 )
 
 echo [%TODAY%] Checking cloud relay for pending data...
@@ -96,6 +103,7 @@ if not "!RELAY_DATES!"=="" (
     echo [%TODAY%] No pending data on cloud relay.
 )
 
+:check_local
 if !ZIP_COUNT! equ 0 (
     REM No new downloads, but check if extracted data exists with missing analysis
     set HAS_UNPROCESSED=0
