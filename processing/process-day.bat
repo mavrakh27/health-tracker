@@ -123,11 +123,11 @@ xcopy "%DATA_DIR%\corrections\*.json" "%BACKUP_DIR%\corrections\" /Y /Q >nul 2>&
 REM --- Upload results back to cloud relay ---
 REM Upload analysis files that are new or modified since last upload.
 REM Uses .uploaded marker files to track state. Catches crashed runs.
-REM Always runs — even when no new ZIPs — to catch files from previous failed uploads.
+REM Always runs -even when no new ZIPs -to catch files from previous failed uploads.
 echo [%TODAY%] Uploading analysis results to cloud relay... >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
 
 if not defined HEALTH_SYNC_URL (
-    echo [%TODAY%] WARNING: HEALTH_SYNC_URL not set — skipping upload. >>"%DATA_DIR%\logs\%TODAY%.log"
+    echo [%TODAY%] WARNING: HEALTH_SYNC_URL not set -skipping upload. >>"%DATA_DIR%\logs\%TODAY%.log"
     goto :upload_done
 )
 
@@ -163,7 +163,7 @@ if !UPLOAD_COUNT! gtr 0 (
     echo [%TODAY%] All analysis files up to date. >>"%DATA_DIR%\logs\%TODAY%.log"
 )
 if !UPLOAD_FAIL! gtr 0 (
-    echo [%TODAY%] WARNING: !UPLOAD_FAIL! upload(s) failed — will retry next run. >>"%DATA_DIR%\logs\%TODAY%.log"
+    echo [%TODAY%] WARNING: !UPLOAD_FAIL! upload(s) failed -will retry next run. >>"%DATA_DIR%\logs\%TODAY%.log"
 )
 :upload_done
 REM Clean up old upload markers (>30 days)
