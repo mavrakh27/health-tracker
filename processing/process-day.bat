@@ -108,18 +108,20 @@ REM --- Run Claude Code to process extracted data ---
 echo [%TODAY%] Running Claude Code analysis...
 claude -p "Process the health data that has been extracted to %EXTRACT_DIR%. Today is %TODAY%. The data root is %DATA_DIR%. Follow the instructions in %REPO_DIR%\processing\process-day-prompt.md. There may be data from multiple days - process each day found." --allowedTools "Read,Write,Glob,Grep,Bash" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
 
+echo MARKER:claude-done >>"%DATA_DIR%\logs\%TODAY%.log"
 if errorlevel 1 (
-    echo [%TODAY%] WARNING: Claude Code exited with an error. Check log: %DATA_DIR%\logs\%TODAY%.log
+    echo [%TODAY%] WARNING: Claude Code exited with an error. >>"%DATA_DIR%\logs\%TODAY%.log"
 )
 
-echo [%TODAY%] Claude Code analysis complete.
+echo MARKER:pre-backup >>"%DATA_DIR%\logs\%TODAY%.log"
 
 REM --- Backup analysis and corrections locally ---
-echo [%TODAY%] Backing up analysis and corrections...
+echo [%TODAY%] Backing up analysis and corrections... >>"%DATA_DIR%\logs\%TODAY%.log"
 xcopy "%DATA_DIR%\analysis\*.json" "%BACKUP_DIR%\analysis\" /Y /Q >nul 2>&1
 xcopy "%DATA_DIR%\corrections\*.json" "%BACKUP_DIR%\corrections\" /Y /Q >nul 2>&1
 
 :upload_results
+echo MARKER:upload-start >>"%DATA_DIR%\logs\%TODAY%.log"
 REM --- Upload results back to cloud relay ---
 REM Upload analysis files that are new or modified since last upload.
 REM Uses .uploaded marker files to track state. Catches crashed runs.
@@ -172,5 +174,6 @@ forfiles /p "%DATA_DIR%\analysis" /m "*.uploaded" /d -30 /c "cmd /c del @path" 2
 REM --- Clean up extracted data ---
 rmdir /s /q "%EXTRACT_DIR%" 2>nul
 
+echo MARKER:bat-done >>"%DATA_DIR%\logs\%TODAY%.log"
 echo [%TODAY%] Processing run complete.
 endlocal

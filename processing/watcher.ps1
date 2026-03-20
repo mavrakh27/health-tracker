@@ -97,6 +97,34 @@ try {
             $proc | Stop-Process -Force
         }
         Log "[watcher] Processing finished with exit code $($proc.ExitCode)."
+
+        # Fallback upload — bat's upload section may fail silently, so do it here too
+        Log "[watcher] Running fallback upload check..."
+        $analysisDir = "$dataDir\analysis"
+        $uploadCount = 0
+        Get-ChildItem -Path $analysisDir -Filter '????-??-??.json' -ErrorAction SilentlyContinue | ForEach-Object {
+            $marker = "$($_.FullName).uploaded"
+            $needUpload = $false
+            if (-not (Test-Path $marker)) {
+                $needUpload = $true
+            } elseif ($_.LastWriteTime -gt (Get-Item $marker).LastWriteTime) {
+                $needUpload = $true
+            }
+            if ($needUpload) {
+                $adate = $_.BaseName
+                try {
+                    $resp = Invoke-RestMethod -Uri "$syncUrl/sync/$syncKey/day/$adate/done" -Method Post -ContentType 'application/json; charset=utf-8' -InFile $_.FullName -TimeoutSec 30
+                    if ($resp.ok) {
+                        Get-Date | Out-File $marker -Encoding ascii
+                        $uploadCount++
+                        Log "[watcher] Uploaded analysis for $adate"
+                    }
+                } catch {
+                    Log "[watcher] Upload failed for $adate : $_"
+                }
+            }
+        }
+        if ($uploadCount -gt 0) { Log "[watcher] Uploaded $uploadCount analysis file(s) via fallback." }
     } finally {
         if (Test-Path $lockFile) { Remove-Item $lockFile -Force }
     }
