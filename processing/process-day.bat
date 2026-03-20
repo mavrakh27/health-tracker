@@ -97,9 +97,22 @@ if not "!RELAY_DATES!"=="" (
 )
 
 if !ZIP_COUNT! equ 0 (
-    echo [%TODAY%] No new data to process. Checking for un-uploaded analysis...
-    rmdir /s /q "%EXTRACT_DIR%" 2>nul
-    goto :upload_results
+    REM No new downloads, but check if extracted data exists with missing analysis
+    set HAS_UNPROCESSED=0
+    if exist "%EXTRACT_DIR%\daily" (
+        for /d %%d in ("%EXTRACT_DIR%\daily\????-??-??") do (
+            set "EDIR_DATE=%%~nxd"
+            if not exist "%DATA_DIR%\analysis\!EDIR_DATE!.json" (
+                set HAS_UNPROCESSED=1
+                echo [%TODAY%] Found unprocessed extracted data for !EDIR_DATE! >>"%DATA_DIR%\logs\%TODAY%.log"
+            )
+        )
+    )
+    if "!HAS_UNPROCESSED!"=="0" (
+        echo [%TODAY%] No new data to process. Checking for un-uploaded analysis...
+        goto :upload_results
+    )
+    echo [%TODAY%] Processing previously extracted data... >>"%DATA_DIR%\logs\%TODAY%.log"
 )
 
 echo [%TODAY%] Processing !ZIP_COUNT! new days of data...
