@@ -1507,15 +1507,61 @@ const App = {
       }
     } catch (e) { /* no regimen */ }
 
+    // Calorie ring data — from analysis + goals
+    let calEaten = null;
+    let calTarget = null;
+    const analysis = preloaded?.analysis ?? await DB.getAnalysis(date);
+    const goals = preloaded?.goals ?? (await DB.getProfile('goals') || {});
+    calTarget = goals.calories || 1200;
+    if (analysis?.totals?.calories != null) {
+      calEaten = analysis.totals.calories;
+    }
+
     // Fall back to analysis data when entries are empty (e.g. after reinstall)
     if (entries.length === 0 && date) {
-      const analysis = preloaded?.analysis ?? await DB.getAnalysis(date);
       if (analysis) {
         const aEntries = analysis.entries || [];
         foodCount = aEntries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
         waterOz = analysis.water_oz || waterOz;
         if (analysis.weight) { weightVal = analysis.weight.value || analysis.weight; weightUnit = analysis.weight.unit || 'lbs'; }
       }
+    }
+
+    // Build calorie ring SVG
+    const radius = 18;
+    const circumference = 2 * Math.PI * radius;
+    let ringHtml;
+    if (calEaten != null) {
+      const ratio = Math.min(calEaten / calTarget, 1);
+      const offset = circumference - ratio * circumference;
+      const over = calEaten > calTarget;
+      const ringColor = over ? 'var(--accent-red)' : 'var(--accent-green)';
+      ringHtml = `
+      <div class="stat-card stat-card--tap calorie-ring-card" data-stat-action="food">
+        <div class="calorie-ring-wrap">
+          <svg viewBox="0 0 44 44" class="calorie-ring-svg">
+            <circle cx="22" cy="22" r="${radius}" fill="none" stroke="var(--border-color)" stroke-width="3"/>
+            <circle cx="22" cy="22" r="${radius}" fill="none" stroke="${ringColor}" stroke-width="3"
+              stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
+              stroke-linecap="round" transform="rotate(-90 22 22)"
+              class="calorie-ring-fill"/>
+          </svg>
+          <div class="calorie-ring-center" style="color:${ringColor}">${calEaten}</div>
+        </div>
+        <div class="stat-label">of ${calTarget} cal</div>
+      </div>`;
+    } else {
+      // No analysis yet — show food count fallback
+      ringHtml = `
+      <div class="stat-card stat-card--tap calorie-ring-card" data-stat-action="food">
+        <div class="calorie-ring-wrap">
+          <svg viewBox="0 0 44 44" class="calorie-ring-svg">
+            <circle cx="22" cy="22" r="${radius}" fill="none" stroke="var(--border-color)" stroke-width="3" stroke-dasharray="3 5"/>
+          </svg>
+          <div class="calorie-ring-center" style="color:var(--text-muted)">--</div>
+        </div>
+        <div class="stat-label">${foodCount} food logged</div>
+      </div>`;
     }
 
     const zc = (val) => val === 0 || val === null ? ' stat-value--zero' : '';
@@ -1526,10 +1572,7 @@ const App = {
         <div class="stat-value${zc(waterOz)}" style="color: var(--color-water)">${waterOz}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> oz</span></div>
         <div class="stat-label">Water</div>
       </div>
-      <div class="stat-card stat-card--tap" data-stat-action="food">
-        <div class="stat-value${zc(foodCount)}" style="color: var(--color-meal)">${foodCount}</div>
-        <div class="stat-label">Food logged</div>
-      </div>
+      ${ringHtml}
       <div class="stat-card stat-card--tap" data-stat-action="workout">
         <div class="stat-value${workoutZero ? ' stat-value--zero' : ''}" style="color: var(--color-workout)">${workoutDisplay}</div>
         <div class="stat-label">${UI.escapeHtml(workoutLabel)}</div>
