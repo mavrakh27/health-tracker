@@ -87,7 +87,7 @@ function getEvents(scope = 'major', limit = 50) {
   // 'all' returns everything
 
   return {
-    events: filtered.slice(-limit),
+    events: limit > 0 ? filtered.slice(-limit) : [],
     _summary: data._summary,
     total: data.events.length,
   };
@@ -111,9 +111,9 @@ function shouldRecord(field, oldValue, newValue, source) {
   // Structural changes -- always major
   if (['activePlan', 'mealPlan.mealsPerDay'].includes(field)) level = 'major';
   else if (field.includes('milestones') && oldValue == null) level = 'major'; // new milestone
-  else if (field.includes('weeklySchedule') && typeof newValue === 'object' && typeof oldValue === 'object') {
+  else if (field.includes('weeklySchedule') && newValue != null && typeof newValue === 'object' && oldValue != null && typeof oldValue === 'object') {
     // Workout type change (strength->cardio) = major, exercise swap = note
-    level = oldValue?.type !== newValue?.type ? 'major' : 'note';
+    level = oldValue.type !== newValue.type ? 'major' : 'note';
   }
   // Numeric target changes -- minor
   else if (typeof newValue === 'number' && typeof oldValue === 'number') level = 'minor';
