@@ -228,7 +228,7 @@ const DayScore = {
           </div>
           <div class="day-score-labels">
             <div class="score-descriptor">${DayScore._descriptor(ms)}</div>
-            ${streak >= 2 ? `<div class="streak-badge">\u{1F525} ${streak} day streak</div>` : ''}
+            ${streak >= 2 ? `<div class="streak-badge">${streak} day streak</div>` : ''}
             ${targetsHtml}
           </div>
         </div>
