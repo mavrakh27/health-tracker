@@ -17,6 +17,14 @@ You are analyzing today's health data exported from the Health Tracker PWA. The 
 - **New date (no analysis exists):** Full processing — analyze photos, estimate calories, generate analysis.
 - **Existing date (analysis exists):** Read the existing analysis, apply any corrections from `corrections/{DATE}.json`, update totals/goals/scores, and write back. Do NOT re-analyze photos.
 
+### Entry-Level Stability (CRITICAL)
+
+Even within a single processing run, **preserve existing calorie/macro estimates for entries that haven't changed.** LLM calorie estimates are non-deterministic — re-analyzing the same photo produces different numbers each time, causing values to fluctuate confusingly.
+
+- If the existing analysis already has an entry with the same `id`, AND the entry in `log.json` has no `updatedAt` field (or `updatedAt` is older than the analysis file's timestamp), **copy the existing analysis entry verbatim** — do not re-analyze the photo or re-estimate calories.
+- Only analyze entries that are NEW (no matching `id` in existing analysis) or EDITED (`updatedAt` is newer than the analysis timestamp).
+- After preserving existing entries and analyzing new ones, recalculate `totals` from all entries combined.
+
 ## Input Structure
 
 After ZIP extraction, the data is at `{EXTRACT_DIR}/`:
@@ -214,6 +222,8 @@ Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing eve
 10. **Echo PWA profile for round-trip restore:**
    - If `profile/pwa-profile.json` exists in the extracted data, read it and include as the `pwaProfile` field in the output JSON.
    - Also check `profile/preferences.json` for a `pwa.moreOptions` array. If present, merge it into `pwaProfile.moreOptions` (preferences take precedence over what the phone sent). This lets the coach configure custom entry types per user.
+   - Also check `profile/preferences.json` for `mealPlan` and `dietary` fields. If present, include them in `pwaProfile.preferences` so the phone can display the meal structure and diet rules in the Plan view.
+   - Also check `profile/goals.json` for `timeline`, `fitnessGoals`, `weight`, and `bloatTracking` fields. Include them in `pwaProfile.goals` so the Plan view can show milestones and weight goals.
    - This allows the phone to restore goals, dailies, and custom options after a reinstall or cache clear.
 
 9. **Coach Chat — respond to user messages:**

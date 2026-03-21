@@ -3,6 +3,7 @@
 
 const { chromium } = require('playwright');
 const { buildFixtures } = require('./data');
+const { startServer } = require('./test-server');
 const path = require('path');
 const fs = require('fs');
 
@@ -10,7 +11,8 @@ const TAKE_SCREENSHOTS = process.argv.includes('--screenshots');
 const RUN_DOGFOOD = process.argv.includes('--dogfood');
 const RUN_CHAOS = process.argv.includes('--chaos');
 const SCREENSHOT_DIR = path.join(__dirname, '..', '.claude', 'test-screenshots', 'validate');
-const BASE_URL = 'http://localhost:8080';
+const PORT = 8080;
+const BASE_URL = `http://localhost:${PORT}`;
 const VIEWPORTS = [
   { name: 'iPhone-SE', width: 320, height: 568 },
   { name: 'iPhone-14', width: 390, height: 844 },
@@ -2548,6 +2550,9 @@ async function testVisualQA320(page, context, fixtures) {
 async function run() {
   console.log('=== Health Tracker Validation ===\n');
 
+  // Start in-process static file server (dies with this process — no zombies)
+  const srv = await startServer(path.join(__dirname, '..', 'pwa'), PORT);
+
   if (TAKE_SCREENSHOTS) {
     fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
     console.log(`Screenshots → ${SCREENSHOT_DIR}\n`);
@@ -2644,6 +2649,7 @@ async function run() {
   if (RUN_DOGFOOD || RUN_CHAOS) {
     console.log(`\n=== Overall: ${totalFailed === 0 ? 'ALL PHASES PASSED' : 'SOME TESTS FAILED'} ===`);
   }
+  srv.close();
   process.exit(totalFailed > 0 ? 1 : 0);
 }
 

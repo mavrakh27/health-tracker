@@ -3,13 +3,15 @@
 // Run: node test-fixtures/chaos.js [--rounds 50] [--screenshots]
 
 const { chromium } = require('playwright');
+const { startServer } = require('./test-server');
 const path = require('path');
 const fs = require('fs');
 
 const ROUNDS = parseInt(process.argv.find((a, i) => process.argv[i - 1] === '--rounds') || '30');
 const SCREENSHOTS = process.argv.includes('--screenshots');
 const SCREENSHOT_DIR = path.join(__dirname, '..', '.claude', 'test-screenshots', 'chaos');
-const BASE_URL = 'http://localhost:8080';
+const PORT = 8080;
+const BASE_URL = `http://localhost:${PORT}`;
 
 // --- Action Pool ---
 // Each action: { name, weight, fn(page) }
@@ -404,7 +406,10 @@ async function runChaos({ rounds = ROUNDS, screenshots = SCREENSHOTS } = {}) {
 module.exports = { runChaos };
 
 if (require.main === module) {
-  runChaos().then(result => {
-    process.exit(result.issues > 0 ? 1 : 0);
+  startServer(path.join(__dirname, '..', 'pwa'), PORT).then(srv => {
+    runChaos().then(result => {
+      srv.close();
+      process.exit(result.issues > 0 ? 1 : 0);
+    });
   });
 }

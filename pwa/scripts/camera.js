@@ -64,7 +64,8 @@ const Camera = {
 
         try {
           const compressed = await Camera.compress(file, preset);
-          compressed.takenAt = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+          // Library picks are logged after the fact — don't use photo timestamp
+          compressed.takenAt = null;
           cleanup();
           resolve(compressed);
         } catch (err) {
@@ -102,7 +103,7 @@ const Camera = {
         for (const file of files) {
           try {
             const compressed = await Camera.compress(file, preset);
-            compressed.takenAt = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+            compressed.takenAt = null;
             results.push(compressed);
           } catch (err) {
             console.error('Photo compression failed:', err);

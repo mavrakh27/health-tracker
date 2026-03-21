@@ -355,6 +355,9 @@ async function importAnalysis(dateStr, data) {
     if (data.pwaProfile.skincare) {
       profileStore.put({ key: 'skincare', value: data.pwaProfile.skincare });
     }
+    if (data.pwaProfile.preferences) {
+      profileStore.put({ key: 'preferences', value: data.pwaProfile.preferences });
+    }
   }
 
   // Archive existing analysis before overwriting (v2+), cap at 5 per date

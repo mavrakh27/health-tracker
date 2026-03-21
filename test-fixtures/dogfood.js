@@ -6,11 +6,13 @@
 //   node test-fixtures/dogfood.js
 
 const { chromium } = require('playwright');
+const { startServer } = require('./test-server');
 const path = require('path');
 const fs = require('fs');
 
 const SCREENSHOT_DIR = path.join(__dirname, '..', '.claude', 'test-screenshots', 'dogfood');
-const BASE_URL = 'http://localhost:8080';
+const PORT = 8080;
+const BASE_URL = `http://localhost:${PORT}`;
 const DOGFOOD_VIEWPORTS = [
   { name: 'iPhone-SE', width: 320, height: 568 },
   { name: 'iPhone-14', width: 390, height: 844 },
@@ -928,10 +930,13 @@ async function runDogfood(existingBrowser) {
   return { passed, failed, errors, screenshotCount, consoleErrors: filteredErrors };
 }
 
-// Allow running standalone
+// Allow running standalone (starts its own server)
 if (require.main === module) {
-  runDogfood().then(result => {
-    process.exit(result.failed > 0 ? 1 : 0);
+  startServer(path.join(__dirname, '..', 'pwa'), PORT).then(srv => {
+    runDogfood().then(result => {
+      srv.close();
+      process.exit(result.failed > 0 ? 1 : 0);
+    });
   });
 }
 

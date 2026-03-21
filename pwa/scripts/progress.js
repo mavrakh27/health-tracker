@@ -13,6 +13,7 @@ const ProgressView = {
     let html = `
       <div class="segment-control" style="margin-bottom:var(--space-md);">
         <button class="segment-btn${activeTab === 'insights' ? ' active' : ''}" data-ptab="insights">Insights</button>
+        <button class="segment-btn${activeTab === 'plan' ? ' active' : ''}" data-ptab="plan">Plan</button>
         <button class="segment-btn${activeTab === 'trends' ? ' active' : ''}" data-ptab="trends">Trends</button>
         <button class="segment-btn${activeTab === 'skin' ? ' active' : ''}" data-ptab="skin">Skin</button>
       </div>
@@ -20,6 +21,8 @@ const ProgressView = {
 
     if (activeTab === 'insights') {
       html += await ProgressView.renderInsights();
+    } else if (activeTab === 'plan') {
+      html += await ProgressView.renderPlan();
     } else if (activeTab === 'trends') {
       html += await ProgressView.renderTrends();
     } else if (activeTab === 'skin') {
@@ -136,6 +139,177 @@ const ProgressView = {
     if (!html) {
       html = `<div class="card" style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">
         <div style="font-size:var(--text-sm);">Log meals, water, and workouts to see insights here.</div>
+      </div>`;
+    }
+
+    return html;
+  },
+
+  // --- My Plan ---
+  async renderPlan() {
+    const goals = await DB.getProfile('goals') || {};
+    const regimen = await DB.getProfile('regimen') || {};
+    const prefs = await DB.getProfile('preferences') || {};
+    const activePlan = goals.activePlan || 'moderate';
+    const plan = goals[activePlan] || goals.moderate || {};
+    const timeline = goals.timeline || {};
+    const milestones = timeline.milestones || goals.fitnessGoals || [];
+    const today = new Date(UI.today() + 'T12:00:00');
+
+    let html = '';
+
+    // --- Active Plan Banner ---
+    html += `<div class="card" style="text-align:center; padding:var(--space-md);">
+      <div style="font-size:var(--text-xs); text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted); margin-bottom:4px;">Active Plan</div>
+      <div style="font-size:var(--text-lg); font-weight:700; color:var(--accent-primary); text-transform:capitalize;">${UI.escapeHtml(activePlan)}</div>
+      ${timeline.phase ? `<div style="font-size:var(--text-xs); color:var(--text-secondary); margin-top:2px;">${UI.escapeHtml(timeline.phase)}</div>` : ''}
+    </div>`;
+
+    // --- Daily Targets ---
+    html += '<h2 class="section-header">Daily Targets</h2><div class="card">';
+    html += `<div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm);">
+      <div style="text-align:center;">
+        <div style="font-size:var(--text-lg); font-weight:600;">${plan.calories?.daily || '—'}</div>
+        <div style="font-size:var(--text-xs); color:var(--text-muted);">calories</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:var(--text-lg); font-weight:600;">${plan.protein?.grams || '—'}g</div>
+        <div style="font-size:var(--text-xs); color:var(--text-muted);">protein</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:var(--text-lg); font-weight:600;">${plan.water?.daily_oz || '—'} oz</div>
+        <div style="font-size:var(--text-xs); color:var(--text-muted);">water</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:var(--text-lg); font-weight:600;">${plan.fat?.grams || '—'}g</div>
+        <div style="font-size:var(--text-xs); color:var(--text-muted);">fat limit</div>
+      </div>
+    </div>`;
+    if (plan.calories?.sunday_flexible) {
+      html += `<div style="font-size:var(--text-xs); color:var(--text-muted); text-align:center; margin-top:var(--space-xs);">Sundays: ${plan.calories.sunday_flexible} cal flexible</div>`;
+    }
+    html += '</div>';
+
+    // --- Meal Structure ---
+    const mp = prefs.mealPlan || {};
+    if (mp.mealsPerDay || mp.officeDays || mp.homeDays) {
+      html += '<h2 class="section-header">Meal Structure</h2><div class="card">';
+      if (mp.mealsPerDay) {
+        html += `<div style="font-size:var(--text-sm); font-weight:600; margin-bottom:var(--space-xs);">${mp.mealsPerDay} meals/day${mp.includeSnacks === false ? ', no snacks' : ''}</div>`;
+      }
+      if (mp.officeDays) {
+        const days = (mp.officeDays.days || []).map(d => d.charAt(0).toUpperCase() + d.slice(1, 3)).join('/');
+        html += `<div style="margin-bottom:var(--space-sm);">
+          <div style="font-size:var(--text-xs); color:var(--accent-primary); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Office Days <span style="font-weight:400; color:var(--text-muted); text-transform:none;">${days}</span></div>
+          <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-top:2px;">${UI.escapeHtml(mp.officeDays.schedule || '')}</div>
+        </div>`;
+      }
+      if (mp.homeDays) {
+        const days = (mp.homeDays.days || []).map(d => d.charAt(0).toUpperCase() + d.slice(1, 3)).join('/');
+        html += `<div style="margin-bottom:var(--space-sm);">
+          <div style="font-size:var(--text-xs); color:var(--accent-primary); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">Home Days <span style="font-weight:400; color:var(--text-muted); text-transform:none;">${days}</span></div>
+          <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-top:2px;">${UI.escapeHtml(mp.homeDays.schedule || '')}</div>
+        </div>`;
+      }
+      if (mp.notes) {
+        html += `<div style="font-size:var(--text-xs); color:var(--text-muted); border-top:1px solid var(--border-color); padding-top:var(--space-xs); margin-top:var(--space-xs);">${UI.escapeHtml(mp.notes)}</div>`;
+      }
+      html += '</div>';
+    }
+
+    // --- Weekly Workout Schedule ---
+    const schedule = regimen.weeklySchedule || [];
+    if (schedule.length > 0) {
+      html += '<h2 class="section-header">Workout Schedule</h2><div class="card">';
+      const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      const todayName = dayNames[(today.getDay() + 6) % 7]; // JS getDay: 0=Sun
+
+      for (const day of schedule) {
+        const isToday = day.day === todayName;
+        const isRest = day.type === 'rest' || day.type === 'active_recovery';
+        html += `<div style="display:flex; align-items:center; gap:var(--space-sm); padding:6px 0; ${isToday ? 'background:color-mix(in srgb, var(--accent-primary) 8%, transparent); margin:0 calc(-1 * var(--space-md)); padding-left:var(--space-md); padding-right:var(--space-md); border-radius:var(--radius-sm);' : ''}">
+          <div style="width:32px; font-size:var(--text-xs); font-weight:600; color:${isToday ? 'var(--accent-primary)' : 'var(--text-muted)'}; text-transform:uppercase;">${day.day.slice(0, 3)}</div>
+          <div style="flex:1;">
+            <div style="font-size:var(--text-sm); ${isRest ? 'color:var(--text-muted); font-style:italic;' : ''}">${UI.escapeHtml(day.description || day.type)}</div>
+          </div>
+          <div style="font-size:var(--text-xs); color:var(--text-muted); text-transform:capitalize;">${day.type.replace('_', ' ')}</div>
+        </div>`;
+      }
+      html += '</div>';
+      if (regimen.description) {
+        html += `<div style="font-size:var(--text-xs); color:var(--text-muted); margin-top:4px; padding:0 var(--space-sm);">${UI.escapeHtml(regimen.description)}</div>`;
+      }
+    }
+
+    // --- Milestones ---
+    if (milestones.length > 0) {
+      html += '<h2 class="section-header">Milestones</h2><div class="card">';
+      for (const m of milestones) {
+        const target = m.target ? new Date(m.target + 'T12:00:00') : null;
+        const daysLeft = target ? Math.ceil((target - today) / 86400000) : null;
+        const isPast = daysLeft !== null && daysLeft < 0;
+        const isClose = daysLeft !== null && daysLeft <= 14 && daysLeft >= 0;
+
+        html += `<div style="display:flex; align-items:center; gap:var(--space-sm); padding:8px 0; ${milestones.indexOf(m) < milestones.length - 1 ? 'border-bottom:1px solid var(--border-color);' : ''}">
+          <div style="flex:1;">
+            <div style="font-size:var(--text-sm); font-weight:500;">${UI.escapeHtml(m.name)}</div>
+            ${m.note ? `<div style="font-size:var(--text-xs); color:var(--text-muted);">${UI.escapeHtml(m.note)}</div>` : ''}
+          </div>
+          ${daysLeft !== null ? `<div style="text-align:right;">
+            <div style="font-size:var(--text-sm); font-weight:600; color:${isPast ? 'var(--accent-red)' : isClose ? 'var(--accent-orange)' : 'var(--accent-primary)'};">${isPast ? 'overdue' : daysLeft === 0 ? 'today' : `${daysLeft}d`}</div>
+            <div style="font-size:var(--text-xs); color:var(--text-muted);">${target.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+          </div>` : ''}
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    // --- Weight Goal ---
+    if (goals.weight) {
+      const w = goals.weight;
+      const progress = w.current && w.goal ? Math.round((1 - (w.current - w.goal) / (w.current)) * 100) : null;
+      html += '<h2 class="section-header">Weight</h2><div class="card">';
+      html += `<div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-size:var(--text-lg); font-weight:600;">${w.current || '?'} <span style="font-size:var(--text-xs); color:var(--text-muted);">${w.unit || 'lbs'}</span></div>
+          <div style="font-size:var(--text-xs); color:var(--text-muted);">current</div>
+        </div>
+        <div style="font-size:var(--text-lg); color:var(--text-muted);">→</div>
+        <div style="text-align:right;">
+          <div style="font-size:var(--text-lg); font-weight:600; color:var(--accent-primary);">${w.goal || '?'} <span style="font-size:var(--text-xs); color:var(--text-muted);">${w.unit || 'lbs'}</span></div>
+          <div style="font-size:var(--text-xs); color:var(--text-muted);">goal</div>
+        </div>
+      </div>`;
+      if (w.note) {
+        html += `<div style="font-size:var(--text-xs); color:var(--text-muted); margin-top:var(--space-xs); text-align:center;">${UI.escapeHtml(w.note)}</div>`;
+      }
+      html += '</div>';
+    }
+
+    // --- Bloat Tracking ---
+    const bloat = goals.bloatTracking;
+    if (bloat?.enabled) {
+      html += '<h2 class="section-header">Bloat Triggers</h2><div class="card">';
+      if (bloat.commonTriggers?.length) {
+        html += `<div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:var(--space-xs);">`;
+        for (const t of bloat.commonTriggers) {
+          html += `<span style="font-size:var(--text-xs); padding:2px 8px; border-radius:12px; border:1px solid var(--accent-orange); color:var(--accent-orange);">${UI.escapeHtml(t)}</span>`;
+        }
+        html += '</div>';
+      }
+      if (bloat.mitigations?.length) {
+        html += `<div style="margin-top:var(--space-xs);">`;
+        for (const m of bloat.mitigations) {
+          html += `<div style="font-size:var(--text-xs); color:var(--accent-green); margin-bottom:2px;">&#10003; ${UI.escapeHtml(m)}</div>`;
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    if (!html) {
+      html = `<div class="card" style="text-align:center; padding:var(--space-lg); color:var(--text-muted);">
+        <div style="font-size:var(--text-sm);">No plan data yet. Your coach will set this up during processing.</div>
       </div>`;
     }
 

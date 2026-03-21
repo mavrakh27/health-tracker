@@ -10,20 +10,14 @@ cd C:\Users\emily\projects\health-tracker
 # Phase 1: Static checks (fast, no browser)
 for f in pwa/scripts/*.js pwa/sw.js; do node --check "$f" 2>&1; done
 
-# Phase 2: Start server, run Playwright tests with fake data
-cd pwa && python -m http.server 8080 &
-cd .. && node test-fixtures/run-tests.js --screenshots
-# Kill server after
+# Phase 2: Playwright tests (server starts automatically, no manual setup)
+node test-fixtures/run-tests.js --screenshots
 
 # Phase 2 + Phase 3: Full validation including interactive dogfood
-cd pwa && python -m http.server 8080 &
-cd .. && node test-fixtures/run-tests.js --screenshots --dogfood
-# Kill server after
+node test-fixtures/run-tests.js --screenshots --dogfood
 
 # Phase 4: Chaos testing (random user actions, invariant checks)
-cd pwa && python -m http.server 8080 &
-cd .. && node test-fixtures/chaos.js --rounds 50 --screenshots
-# Kill server after
+node test-fixtures/chaos.js --rounds 50 --screenshots
 ```
 
 ## Phase 1 — Static Checks
