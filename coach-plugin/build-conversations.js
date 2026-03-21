@@ -74,11 +74,13 @@ if (fs.existsSync(extractedDir)) {
 
 // Deduplicate by message ID and merge into timeline
 const allMessages = new Map(); // id -> { date, role, text, timestamp }
+let autoId = 0; // fallback counter for messages with no ID or timestamp
 
 for (const conv of conversations) {
   for (const msg of conv.messages) {
-    const id = msg.id || msg.replyTo || `${conv.date}_${msg.timestamp || 0}`;
-    if (msg.role === 'user' || conv.type === 'user') {
+    if (conv.type === 'user') {
+      // User messages from coachChat — always role: user
+      const id = msg.id || `${conv.date}_user_${msg.timestamp || autoId++}`;
       allMessages.set(id, {
         date: conv.date,
         role: 'user',
@@ -86,9 +88,9 @@ for (const conv of conversations) {
         timestamp: msg.timestamp || 0,
         id,
       });
-    }
-    if (msg.replyTo || conv.type === 'responses') {
-      const rId = `reply_${msg.replyTo || id}`;
+    } else if (conv.type === 'responses') {
+      // Coach responses from analysis — always role: coach
+      const rId = `reply_${msg.replyTo || `${conv.date}_coach_${msg.timestamp || autoId++}`}`;
       allMessages.set(rId, {
         date: conv.date,
         role: 'coach',
@@ -120,7 +122,9 @@ for (const msg of sorted) {
 
   const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
   const prefix = msg.role === 'user' ? '**You**' : '**Coach**';
-  md += `${prefix}${time ? ` (${time})` : ''}: ${msg.text}\n\n`;
+  // Sanitize text: collapse newlines to spaces, strip markdown headings
+  const safeText = (msg.text || '').replace(/\n+/g, ' ').replace(/^#{1,6}\s/gm, '');
+  md += `${prefix}${time ? ` (${time})` : ''}: ${safeText}\n\n`;
 }
 
 if (sorted.length === 0) {

@@ -244,7 +244,136 @@ try {
     assert(false, 'Deduplication test', e.message);
   }
 
-  // ── TEST 7: Live Coach folder validation (Emily's actual setup) ──
+  // ── TEST 7: Messages with no ID don't collide ──
+  console.log('\n--- No-ID Message Handling ---');
+
+  const noIdCoach = path.join(tmpDir, 'noid-coach');
+  const noIdAnalysis = path.join(noIdCoach, 'analysis');
+  const noIdData = path.join(tmpDir, 'noid-data');
+  const noIdDaily = path.join(noIdData, 'daily', '2026-03-20');
+  fs.mkdirSync(noIdAnalysis, { recursive: true });
+  fs.mkdirSync(noIdDaily, { recursive: true });
+
+  fs.writeFileSync(path.join(noIdAnalysis, '2026-03-20.json'), JSON.stringify({
+    date: '2026-03-20', coachResponses: [],
+  }));
+  // Two messages with NO id and NO timestamp — should both survive
+  fs.writeFileSync(path.join(noIdDaily, 'log.json'), JSON.stringify({
+    date: '2026-03-20',
+    coachChat: [
+      { role: 'user', text: 'First message no id' },
+      { role: 'user', text: 'Second message no id' },
+    ],
+  }));
+
+  const noIdWrapper = path.join(tmpDir, 'run-builder-noid.js');
+  fs.writeFileSync(noIdWrapper, `
+    process.env.COACH_DIR = ${JSON.stringify(noIdCoach)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(noIdData)};
+    ${builderSrc}
+  `);
+  try {
+    execSync(`node "${noIdWrapper}"`, { encoding: 'utf8', timeout: 10000 });
+    const conv = fs.readFileSync(path.join(noIdCoach, 'conversations.md'), 'utf8');
+    const first = (conv.match(/First message no id/g) || []).length;
+    const second = (conv.match(/Second message no id/g) || []).length;
+    assert(first === 1, `First no-ID message preserved (found ${first})`);
+    assert(second === 1, `Second no-ID message preserved (found ${second})`);
+  } catch (e) {
+    assert(false, 'No-ID messages', e.message.split('\n')[0]);
+  }
+
+  // ── TEST 8: Markdown injection sanitized ──
+  console.log('\n--- Markdown Injection ---');
+
+  const injCoach = path.join(tmpDir, 'inj-coach');
+  const injAnalysis = path.join(injCoach, 'analysis');
+  const injData = path.join(tmpDir, 'inj-data');
+  const injDaily = path.join(injData, 'daily', '2026-03-20');
+  fs.mkdirSync(injAnalysis, { recursive: true });
+  fs.mkdirSync(injDaily, { recursive: true });
+
+  fs.writeFileSync(path.join(injAnalysis, '2026-03-20.json'), JSON.stringify({
+    date: '2026-03-20', coachResponses: [],
+  }));
+  fs.writeFileSync(path.join(injDaily, 'log.json'), JSON.stringify({
+    date: '2026-03-20',
+    coachChat: [
+      { id: 'inj1', role: 'user', text: 'Normal message', timestamp: 1000 },
+      { id: 'inj2', role: 'user', text: '## Fake Heading\nSecond line\n### Another heading', timestamp: 2000 },
+      { id: 'inj3', role: 'user', text: 'Message with\nnewlines\nin it', timestamp: 3000 },
+    ],
+  }));
+
+  const injWrapper = path.join(tmpDir, 'run-builder-inj.js');
+  fs.writeFileSync(injWrapper, `
+    process.env.COACH_DIR = ${JSON.stringify(injCoach)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(injData)};
+    ${builderSrc}
+  `);
+  try {
+    execSync(`node "${injWrapper}"`, { encoding: 'utf8', timeout: 10000 });
+    const conv = fs.readFileSync(path.join(injCoach, 'conversations.md'), 'utf8');
+    // Count ## headings — should only be the real date header, not injected ones
+    const headings = conv.match(/^## .+$/gm) || [];
+    const dateHeadings = headings.filter(h => h.match(/## \w+day,/));
+    assert(headings.length === dateHeadings.length, `No injected headings (${headings.length} total, ${dateHeadings.length} date)`);
+    // Newlines should be collapsed
+    assert(!conv.includes('with\nnewlines'), 'Newlines collapsed in message text');
+  } catch (e) {
+    assert(false, 'Markdown injection test', e.message.split('\n')[0]);
+  }
+
+  // ── TEST 9: User messages with replyTo don't appear as coach responses ──
+  console.log('\n--- No Double-Write ---');
+
+  const dwCoach = path.join(tmpDir, 'dw-coach');
+  const dwAnalysis = path.join(dwCoach, 'analysis');
+  const dwData = path.join(tmpDir, 'dw-data');
+  const dwDaily = path.join(dwData, 'daily', '2026-03-20');
+  fs.mkdirSync(dwAnalysis, { recursive: true });
+  fs.mkdirSync(dwDaily, { recursive: true });
+
+  fs.writeFileSync(path.join(dwAnalysis, '2026-03-20.json'), JSON.stringify({
+    date: '2026-03-20',
+    coachResponses: [
+      { replyTo: 'msg_a', text: 'Coach reply to A', timestamp: 5000 },
+    ],
+  }));
+  // User message has replyTo (replying to a coach message) — should only appear as user, not coach
+  fs.writeFileSync(path.join(dwDaily, 'log.json'), JSON.stringify({
+    date: '2026-03-20',
+    coachChat: [
+      { id: 'msg_a', role: 'user', text: 'Question A', timestamp: 1000, replyTo: 'some_old_coach_msg' },
+    ],
+  }));
+
+  const dwWrapper = path.join(tmpDir, 'run-builder-dw.js');
+  fs.writeFileSync(dwWrapper, `
+    process.env.COACH_DIR = ${JSON.stringify(dwCoach)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(dwData)};
+    ${builderSrc}
+  `);
+  try {
+    execSync(`node "${dwWrapper}"`, { encoding: 'utf8', timeout: 10000 });
+    const conv = fs.readFileSync(path.join(dwCoach, 'conversations.md'), 'utf8');
+    const userLines = (conv.match(/\*\*You\*\*/g) || []).length;
+    const coachLines = (conv.match(/\*\*Coach\*\*/g) || []).length;
+    assert(userLines === 1, `User message appears once as You (got ${userLines})`);
+    assert(coachLines === 1, `Only real coach reply appears (got ${coachLines})`);
+    // The user's text should NOT appear with Coach prefix
+    assert(!conv.includes('**Coach**: Question A'), 'User message not labeled as Coach');
+  } catch (e) {
+    assert(false, 'Double-write test', e.message.split('\n')[0]);
+  }
+
+  // ── TEST 10: CLAUDE.md handles empty analysis ──
+  console.log('\n--- Empty Analysis Handling ---');
+  const claudeContent = fs.readFileSync(path.join(pluginDir, 'CLAUDE.md'), 'utf8');
+  assert(claudeContent.includes('empty') || claudeContent.includes('new user'), 'CLAUDE.md handles empty analysis case');
+  assert(claudeContent.includes("don't have") || claudeContent.includes('no messages') || claudeContent.includes('just getting started'), 'CLAUDE.md has new-user greeting guidance');
+
+  // ── TEST 11: Live Coach folder validation ──
   console.log('\n--- Live Coach Folder ---');
   const liveCoach = path.join(os.homedir(), 'Coach');
 
