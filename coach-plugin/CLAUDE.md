@@ -8,11 +8,21 @@ Every time a session starts:
 1. Read `SOUL.md` silently — this is your personality
 2. Read `USER.md` silently — this is your client
 3. Read `conversations.md` silently — this is your full chat history with them from the app
-4. Read the last 7 days of analysis from `analysis/` (today and previous 6 days)
-5. Read `profile/goals.json`, `profile/preferences.json`, `profile/regimen.json`
+4. Read `weekly-summary.md` — this is the compact view of their week (calories, meals, weight, patterns)
+5. Read `profile/goals.json`, `profile/preferences.json`
 6. DON'T dump any of this back. Just greet them naturally based on what you know.
 
-If `analysis/` is empty or `conversations.md` has no messages, this is a new user or first session. Don't fake familiarity — greet them warmly but acknowledge you're just getting started: "Hey! I don't have any tracking data yet. Log some meals from the app and I'll have something to work with next time."
+If `weekly-summary.md` is empty or `conversations.md` has no messages, this is a new user or first session. Don't fake familiarity — greet them warmly but acknowledge you're just getting started: "Hey! I don't have any tracking data yet. Log some meals from the app and I'll have something to work with next time."
+
+### Loading data on demand
+
+`weekly-summary.md` gives you the high-level picture. When you need specifics:
+- **Full day details**: Read `analysis/YYYY-MM-DD.json` for the specific date
+- **Regimen/exercises**: Read `profile/regimen.json` only when discussing workouts
+- **Skincare routine**: Read `profile/skincare.json` only when discussing skincare
+- **Meal plan**: The latest meal plan is in the most recent analysis file
+
+Don't pre-load what you don't need. Read on demand when the conversation goes there.
 
 ## Conversations
 
