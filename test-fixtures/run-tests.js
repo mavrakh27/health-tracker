@@ -976,6 +976,140 @@ async function testUserFlows(page, fixtures) {
   assert(!progressContent2.includes('No plan'), 'Flow 6: Progress has no blank flash on return');
 
   await screenshot(page, 'flow6-plan-after-return');
+
+  // ---------------------------------------------------------------
+  // Flow 7: Log food WITH photo (full Camera.pick → preview → save → render)
+  // This was the exact flow that was broken (photos disappearing).
+  // Tests: file input → compression → preview → DB.addEntry(entry, blob) → thumbnail
+  // Note: "Log Food" from More sheet opens QuickLog.showFoodNote() modal,
+  //   which uses #fn-library / #fn-camera / #fn-photo-area / #fn-save.
+  //   NOT the inline Log form (which uses #log-photo-pick).
+  // ---------------------------------------------------------------
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(500);
+
+  // Count entries before
+  const entriesBefore7 = await page.$$('.entry-item');
+  const countBefore7 = entriesBefore7.length;
+
+  // Open More sheet → Log Food (opens food note modal)
+  const more7 = await page.$('#quick-more-btn');
+  if (more7) {
+    await more7.click();
+    await page.waitForTimeout(300);
+
+    const foodBtn = await page.$('[data-more-type="meal"]');
+    if (foodBtn) {
+      await foodBtn.click();
+      await page.waitForTimeout(500);
+
+      // Food note modal should be open with #fn-library button
+      const libBtn = await page.$('#fn-library');
+      assert(!!libBtn, 'Flow 7: Food note modal has Library button');
+
+      if (libBtn) {
+        // Upload a portrait test image via file chooser (3:4 like a phone camera)
+        const portraitBuf7 = Buffer.from(await page.evaluate(async () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 300;
+          canvas.height = 400;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#27ae60';
+          ctx.fillRect(0, 0, 300, 400);
+          ctx.fillStyle = '#fff';
+          ctx.font = '28px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('TEST MEAL', 150, 200);
+          const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+          return Array.from(new Uint8Array(await blob.arrayBuffer()));
+        }));
+        const tmpPath7 = require('path').join(require('os').tmpdir(), 'test-meal-photo.png');
+        require('fs').writeFileSync(tmpPath7, portraitBuf7);
+
+        const [fc7] = await Promise.all([
+          page.waitForEvent('filechooser'),
+          libBtn.click(),
+        ]);
+        await fc7.setFiles(tmpPath7);
+        await page.waitForTimeout(600);
+        require('fs').unlinkSync(tmpPath7);
+
+        // Preview should appear in #fn-photo-area
+        const previewImg = await page.$('#fn-photo-area .photo-preview-img');
+        assert(!!previewImg, 'Flow 7: Photo preview renders after picking image');
+
+        if (previewImg) {
+          const previewSrc = await previewImg.getAttribute('src');
+          assert(previewSrc && previewSrc.startsWith('blob:'), 'Flow 7: Preview has blob URL');
+        }
+
+        await screenshot(page, 'flow7-food-photo-preview');
+
+        // Save button must be visible (not pushed off-screen by large photo)
+        // Bug: portrait photos with no max-height pushed Save below the modal fold
+        const saveVisible = await page.evaluate(() => {
+          const save = document.getElementById('fn-save');
+          if (!save) return { found: false };
+          const r = save.getBoundingClientRect();
+          const viewH = window.innerHeight;
+          return { found: true, bottom: Math.round(r.bottom), viewH, visible: r.bottom <= viewH && r.top >= 0 && r.height > 0 };
+        });
+        assert(saveVisible.found && saveVisible.visible,
+          `Flow 7: Save button visible with photo (bottom=${saveVisible.bottom}, viewport=${saveVisible.viewH})`);
+
+        // Enter notes
+        const fnNotes = await page.$('#fn-notes');
+        if (fnNotes) {
+          await fnNotes.fill('Grilled chicken test');
+          await page.waitForTimeout(100);
+        }
+
+        // Save via food note modal's save button
+        const fnSave = await page.$('#fn-save');
+        if (fnSave) {
+          await fnSave.click();
+          await page.waitForTimeout(800);
+        }
+
+        await screenshot(page, 'flow7-food-saved');
+
+        // Verify entry appears in day view with photo thumbnail
+        const entriesAfter7 = await page.$$('.entry-item');
+        assert(entriesAfter7.length > countBefore7, `Flow 7: New entry appears after save (${countBefore7} → ${entriesAfter7.length})`);
+
+        // Check that the new entry has a photo thumbnail
+        await page.waitForTimeout(500); // wait for async photo load
+        const mealThumbs7 = await page.$$('img.entry-photo-thumb');
+        assert(mealThumbs7.length >= 1, `Flow 7: Entry has photo thumbnail (got ${mealThumbs7.length})`);
+
+        // Verify photo blob exists in IndexedDB
+        const photoCheck = await page.evaluate(async () => {
+          const entries = await DB.getEntriesByDate(App.selectedDate);
+          const withPhoto = entries.filter(e => e.photo && e.type === 'meal');
+          if (withPhoto.length === 0) return { found: false };
+          const newest = withPhoto[withPhoto.length - 1];
+          const photos = await DB.getPhotos(newest.id);
+          return {
+            found: true,
+            entryId: newest.id,
+            photoCount: photos.length,
+            hasBlob: photos.length > 0 && !!photos[0].blob,
+            blobSize: photos.length > 0 && photos[0].blob ? photos[0].blob.size : 0,
+            category: photos.length > 0 ? photos[0].category : null,
+          };
+        });
+
+        assert(photoCheck.found && photoCheck.hasBlob, `Flow 7: Photo blob saved to IndexedDB (${photoCheck.blobSize} bytes)`);
+        assert(photoCheck.category === 'meal', `Flow 7: Photo category is 'meal' (got ${photoCheck.category})`);
+
+        await screenshot(page, 'flow7-entry-with-photo');
+      }
+    } else {
+      // Close more sheet if food button not found
+      const closeSheet = await page.$('.modal-close');
+      if (closeSheet) await closeSheet.click();
+    }
+  }
 }
 
 async function testProfileRoundTrip(page, fixtures) {
@@ -1061,6 +1195,28 @@ async function testUILabels(page, fixtures) {
   // Also check for sync-related action buttons
   const syncBtn = await page.$('#sync-now-btn, button:has-text("Sync Now"), .s-action-btn--primary');
   assert(hasSyncNow || !!syncBtn, 'Sync Now button exists on Settings screen');
+
+  // Sync action buttons must not overflow their card at 390px
+  // Bug: flex:1 (flex-basis:0%) prevented flex-wrap from triggering —
+  // 3 buttons on one line overflowed the card's right edge.
+  const syncOverflow = await page.evaluate(() => {
+    const actions = document.querySelector('.s-sync-actions');
+    if (!actions) return { found: false };
+    const card = actions.closest('.s-card');
+    const cardRect = card ? card.getBoundingClientRect() : null;
+    const rightBound = cardRect ? cardRect.right : document.documentElement.clientWidth;
+    const buttons = actions.querySelectorAll('.s-sync-btn');
+    const clipped = [];
+    for (const btn of buttons) {
+      const r = btn.getBoundingClientRect();
+      if (r.right > rightBound + 2) clipped.push(btn.textContent.trim());
+    }
+    return { found: true, clipped };
+  });
+  if (syncOverflow.found) {
+    assert(syncOverflow.clipped.length === 0,
+      `Sync buttons don't overflow card at 390px (${syncOverflow.clipped.length} clipped${syncOverflow.clipped.length > 0 ? ': ' + syncOverflow.clipped.join(', ') : ''})`);
+  }
 
   await screenshot(page, 'ui-labels');
 }
@@ -1602,14 +1758,18 @@ async function testVisualQA(page, fixtures) {
   const chipVisibility = await page.evaluate(() => {
     const chips = document.querySelectorAll('.score-chip');
     if (chips.length === 0) return { total: 0, visible: 0, clipped: [] };
-    const containerRect = document.querySelector('.score-breakdown-wrap')?.getBoundingClientRect();
-    if (!containerRect) return { total: chips.length, visible: 0, clipped: ['no container'] };
+    // Check against the containing card, not the viewport — the card has
+    // overflow:hidden + padding, so chips can be within the viewport but
+    // visually clipped by the card boundary.
+    const card = document.querySelector('.day-score');
+    const cardRect = card ? card.getBoundingClientRect() : null;
+    const rightBound = cardRect ? cardRect.right : window.innerWidth;
+    const leftBound = cardRect ? cardRect.left : 0;
     let visible = 0;
     const clipped = [];
     for (const chip of chips) {
       const r = chip.getBoundingClientRect();
-      // Chip is visible if its right edge is within the viewport
-      if (r.right <= window.innerWidth + 2 && r.left >= -2) {
+      if (r.right <= rightBound + 2 && r.left >= leftBound - 2) {
         visible++;
       } else {
         clipped.push(chip.textContent.trim());
@@ -1620,6 +1780,34 @@ async function testVisualQA(page, fixtures) {
 
   assert(chipVisibility.total > 0 && chipVisibility.visible === chipVisibility.total,
     `All ${chipVisibility.total} score chips fully visible (${chipVisibility.visible} visible${chipVisibility.clipped.length > 0 ? ', clipped: ' + chipVisibility.clipped.join(', ') : ''})`);
+
+  // 2b. Also check chips on day 1 (high score, 5 tight-fitting chips — clips when card has overflow:hidden)
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(800);
+  const chipVisDay1 = await page.evaluate(() => {
+    const chips = document.querySelectorAll('.score-chip');
+    if (chips.length === 0) return { total: 0, visible: 0, clipped: [] };
+    const card = document.querySelector('.day-score');
+    const cardRect = card ? card.getBoundingClientRect() : null;
+    const rightBound = cardRect ? cardRect.right : window.innerWidth;
+    const leftBound = cardRect ? cardRect.left : 0;
+    let visible = 0;
+    const clipped = [];
+    for (const chip of chips) {
+      const r = chip.getBoundingClientRect();
+      if (r.right <= rightBound + 2 && r.left >= leftBound - 2) {
+        visible++;
+      } else {
+        clipped.push(chip.textContent.trim());
+      }
+    }
+    return { total: chips.length, visible, clipped };
+  });
+  assert(chipVisDay1.total > 0 && chipVisDay1.visible === chipVisDay1.total,
+    `Day 1: all ${chipVisDay1.total} score chips visible (${chipVisDay1.visible} visible${chipVisDay1.clipped.length > 0 ? ', clipped: ' + chipVisDay1.clipped.join(', ') : ''})`);
+  // Navigate back to today
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]);
+  await page.waitForTimeout(500);
 
   // 3. Content not hidden behind nav bar — check last visible element on each panel
   const navOverlap = await page.evaluate(() => {
@@ -1917,6 +2105,185 @@ async function testVisualQA(page, fixtures) {
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
 
+  // 10c. Photo container overflow — images in constrained containers must not overflow
+  // Tests all photo containers with PORTRAIT ratio images (real phone camera output).
+  // Root cause of body-photo overlap bug: 80x80 container + portrait img = 80x106 overflow.
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+
+  // Navigate to day 1 which has portrait body photos (300x500) and square-ish meal photos (400x400)
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(800);
+
+  const photoOverflowCheck = await page.evaluate(() => {
+    const issues = [];
+
+    // Check all constrained photo containers: img thumbnails + background-image divs
+    // 1. Entry photo thumbnails (<img> with fixed dimensions)
+    document.querySelectorAll('img.entry-photo-thumb').forEach(img => {
+      const rect = img.getBoundingClientRect();
+      if (rect.width === 0) return;
+      // img with object-fit:cover should match container exactly
+      if (img.naturalWidth > 0 && (rect.height > 82 || rect.width > 82)) {
+        issues.push(`entry-thumb ${Math.round(rect.width)}x${Math.round(rect.height)} exceeds 80x80`);
+      }
+    });
+
+    // 2. Locked body photo divs (background-image based)
+    document.querySelectorAll('.entry-photo-locked').forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0) return;
+      // These are fixed 80x80, content should not overflow
+      if (rect.height > 82) {
+        issues.push(`locked-photo ${Math.round(rect.width)}x${Math.round(rect.height)} exceeds 80px`);
+      }
+    });
+
+    // 3. Progress photo thumbs
+    document.querySelectorAll('.progress-photo-thumb').forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0) return;
+      // 72x96 expected, with overflow:hidden
+      const style = getComputedStyle(el);
+      if (style.overflow !== 'hidden') {
+        issues.push(`progress-thumb missing overflow:hidden`);
+      }
+    });
+
+    // 4. Body photo grid previews (the fixed bug — portrait images in 80x80 grid)
+    document.querySelectorAll('.body-photo-grid .photo-preview').forEach(el => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const style = getComputedStyle(el);
+      if (style.overflow !== 'hidden') {
+        issues.push(`body-grid-preview missing overflow:hidden`);
+      }
+      const img = el.querySelector('.photo-preview-img');
+      if (img) {
+        const imgRect = img.getBoundingClientRect();
+        if (imgRect.bottom > rect.bottom + 1 || imgRect.right > rect.right + 1) {
+          issues.push(`body-grid img overflows container by ${Math.round(imgRect.bottom - rect.bottom)}px bottom, ${Math.round(imgRect.right - rect.right)}px right`);
+        }
+      }
+    });
+
+    // 5. Edit modal photo preview
+    document.querySelectorAll('.ql-photo-preview').forEach(el => {
+      const style = getComputedStyle(el);
+      if (style.overflow !== 'hidden') {
+        issues.push(`ql-photo-preview missing overflow:hidden`);
+      }
+    });
+
+    return issues;
+  });
+
+  assert(photoOverflowCheck.length === 0, `No photo container overflow (${photoOverflowCheck.length} issues${photoOverflowCheck.length > 0 ? ': ' + photoOverflowCheck.join('; ') : ''})`);
+
+  // 10d. Body photo form — portrait images don't overlap between sections
+  // Opens body photo form, uploads portrait test images to body+face, checks no overlap
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]); // go to today
+  await page.waitForTimeout(300);
+
+  // Set up body+face types if not already configured
+  await page.evaluate(async () => {
+    const existing = await DB.getProfile('bodyPhotoTypes');
+    if (!existing || !existing.some(t => t.key === 'face')) {
+      await DB.setProfile('bodyPhotoTypes', [
+        { key: 'body', name: 'Body' },
+        { key: 'face', name: 'Face' },
+      ]);
+    }
+  });
+
+  // Open body photo form
+  await page.click('#quick-more-btn');
+  await page.waitForTimeout(300);
+  await page.click('[data-more-type="bodyPhoto"]');
+  await page.waitForTimeout(500);
+
+  // Upload portrait photos via file chooser to both body and face
+  const bpTypes = ['body', 'face'];
+  for (const typeKey of bpTypes) {
+    const pickBtn = page.locator(`[data-bp-pick="${typeKey}"]`);
+    if (await pickBtn.isVisible()) {
+      const [fc] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        pickBtn.click(),
+      ]);
+      // Create a portrait test image (3:4 ratio like phone camera)
+      const portraitBuf = Buffer.from(await page.evaluate(async (label) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 300;
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = label === 'body' ? '#3498db' : '#e74c3c';
+        ctx.fillRect(0, 0, 300, 400);
+        ctx.fillStyle = '#fff';
+        ctx.font = '32px sans-serif';
+        ctx.fillText(label.toUpperCase(), 100, 200);
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+        return Array.from(new Uint8Array(await blob.arrayBuffer()));
+      }, typeKey));
+      const tmpPath = require('path').join(require('os').tmpdir(), `test-bp-${typeKey}.png`);
+      require('fs').writeFileSync(tmpPath, portraitBuf);
+      await fc.setFiles(tmpPath);
+      await page.waitForTimeout(400);
+      require('fs').unlinkSync(tmpPath);
+    }
+  }
+
+  // Check: body preview images don't overflow into face section
+  const bpOverlap = await page.evaluate(() => {
+    const bodyGrid = document.getElementById('log-bp-preview-body');
+    const faceLabel = [...document.querySelectorAll('#body-photo-types-container .form-label')]
+      .find(l => l.textContent === 'Face');
+    if (!bodyGrid || !faceLabel) return { found: false };
+
+    let maxBottom = 0;
+    for (const el of bodyGrid.querySelectorAll('.photo-preview, .photo-preview-img')) {
+      maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom);
+    }
+    const faceTop = faceLabel.getBoundingClientRect().top;
+    return { found: true, overlaps: maxBottom > faceTop + 2, maxBottom: Math.round(maxBottom), faceTop: Math.round(faceTop) };
+  });
+
+  if (bpOverlap.found) {
+    assert(!bpOverlap.overlaps, `Body photo previews don't overlap face section (bottom=${bpOverlap.maxBottom}, faceTop=${bpOverlap.faceTop})`);
+  }
+
+  // Check at 320px too
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.waitForTimeout(200);
+
+  const bpOverlap320 = await page.evaluate(() => {
+    const bodyGrid = document.getElementById('log-bp-preview-body');
+    const faceLabel = [...document.querySelectorAll('#body-photo-types-container .form-label')]
+      .find(l => l.textContent === 'Face');
+    if (!bodyGrid || !faceLabel) return { found: false };
+
+    let maxBottom = 0;
+    for (const el of bodyGrid.querySelectorAll('.photo-preview, .photo-preview-img')) {
+      maxBottom = Math.max(maxBottom, el.getBoundingClientRect().bottom);
+    }
+    const faceTop = faceLabel.getBoundingClientRect().top;
+    return { found: true, overlaps: maxBottom > faceTop + 2, maxBottom: Math.round(maxBottom), faceTop: Math.round(faceTop) };
+  });
+
+  if (bpOverlap320.found) {
+    assert(!bpOverlap320.overlaps, `320px: Body photos don't overlap face section (bottom=${bpOverlap320.maxBottom}, faceTop=${bpOverlap320.faceTop})`);
+  }
+
+  await screenshot(page, 'body-photo-portrait-overlap-test');
+
+  // Reset viewport and close form
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => {
+    const form = document.getElementById('log-form-inline');
+    if (form) form.style.display = 'none';
+  });
+  await page.waitForTimeout(200);
+
   // 11. Today button — appears on past dates, hidden on today, meets touch target
   for (let i = 0; i < 2; i++) { await page.click('#header-prev'); await page.waitForTimeout(200); }
   await page.waitForTimeout(300);
@@ -2144,6 +2511,29 @@ async function testVisualQA320(page, context, fixtures) {
   });
 
   assert(smallBtns.length === 0, `All Settings buttons >= 44px at 320px (${smallBtns.length} violations${smallBtns.length > 0 ? ': ' + smallBtns.map(b => `"${b.text}" ${b.w}x${b.h}`).join(', ') : ''})`);
+
+  // 3. Sync action buttons don't overflow their card
+  // Bug: flex:1 with flex-basis:0% prevented flex-wrap from triggering,
+  // so 3 buttons stayed on one line and overflowed the card.
+  // Test at 320px on smallPage
+  const syncOverflow320 = await smallPage.evaluate(() => {
+    const actions = document.querySelector('.s-sync-actions');
+    if (!actions) return { found: false };
+    const card = actions.closest('.s-card');
+    const cardRect = card ? card.getBoundingClientRect() : null;
+    const rightBound = cardRect ? cardRect.right : document.documentElement.clientWidth;
+    const buttons = actions.querySelectorAll('.s-sync-btn');
+    const clipped = [];
+    for (const btn of buttons) {
+      const r = btn.getBoundingClientRect();
+      if (r.right > rightBound + 2) clipped.push(btn.textContent.trim());
+    }
+    return { found: true, clipped };
+  });
+  if (syncOverflow320.found) {
+    assert(syncOverflow320.clipped.length === 0,
+      `Sync buttons don't overflow card at 320px (${syncOverflow320.clipped.length} clipped${syncOverflow320.clipped.length > 0 ? ': ' + syncOverflow320.clipped.join(', ') : ''})`);
+  }
 
   await screenshot(smallPage, 'visual-qa-320-settings');
   await smallPage.close();

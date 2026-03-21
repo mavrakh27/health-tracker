@@ -1579,6 +1579,92 @@ input[type="range"]::-webkit-slider-thumb {
   pointer-events: none;
 }
 
+/* Full-screen photo viewer overlay */
+.photo-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: photo-viewer-fade-in 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@keyframes photo-viewer-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.photo-viewer-close {
+  position: absolute;
+  top: env(safe-area-inset-top, 12px);
+  right: 12px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.photo-viewer-img-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  overflow: auto;
+  touch-action: pinch-zoom;
+  -webkit-overflow-scrolling: touch;
+  padding: 48px 0;
+}
+
+.photo-viewer-img-wrap img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+}
+
+.photo-viewer-actions {
+  position: absolute;
+  bottom: env(safe-area-inset-bottom, 24px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.photo-viewer-download {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+  color: #0d1117;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.photo-viewer-download svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* Weight chart touch tooltip */
 .weight-chart-tooltip {
   position: absolute;
@@ -1739,6 +1825,8 @@ input[type="range"]::-webkit-slider-thumb {
 .photo-preview-img {
   width: 100%;
   max-width: 280px;
+  max-height: 200px;
+  object-fit: cover;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   display: block;
@@ -1905,7 +1993,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .s-sync-btn {
-  flex: 1;
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1934,7 +2022,7 @@ input[type="range"]::-webkit-slider-thumb {
   background: var(--accent-primary);
   color: #0d1117;
   border-color: var(--accent-primary);
-  flex: 1.4;
+  flex: 1.4 1 auto;
 }
 
 .s-sync-btn--primary:active {
@@ -2143,6 +2231,15 @@ input[type="range"]::-webkit-slider-thumb {
   width: 80px;
   height: 80px;
   flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.body-photo-grid .photo-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  max-width: none;
 }
 
 /* Day Score */
@@ -2156,7 +2253,6 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: var(--radius-lg);
   margin-top: var(--space-md);
   animation: scaleIn 0.35s ease both;
-  overflow: hidden;
 }
 
 /* Top row: gauge + labels side by side */

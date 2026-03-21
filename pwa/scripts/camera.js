@@ -15,23 +15,29 @@ const Camera = {
       input.type = 'file';
       input.accept = 'image/*';
       input.capture = 'environment';
+      // Attach to DOM so mobile browsers don't GC it while camera is open
+      input.style.display = 'none';
+      document.body.appendChild(input);
+
+      const cleanup = () => input.remove();
 
       input.addEventListener('change', async () => {
         const file = input.files[0];
-        if (!file) return resolve(null);
+        if (!file) { cleanup(); return resolve(null); }
 
         try {
           const compressed = await Camera.compress(file, preset);
           compressed.takenAt = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+          cleanup();
           resolve(compressed);
         } catch (err) {
           console.error('Photo compression failed:', err);
+          cleanup();
           resolve(null);
         }
       });
 
-      // Handle cancel (no reliable event, but change won't fire)
-      input.addEventListener('cancel', () => resolve(null));
+      input.addEventListener('cancel', () => { cleanup(); resolve(null); });
 
       input.click();
     });
@@ -43,22 +49,28 @@ const Camera = {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
+      input.style.display = 'none';
+      document.body.appendChild(input);
+
+      const cleanup = () => input.remove();
 
       input.addEventListener('change', async () => {
         const file = input.files[0];
-        if (!file) return resolve(null);
+        if (!file) { cleanup(); return resolve(null); }
 
         try {
           const compressed = await Camera.compress(file, preset);
           compressed.takenAt = file.lastModified ? new Date(file.lastModified).toISOString() : null;
+          cleanup();
           resolve(compressed);
         } catch (err) {
           console.error('Photo compression failed:', err);
+          cleanup();
           resolve(null);
         }
       });
 
-      input.addEventListener('cancel', () => resolve(null));
+      input.addEventListener('cancel', () => { cleanup(); resolve(null); });
       input.click();
     });
   },
@@ -71,10 +83,14 @@ const Camera = {
       input.type = 'file';
       input.accept = 'image/*';
       input.multiple = true;
+      input.style.display = 'none';
+      document.body.appendChild(input);
+
+      const cleanup = () => input.remove();
 
       input.addEventListener('change', async () => {
         const files = Array.from(input.files);
-        if (files.length === 0) return resolve([]);
+        if (files.length === 0) { cleanup(); return resolve([]); }
 
         const results = [];
         for (const file of files) {
@@ -86,10 +102,11 @@ const Camera = {
             console.error('Photo compression failed:', err);
           }
         }
+        cleanup();
         resolve(results);
       });
 
-      input.addEventListener('cancel', () => resolve([]));
+      input.addEventListener('cancel', () => { cleanup(); resolve([]); });
       input.click();
     });
   },

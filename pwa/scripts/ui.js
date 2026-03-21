@@ -461,6 +461,20 @@ const UI = {
       });
     }
 
+    // Photo expand — tap preview to open full-screen viewer
+    if (photoUrl) {
+      const previewEl = sheet.querySelector('.ql-photo-preview');
+      if (previewEl) {
+        previewEl.style.cursor = 'pointer';
+        previewEl.addEventListener('click', (e) => {
+          // For body photos, only expand if revealed
+          if (isBodyPhoto && photoLock && !photoLock.classList.contains('revealed')) return;
+          e.stopPropagation();
+          UI.showPhotoViewer(photoUrl, entry);
+        });
+      }
+    }
+
     // Entry lock toggle (for enabling edit/delete)
     const lockToggle = document.getElementById('edit-lock-toggle');
     if (lockToggle) {
@@ -542,6 +556,59 @@ const UI = {
         UI.toast('Failed to delete', 'error');
       }
     });
+  },
+
+  // --- Full-screen photo viewer ---
+  showPhotoViewer(photoUrl, entry) {
+    const overlay = document.createElement('div');
+    overlay.className = 'photo-viewer-overlay';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'photo-viewer-close';
+    closeBtn.innerHTML = '&times;';
+
+    const imgWrap = document.createElement('div');
+    imgWrap.className = 'photo-viewer-img-wrap';
+
+    const img = document.createElement('img');
+    img.src = photoUrl;
+    img.alt = '';
+    imgWrap.appendChild(img);
+
+    const actions = document.createElement('div');
+    actions.className = 'photo-viewer-actions';
+
+    const downloadBtn = document.createElement('button');
+    downloadBtn.className = 'photo-viewer-download';
+    downloadBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Save to Photos`;
+
+    downloadBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const a = document.createElement('a');
+      a.href = photoUrl;
+      const dateStr = entry.date || 'photo';
+      const typeStr = entry.type || 'entry';
+      a.download = `coach-${typeStr}-${dateStr}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      UI.toast('Photo saved');
+    });
+
+    actions.appendChild(downloadBtn);
+
+    overlay.appendChild(closeBtn);
+    overlay.appendChild(imgWrap);
+    overlay.appendChild(actions);
+
+    const close = () => overlay.remove();
+
+    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); close(); });
+    overlay.addEventListener('click', (e) => { if (e.target === overlay || e.target === imgWrap) close(); });
+    // Prevent closing when tapping the image itself
+    img.addEventListener('click', (e) => e.stopPropagation());
+
+    document.body.appendChild(overlay);
   },
 
   // --- Swipe-to-delete on entry cards ---
