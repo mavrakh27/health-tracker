@@ -143,28 +143,32 @@ function buildFixtures() {
     ],
   };
 
-  const regimen = {
-    weeklySchedule: [
-      { day: 'monday', type: 'cardio', description: 'Cardio day', exercises: [
-        { name: '25-min elliptical', sets: 1, reps: '25 min', section: 'main', formCue: 'Conversational pace' },
-      ] },
-      { day: 'tuesday', type: 'strength', description: 'Upper body push', exercises: [
+  // Build regimen dynamically based on actual day-of-week for fixture dates
+  // day5 (today) = cardio, day1 (4 days ago) = rest, day3 (2 days ago) = strength
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const todayDow = dayNames[new Date().getDay()];
+  const day1Dow = dayNames[new Date(new Date().setDate(new Date().getDate() - 4)).getDay()];
+  const day3Dow = dayNames[new Date(new Date().setDate(new Date().getDate() - 2)).getDay()];
+
+  // Build a schedule where today=cardio, day1=rest, day3=strength, others=rest
+  const regimenSchedule = dayNames.map(day => {
+    if (day === todayDow) {
+      return { day, type: 'cardio', description: 'Cardio day', exercises: [
+        { name: '30-min jog', sets: 1, reps: '30 min', section: 'main', formCue: 'Easy pace' },
+      ] };
+    }
+    if (day === day3Dow) {
+      return { day, type: 'strength', description: 'Upper body push', exercises: [
         { name: 'Push-ups', sets: 3, reps: '12', section: 'main', formCue: 'Elbows at 45 degrees' },
         { name: 'Dumbbell Overhead Press', sets: 3, reps: '10', section: 'main', formCue: 'Brace core tight' },
         { name: 'Plank', sets: 3, reps: '30s', section: 'core', formCue: 'Squeeze glutes' },
-      ] },
-      { day: 'wednesday', type: 'rest', description: 'Rest and recover', exercises: [] },
-      { day: 'thursday', type: 'cardio', description: 'Cardio day', exercises: [
-        { name: '30-min jog', sets: 1, reps: '30 min', section: 'main', formCue: 'Easy pace' },
-      ] },
-      { day: 'friday', type: 'strength', description: 'Lower body', exercises: [
-        { name: 'Goblet Squats', sets: 3, reps: '12', section: 'main', formCue: 'Hips below knees' },
-        { name: 'Romanian Deadlifts', sets: 3, reps: '10', section: 'main', formCue: 'Push hips back' },
-        { name: 'Dead Bugs', sets: 3, reps: '10', section: 'core', formCue: 'Lower back stays flat' },
-      ] },
-      { day: 'saturday', type: 'rest', description: 'Rest and recover', exercises: [] },
-      { day: 'sunday', type: 'rest', description: 'Rest and recover', exercises: [] },
-    ],
+      ] };
+    }
+    return { day, type: 'rest', description: 'Rest and recover', exercises: [] };
+  });
+
+  const regimen = {
+    weeklySchedule: regimenSchedule,
   };
 
   // --- MEAL PLAN (days array format expected by plan.js) ---
