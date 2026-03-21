@@ -10,8 +10,19 @@ const CoachChat = {
     const userMessages = (summary.coachChat || []).filter(m => m.role === 'user');
     const coachMessages = (analysis?.coachResponses || []);
 
-    // Build timeline: pair user messages with coach responses by matching
+    // Build timeline: pair each user message with its coach reply (grouped Q&A).
+    // User messages are in send-order from the array; replies follow their question.
+    // General (non-reply) coach messages go at the top as proactive advice.
     const timeline = [];
+
+    // Proactive coach messages first (not replies to user questions)
+    for (const cm of coachMessages) {
+      if (!cm.replyTo) {
+        timeline.push({ role: 'coach', text: cm.text, timestamp: cm.timestamp || 0 });
+      }
+    }
+
+    // Then user messages paired with their replies
     for (const msg of userMessages) {
       timeline.push(msg);
       const response = coachMessages.find(r => r.replyTo === msg.id);
@@ -19,14 +30,6 @@ const CoachChat = {
         timeline.push({ role: 'coach', text: response.text, timestamp: response.timestamp || msg.timestamp + 1 });
       }
     }
-    // Add any coach messages that aren't replies (general advice pushed by processing)
-    for (const cm of coachMessages) {
-      if (!cm.replyTo) {
-        timeline.push({ role: 'coach', text: cm.text, timestamp: cm.timestamp || 0 });
-      }
-    }
-
-    timeline.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
 
     const hasUnanswered = userMessages.some(m => !coachMessages.find(r => r.replyTo === m.id));
 
