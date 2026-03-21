@@ -118,8 +118,33 @@ const DayScore = {
     return 'Crushing it';
   },
 
+  // Calculate streak — consecutive days with ≥1 meal entry, walking backwards from date.
+  // If today has no entries yet, starts from yesterday.
+  async calculateStreak(date) {
+    const todayEntries = await DB.getEntriesByDate(date);
+    const hasTodayEntries = todayEntries.some(e => e.type === 'meal');
+
+    let current = new Date(date + 'T12:00:00');
+    if (!hasTodayEntries) {
+      current.setDate(current.getDate() - 1);
+    }
+
+    let streak = 0;
+    const maxDays = 365;
+
+    for (let i = 0; i < maxDays; i++) {
+      const dateStr = current.toISOString().split('T')[0];
+      const entries = await DB.getEntriesByDate(dateStr);
+      if (!entries.some(e => e.type === 'meal')) break;
+      streak++;
+      current.setDate(current.getDate() - 1);
+    }
+
+    return streak;
+  },
+
   // Render the score gauge for the today screen
-  render(result) {
+  render(result, streak) {
     const { moderate, hardcore, goals } = result;
     const ms = moderate.score;
     const hs = hardcore.score;
@@ -203,6 +228,7 @@ const DayScore = {
           </div>
           <div class="day-score-labels">
             <div class="score-descriptor">${DayScore._descriptor(ms)}</div>
+            ${streak >= 2 ? `<div class="streak-badge">\u{1F525} ${streak} day streak</div>` : ''}
             ${targetsHtml}
           </div>
         </div>

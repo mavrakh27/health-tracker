@@ -959,8 +959,11 @@ const App = {
     const scoreEl = document.getElementById('today-score');
     if (scoreEl) {
       try {
-        const scoreResult = await DayScore.calculate(date, preloaded);
-        scoreEl.innerHTML = DayScore.render(scoreResult);
+        const [scoreResult, streak] = await Promise.all([
+          DayScore.calculate(date, preloaded),
+          DayScore.calculateStreak(date)
+        ]);
+        scoreEl.innerHTML = DayScore.render(scoreResult, streak);
       } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
     }
 
