@@ -22,9 +22,9 @@ let goals = {};
 try { goals = JSON.parse(fs.readFileSync(goalsPath, 'utf8')); } catch (e) {}
 const activePlan = goals.activePlan || 'moderate';
 const plan = goals[activePlan] || goals.moderate || {};
-const calTarget = plan.calories?.daily || 1200;
-const proTarget = plan.protein?.grams || 105;
-const waterTarget = plan.water?.daily_oz || 64;
+const calTarget = plan.calories?.daily ?? 1200;
+const proTarget = plan.protein?.grams ?? 105;
+const waterTarget = plan.water?.daily_oz ?? 64;
 
 // Read last 14 days of analysis (show 7, use 14 for trends)
 const today = new Date();
@@ -114,7 +114,9 @@ md += '\n';
 md += '## Day by Day\n\n';
 for (const d of thisWeek) {
   if (d.cal === 0 && d.mealCount === 0) continue; // skip empty days
-  const dayName = new Date(d.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const dateObj = new Date(d.date + 'T12:00:00');
+  if (isNaN(dateObj.getTime())) continue; // skip malformed dates
+  const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   const flags = [];
   if (d.calStatus === 'over') flags.push('over cal');
   if (d.proStatus === 'low') flags.push('low protein');
