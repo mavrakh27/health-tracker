@@ -49,18 +49,22 @@ Detect the user's shell and add the alias:
 
 **PowerShell (Windows):**
 ```powershell
-# Check if already exists
+# Ensure profile directory and file exist
+if (-not (Test-Path (Split-Path $PROFILE))) { New-Item -ItemType Directory -Path (Split-Path $PROFILE) -Force | Out-Null }
+if (-not (Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE | Out-Null }
+# Add alias if not already present
 if (-not (Get-Content $PROFILE -ErrorAction SilentlyContinue | Select-String 'function coach')) {
     Add-Content $PROFILE "`nfunction coach { Set-Location `$env:USERPROFILE\Coach; claude }"
 }
 ```
 
-**Bash/Zsh (Mac/Linux):**
+**Mac/Linux (write to BOTH .bashrc and .zshrc):**
 ```bash
-SHELL_RC="$HOME/.$(basename $SHELL)rc"
-if ! grep -q 'alias coach=' "$SHELL_RC" 2>/dev/null; then
-    echo 'alias coach="cd ~/Coach && claude"' >> "$SHELL_RC"
-fi
+for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    if ! grep -q 'alias coach=' "$rc" 2>/dev/null; then
+        echo 'alias coach="cd ~/Coach && claude"' >> "$rc"
+    fi
+done
 ```
 
 Tell the user: "Open a new terminal and type `coach` to start a session."
@@ -69,13 +73,20 @@ Tell the user: "Open a new terminal and type `coach` to start a session."
 
 The relay URL is shared (all users use the same Cloudflare Worker). The user only needs a sync key.
 
+**Relay URL constant** (used in all commands below):
+```
+RELAY_URL = https://health-sync.emilyn-90a.workers.dev
+```
+Note: all users share this relay. Data is isolated by sync key.
+
 **Generate a sync key:**
 ```bash
 # PowerShell
 $key = [System.Guid]::NewGuid().ToString()
 
-# Bash
-key=$(uuidgen || python3 -c "import uuid; print(uuid.uuid4())")
+# Bash (fallback chain: uuidgen → python3 → openssl)
+key=$(uuidgen 2>/dev/null || python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || openssl rand -hex 16 | sed 's/\(.\{8\}\)\(.\{4\}\)\(.\{4\}\)\(.\{4\}\)/\1-\2-\3-\4-/')
+if [ -z "$key" ]; then echo "ERROR: Could not generate UUID. Install uuidgen or python3."; exit 1; fi
 ```
 
 **Set environment variables:**
@@ -88,41 +99,68 @@ PowerShell (Windows):
 [System.Environment]::SetEnvironmentVariable("COACH_DIR", "$env:USERPROFILE\Coach", "User")
 ```
 
-Bash/Zsh (Mac/Linux):
+Mac/Linux — write to BOTH .bashrc and .zshrc, with dedup:
 ```bash
-echo "export HEALTH_SYNC_URL='https://health-sync.emilyn-90a.workers.dev'" >> "$SHELL_RC"
-echo "export HEALTH_SYNC_KEY='$key'" >> "$SHELL_RC"
-echo "export HEALTH_DATA_DIR='\$HOME/Coach'" >> "$SHELL_RC"
-echo "export COACH_DIR='\$HOME/Coach'" >> "$SHELL_RC"
+RELAY="https://health-sync.emilyn-90a.workers.dev"
+for rc in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    # Remove old values if re-running setup
+    sed -i.bak '/HEALTH_SYNC_URL\|HEALTH_SYNC_KEY\|HEALTH_DATA_DIR\|COACH_DIR/d' "$rc" 2>/dev/null
+    cat >> "$rc" <<ENVEOF
+export HEALTH_SYNC_URL='$RELAY'
+export HEALTH_SYNC_KEY='$key'
+export HEALTH_DATA_DIR="\$HOME/Coach"
+export COACH_DIR="\$HOME/Coach"
+ENVEOF
+done
 ```
 
-Note: `HEALTH_DATA_DIR` and `COACH_DIR` both point to `~/Coach` — the Coach folder IS the data directory.
+Also write a `.env` file for cron/scheduled tasks (which don't source shell RC files):
+```bash
+cat > ~/Coach/.env <<ENVEOF
+HEALTH_SYNC_URL=$RELAY
+HEALTH_SYNC_KEY=$key
+HEALTH_DATA_DIR=$HOME/Coach
+COACH_DIR=$HOME/Coach
+ENVEOF
+```
+
+Note: `HEALTH_DATA_DIR` and `COACH_DIR` both point to `~/Coach` — the Coach folder IS the data directory. No separate `~/HealthTracker`.
 
 **Tell the user their sync key.** They'll need it when configuring the PWA app.
 
 ### 5. Copy processing scripts
 
-Copy from the health-tracker repo into `~/Coach/processing/`:
-- `process-day.bat` (Windows) or `process-day.sh` (Mac/Linux)
-- `watcher.ps1` (Windows) or `watcher.sh` (Mac/Linux)
-- `process-day-prompt.md`
-- `build-conversations.js`
+Copy from the health-tracker repo into `~/Coach/processing/`. If running from the repo:
+```bash
+cp processing/process-day.bat processing/process-day.sh processing/watcher.ps1 processing/watcher.sh processing/process-day-prompt.md ~/Coach/processing/
+cp coach-plugin/build-conversations.js ~/Coach/processing/
+```
 
-If the repo isn't available, tell the user where to download them.
+If the repo isn't available, download directly:
+```bash
+REPO="https://raw.githubusercontent.com/nEmily/health-tracker/main"
+for f in process-day.bat process-day.sh watcher.ps1 watcher.sh process-day-prompt.md; do
+    curl -sL "$REPO/processing/$f" -o ~/Coach/processing/$f
+done
+curl -sL "$REPO/coach-plugin/build-conversations.js" -o ~/Coach/processing/build-conversations.js
+```
 
 ### 6. Set up the scheduled task
+
+**IMPORTANT:** Run `watcher.sh`/`watcher.ps1` (not `process-day` directly) — the watcher handles pending-data checks, quiet hours, and lock management.
 
 **Windows:**
 ```powershell
 $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"$env:USERPROFILE\Coach\processing\watcher.ps1`""
-$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30)
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Days 3650)
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 Register-ScheduledTask -TaskName "CoachWatcher" -Action $action -Trigger $trigger -Settings $settings -Description "Coach health tracker - processes data every 30 min"
 ```
 
 **Mac/Linux:**
 ```bash
-(crontab -l 2>/dev/null; echo "*/30 * * * * cd ~/Coach/processing && bash process-day.sh >> ~/Coach/logs/cron.log 2>&1") | crontab -
+# Source .env for cron (cron doesn't load shell RC files)
+(crontab -l 2>/dev/null; echo "*/30 * * * * . ~/Coach/.env && bash ~/Coach/processing/watcher.sh >> ~/Coach/logs/watcher.log 2>&1") | crontab -
 ```
 
 ### 7. Run onboarding conversation

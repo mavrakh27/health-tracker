@@ -89,8 +89,7 @@ try {
   // Create temp Coach folder with mock analysis and daily data
   const mockCoach = tmpDir;
   const mockAnalysis = path.join(mockCoach, 'analysis');
-  const mockData = path.join(mockCoach, 'mock-data');
-  const mockDaily = path.join(mockData, 'daily', '2026-03-20');
+  const mockDaily = path.join(mockCoach, 'daily', '2026-03-20');
 
   fs.mkdirSync(mockAnalysis, { recursive: true });
   fs.mkdirSync(mockDaily, { recursive: true });
@@ -114,12 +113,12 @@ try {
   }));
 
   // Run builder with env vars pointing to mock dirs
-  const builderSrc = fs.readFileSync(convBuilderPath, 'utf8').replace(/^#!.*\n/, '');
+  const builderSrc = fs.readFileSync(convBuilderPath, 'utf8').replace(/^#!.*[\r\n]+/, '');
   // Write a wrapper that overrides the dirs
   const wrapperPath = path.join(tmpDir, 'run-builder.js');
   fs.writeFileSync(wrapperPath, `
     process.env.COACH_DIR = ${JSON.stringify(mockCoach)};
-    process.env.HEALTH_DATA_DIR = ${JSON.stringify(mockData)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(mockCoach)};
     ${builderSrc}
   `);
 
@@ -207,8 +206,7 @@ try {
 
   const dupeCoach = path.join(tmpDir, 'dupe-coach');
   const dupeAnalysis = path.join(dupeCoach, 'analysis');
-  const dupeData = path.join(tmpDir, 'dupe-data');
-  const dupeDaily = path.join(dupeData, 'daily', '2026-03-20');
+  const dupeDaily = path.join(dupeCoach, 'daily', '2026-03-20');
   fs.mkdirSync(dupeAnalysis, { recursive: true });
   fs.mkdirSync(dupeDaily, { recursive: true });
 
@@ -231,7 +229,7 @@ try {
   const dupeWrapper = path.join(tmpDir, 'run-builder-dupe.js');
   fs.writeFileSync(dupeWrapper, `
     process.env.COACH_DIR = ${JSON.stringify(dupeCoach)};
-    process.env.HEALTH_DATA_DIR = ${JSON.stringify(dupeData)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(dupeCoach)};
     ${builderSrc}
   `);
 
@@ -249,8 +247,7 @@ try {
 
   const noIdCoach = path.join(tmpDir, 'noid-coach');
   const noIdAnalysis = path.join(noIdCoach, 'analysis');
-  const noIdData = path.join(tmpDir, 'noid-data');
-  const noIdDaily = path.join(noIdData, 'daily', '2026-03-20');
+  const noIdDaily = path.join(noIdCoach, 'daily', '2026-03-20');
   fs.mkdirSync(noIdAnalysis, { recursive: true });
   fs.mkdirSync(noIdDaily, { recursive: true });
 
@@ -269,7 +266,7 @@ try {
   const noIdWrapper = path.join(tmpDir, 'run-builder-noid.js');
   fs.writeFileSync(noIdWrapper, `
     process.env.COACH_DIR = ${JSON.stringify(noIdCoach)};
-    process.env.HEALTH_DATA_DIR = ${JSON.stringify(noIdData)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(noIdCoach)};
     ${builderSrc}
   `);
   try {
@@ -288,8 +285,7 @@ try {
 
   const injCoach = path.join(tmpDir, 'inj-coach');
   const injAnalysis = path.join(injCoach, 'analysis');
-  const injData = path.join(tmpDir, 'inj-data');
-  const injDaily = path.join(injData, 'daily', '2026-03-20');
+  const injDaily = path.join(injCoach, 'daily', '2026-03-20');
   fs.mkdirSync(injAnalysis, { recursive: true });
   fs.mkdirSync(injDaily, { recursive: true });
 
@@ -308,7 +304,7 @@ try {
   const injWrapper = path.join(tmpDir, 'run-builder-inj.js');
   fs.writeFileSync(injWrapper, `
     process.env.COACH_DIR = ${JSON.stringify(injCoach)};
-    process.env.HEALTH_DATA_DIR = ${JSON.stringify(injData)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(injCoach)};
     ${builderSrc}
   `);
   try {
@@ -329,8 +325,7 @@ try {
 
   const dwCoach = path.join(tmpDir, 'dw-coach');
   const dwAnalysis = path.join(dwCoach, 'analysis');
-  const dwData = path.join(tmpDir, 'dw-data');
-  const dwDaily = path.join(dwData, 'daily', '2026-03-20');
+  const dwDaily = path.join(dwCoach, 'daily', '2026-03-20');
   fs.mkdirSync(dwAnalysis, { recursive: true });
   fs.mkdirSync(dwDaily, { recursive: true });
 
@@ -351,7 +346,7 @@ try {
   const dwWrapper = path.join(tmpDir, 'run-builder-dw.js');
   fs.writeFileSync(dwWrapper, `
     process.env.COACH_DIR = ${JSON.stringify(dwCoach)};
-    process.env.HEALTH_DATA_DIR = ${JSON.stringify(dwData)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(dwCoach)};
     ${builderSrc}
   `);
   try {
@@ -373,7 +368,54 @@ try {
   assert(claudeContent.includes('empty') || claudeContent.includes('new user'), 'CLAUDE.md handles empty analysis case');
   assert(claudeContent.includes("don't have") || claudeContent.includes('no messages') || claudeContent.includes('just getting started'), 'CLAUDE.md has new-user greeting guidance');
 
-  // ── TEST 11: Live Coach folder validation ──
+  // ── TEST 11: Setup skill — silent failure prevention ──
+  console.log('\n--- Setup Skill Safety ---');
+
+  if (setupContent) {
+    // Scheduled task must repeat (not fire once)
+    assert(setupContent.includes('RepetitionDuration') || setupContent.includes('3650'), 'Scheduled task has RepetitionDuration (not one-shot)');
+
+    // Cron must call watcher, not process-day directly
+    const cronLines = setupContent.match(/crontab.*\n.*\n?.*echo.*"(.*?)"/s);
+    const cronCmd = cronLines ? cronLines[1] : setupContent;
+    assert(setupContent.includes('watcher.sh') && setupContent.includes('crontab'), 'Cron invokes watcher.sh (not process-day.sh directly)');
+
+    // Must source .env for cron (cron has no shell RC)
+    assert(setupContent.includes('.env') && setupContent.includes('cron'), 'Cron sources .env file');
+
+    // Must create PS profile directory
+    assert(setupContent.includes('Split-Path $PROFILE') || setupContent.includes('New-Item'), 'Creates PS profile dir if missing');
+
+    // UUID generation must have empty check
+    assert(setupContent.includes('-z "$key"') || setupContent.includes('empty'), 'UUID generation has empty check');
+
+    // Must write to both .bashrc AND .zshrc
+    assert(setupContent.includes('.bashrc') && setupContent.includes('.zshrc'), 'Writes alias to both .bashrc and .zshrc');
+
+    // Must have download fallback for scripts
+    assert(setupContent.includes('curl') && setupContent.includes('raw.githubusercontent'), 'Has download fallback for processing scripts');
+
+    // Env var values should point to ~/Coach, not ~/HealthTracker
+    // (the note may mention HealthTracker to explain it's NOT used — that's OK)
+    const envCommands = setupContent.match(/SetEnvironmentVariable.*HEALTH_DATA_DIR.*"(.*?)"/);
+    if (envCommands) {
+      assert(!envCommands[1].includes('HealthTracker'), 'Env var value points to ~/Coach, not ~/HealthTracker');
+    }
+
+    // Dedup on re-run
+    assert(setupContent.includes('sed') || setupContent.includes('Remove old'), 'Re-run removes old env vars before adding new');
+  }
+
+  // ── TEST 12: build-conversations.js uses single data dir ──
+  console.log('\n--- Builder Data Dir ---');
+  const builderContent = fs.readFileSync(convBuilderPath, 'utf8');
+  // Should NOT have separate HealthTracker default
+  const hasHealthTrackerDefault = builderContent.includes("'HealthTracker')") && !builderContent.includes('// no split');
+  assert(!hasHealthTrackerDefault, 'Builder does not default to ~/HealthTracker (uses ~/Coach only)');
+  // coachDir and dataDir should be the same
+  assert(builderContent.includes('const dataDir = coachDir'), 'Builder: dataDir === coachDir (no split-brain)');
+
+  // ── TEST 13: Live Coach folder ──
   console.log('\n--- Live Coach Folder ---');
   const liveCoach = path.join(os.homedir(), 'Coach');
 
