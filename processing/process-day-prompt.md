@@ -31,6 +31,7 @@ After ZIP extraction, the data is at `{EXTRACT_DIR}/`:
 - `daily/{DATE}/log.json` — today's entries (meals, drinks, snacks, workouts, body photos, vices/alcohol, water, weight)
 - `daily/{DATE}/photos/` — meal/snack/drink/workout photos (JPEG)
 - `progress/{DATE}/` — body progress photos (face.jpg, face_2.jpg, body.jpg, body_2.jpg, etc.) — **do NOT describe these, they are private**
+- Health data (steps) may be available at `{RELAY_URL}/sync/{KEY}/health/{DATE}` — if the watcher passes step count data, include it in the daily summary and highlights (e.g., "Great job — 8,500 steps today!")
 
 The `{EXTRACT_DIR}` path will be provided in the processing prompt. ZIP extraction may nest paths (e.g. `{EXTRACT_DIR}/daily/{DATE}/daily/{DATE}/log.json`). Use Glob to find the actual `log.json` location.
 

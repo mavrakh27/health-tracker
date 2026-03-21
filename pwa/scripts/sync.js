@@ -642,6 +642,20 @@ const CloudRelay = {
     }
   },
 
+  // Fetch health data (steps etc.) from relay for a given date
+  async getHealthData(date) {
+    const config = await this.getConfig();
+    if (!config || !config.workerUrl || !config.syncKey) return null;
+    try {
+      const url = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/health/${date}`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      return null;
+    }
+  },
+
   // Re-sync all results from relay (for reinstall recovery)
   async resyncAll() {
     const config = await this.getConfig();

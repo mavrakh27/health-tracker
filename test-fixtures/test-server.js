@@ -47,7 +47,27 @@ function startServer(rootDir, port = 8080) {
     });
   });
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`Port ${port} in use — killing stale process...`);
+        const { execSync } = require('child_process');
+        try {
+          // Find and kill the process on this port (Windows)
+          const out = execSync(`netstat -ano | findstr :${port}.*LISTEN`, { encoding: 'utf8' });
+          const pids = [...new Set(out.trim().split('\n').map(l => l.trim().split(/\s+/).pop()))];
+          for (const pid of pids) {
+            try { execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' }); } catch (e) {}
+          }
+        } catch (e) {}
+        // Retry after a short delay
+        setTimeout(() => server.listen(port, () => {
+          resolve({ server, url: `http://localhost:${port}`, close: () => server.close() });
+        }), 1000);
+      } else {
+        reject(err);
+      }
+    });
     server.listen(port, () => {
       resolve({ server, url: `http://localhost:${port}`, close: () => server.close() });
     });

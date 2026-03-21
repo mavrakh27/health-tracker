@@ -1537,6 +1537,19 @@ const App = {
       </div>
     `;
 
+    // Async: fetch steps from relay (non-blocking, updates after render)
+    CloudRelay.getHealthData(date).then(health => {
+      if (health?.steps != null) {
+        const stepsCard = document.createElement('div');
+        stepsCard.className = 'stat-card';
+        stepsCard.innerHTML = `
+          <div class="stat-value" style="color: var(--accent-primary)">${Number(health.steps).toLocaleString()}</div>
+          <div class="stat-label">Steps</div>
+        `;
+        statsEl.appendChild(stepsCard);
+      }
+    }).catch(() => {});
+
     // Make stat cards tappable
     statsEl.querySelectorAll('[data-stat-action]').forEach(card => {
       card.addEventListener('click', () => {

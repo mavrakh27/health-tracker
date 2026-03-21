@@ -180,6 +180,27 @@ async function handle(request, env, key, route) {
     return json(200, { ok: true, date });
   }
 
+  // PUT /sync/{key}/health/{date} — store health data (steps, etc.) from Apple Health via Shortcut
+  const healthRoute = route.match(/^health\/([\d-]+)$/);
+  if (healthRoute && method === 'PUT') {
+    const date = healthRoute[1];
+    if (!DATE_RE.test(date)) return json(400, { error: 'invalid date' });
+
+    const body = await request.text();
+    await env.BUCKET.put(`health/${key}/${date}.json`, body);
+    return json(200, { ok: true, date });
+  }
+
+  // GET /sync/{key}/health/{date} — retrieve health data for a date
+  if (healthRoute && method === 'GET') {
+    const date = healthRoute[1];
+    if (!DATE_RE.test(date)) return json(400, { error: 'invalid date' });
+
+    const obj = await env.BUCKET.get(`health/${key}/${date}.json`);
+    if (!obj) return json(404, { error: 'not found' });
+    return new Response(obj.body, { headers: { 'Content-Type': 'application/json' } });
+  }
+
   return json(404, { error: 'not found' });
 }
 
