@@ -6,10 +6,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const coachDir = process.env.COACH_DIR || process.env.HEALTH_DATA_DIR || path.join(require('os').homedir(), 'Coach');
+const coachDir = process.env.COACH_DIR || path.join(require('os').homedir(), 'Coach');
 const analysisDir = path.join(coachDir, 'analysis');
-// Daily data lives in the same dir as Coach — no split-brain between ~/Coach and ~/HealthTracker
-const dataDir = coachDir;
+// Daily data may be in a separate dir (existing installs use ~/HealthTracker)
+// or in the same dir as Coach (new installs). Check both.
+const dataDir = process.env.HEALTH_DATA_DIR || coachDir;
 const outPath = path.join(coachDir, 'conversations.md');
 
 // Collect all conversations from analysis files and daily exports

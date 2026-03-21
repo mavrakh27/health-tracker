@@ -406,14 +406,47 @@ try {
     assert(setupContent.includes('sed') || setupContent.includes('Remove old'), 'Re-run removes old env vars before adding new');
   }
 
-  // ── TEST 12: build-conversations.js uses single data dir ──
+  // ── TEST 12: build-conversations.js data dir handling ──
   console.log('\n--- Builder Data Dir ---');
   const builderContent = fs.readFileSync(convBuilderPath, 'utf8');
-  // Should NOT have separate HealthTracker default
-  const hasHealthTrackerDefault = builderContent.includes("'HealthTracker')") && !builderContent.includes('// no split');
-  assert(!hasHealthTrackerDefault, 'Builder does not default to ~/HealthTracker (uses ~/Coach only)');
-  // coachDir and dataDir should be the same
-  assert(builderContent.includes('const dataDir = coachDir'), 'Builder: dataDir === coachDir (no split-brain)');
+  // Coach dir should default to ~/Coach
+  assert(builderContent.includes("'Coach')"), 'Builder defaults coachDir to ~/Coach');
+  // dataDir should fall back to coachDir when HEALTH_DATA_DIR is unset
+  assert(builderContent.includes('|| coachDir'), 'Builder: dataDir falls back to coachDir');
+  // But should also support HEALTH_DATA_DIR for existing installs
+  assert(builderContent.includes('HEALTH_DATA_DIR'), 'Builder: supports separate HEALTH_DATA_DIR');
+
+  // ── TEST 12b: Split-dir scenario (existing installs: Coach ≠ HealthTracker) ──
+  console.log('\n--- Split Data Dir ---');
+
+  const splitCoach = path.join(tmpDir, 'split-coach');
+  const splitData = path.join(tmpDir, 'split-data');
+  fs.mkdirSync(path.join(splitCoach, 'analysis'), { recursive: true });
+  fs.mkdirSync(path.join(splitData, 'daily', '2026-03-20'), { recursive: true });
+
+  fs.writeFileSync(path.join(splitCoach, 'analysis', '2026-03-20.json'), JSON.stringify({
+    date: '2026-03-20',
+    coachResponses: [{ replyTo: 'split_msg', text: 'Coach reply', timestamp: 5000 }],
+  }));
+  fs.writeFileSync(path.join(splitData, 'daily', '2026-03-20', 'log.json'), JSON.stringify({
+    date: '2026-03-20',
+    coachChat: [{ id: 'split_msg', role: 'user', text: 'User question', timestamp: 1000 }],
+  }));
+
+  const splitWrapper = path.join(tmpDir, 'run-builder-split.js');
+  fs.writeFileSync(splitWrapper, `
+    process.env.COACH_DIR = ${JSON.stringify(splitCoach)};
+    process.env.HEALTH_DATA_DIR = ${JSON.stringify(splitData)};
+    ${builderSrc}
+  `);
+  try {
+    execSync(`node "${splitWrapper}"`, { encoding: 'utf8', timeout: 10000 });
+    const conv = fs.readFileSync(path.join(splitCoach, 'conversations.md'), 'utf8');
+    assert(conv.includes('User question'), 'Split-dir: finds user messages in separate HEALTH_DATA_DIR');
+    assert(conv.includes('Coach reply'), 'Split-dir: finds coach responses in COACH_DIR');
+  } catch (e) {
+    assert(false, 'Split-dir test', e.message.split('\n')[0]);
+  }
 
   // ── TEST 13: Live Coach folder ──
   console.log('\n--- Live Coach Folder ---');
