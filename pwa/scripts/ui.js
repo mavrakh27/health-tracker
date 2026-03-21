@@ -447,28 +447,34 @@ const UI = {
 
     const closeModal = () => {
       if (photoUrl) URL.revokeObjectURL(photoUrl);
+      // Also close any open photo viewer (it's on document.body, not inside the modal)
+      document.querySelector('.photo-viewer-overlay')?.remove();
       overlay.remove();
     };
 
     document.getElementById('edit-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
 
-    // Body photo lock toggle (for revealing the photo)
+    // Body photo: tap 1 = reveal, tap 2 = open viewer (no re-lock toggle)
     const photoLock = document.getElementById('edit-photo-lock');
     if (photoLock) {
       photoLock.addEventListener('click', () => {
-        photoLock.classList.toggle('revealed');
+        if (!photoLock.classList.contains('revealed')) {
+          // First tap: reveal the photo
+          photoLock.classList.add('revealed');
+        } else if (photoUrl) {
+          // Already revealed: open full-screen viewer
+          UI.showPhotoViewer(photoUrl, entry);
+        }
       });
     }
 
-    // Photo expand — tap preview to open full-screen viewer
-    if (photoUrl) {
+    // Photo expand for non-body photos — tap preview to open viewer
+    if (photoUrl && !isBodyPhoto) {
       const previewEl = sheet.querySelector('.ql-photo-preview');
       if (previewEl) {
         previewEl.style.cursor = 'pointer';
         previewEl.addEventListener('click', (e) => {
-          // For body photos, only expand if revealed
-          if (isBodyPhoto && photoLock && !photoLock.classList.contains('revealed')) return;
           e.stopPropagation();
           UI.showPhotoViewer(photoUrl, entry);
         });
