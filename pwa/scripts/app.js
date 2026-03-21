@@ -1532,10 +1532,11 @@ const App = {
     const circumference = 2 * Math.PI * radius;
     let ringHtml;
     if (calEaten != null) {
-      const ratio = Math.min(calEaten / calTarget, 1);
+      const ratio = Math.max(0, Math.min(calEaten / calTarget, 1));
       const offset = circumference - ratio * circumference;
       const over = calEaten > calTarget;
       const ringColor = over ? 'var(--accent-red)' : 'var(--accent-green)';
+      const displayCal = Math.round(calEaten);
       ringHtml = `
       <div class="stat-card stat-card--tap calorie-ring-card" data-stat-action="food">
         <div class="calorie-ring-wrap">
@@ -1546,7 +1547,7 @@ const App = {
               stroke-linecap="round" transform="rotate(-90 22 22)"
               class="calorie-ring-fill"/>
           </svg>
-          <div class="calorie-ring-center" style="color:${ringColor}">${calEaten}</div>
+          <div class="calorie-ring-center" style="color:${ringColor}">${displayCal}</div>
         </div>
         <div class="stat-label">of ${calTarget} cal</div>
       </div>`;
