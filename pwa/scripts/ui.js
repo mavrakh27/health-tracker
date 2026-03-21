@@ -560,6 +560,9 @@ const UI = {
 
   // --- Full-screen photo viewer ---
   showPhotoViewer(photoUrl, entry) {
+    // Remove any existing photo viewer first
+    document.querySelector('.photo-viewer-overlay')?.remove();
+
     const overlay = document.createElement('div');
     overlay.className = 'photo-viewer-overlay';
 
@@ -601,12 +604,16 @@ const UI = {
     overlay.appendChild(imgWrap);
     overlay.appendChild(actions);
 
-    const close = () => overlay.remove();
+    const close = () => {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
 
     closeBtn.addEventListener('click', (e) => { e.stopPropagation(); close(); });
     overlay.addEventListener('click', (e) => { if (e.target === overlay || e.target === imgWrap) close(); });
-    // Prevent closing when tapping the image itself
     img.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('keydown', onKey);
 
     document.body.appendChild(overlay);
   },

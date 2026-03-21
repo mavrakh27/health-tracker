@@ -1030,9 +1030,12 @@ async function testUserFlows(page, fixtures) {
           page.waitForEvent('filechooser'),
           libBtn.click(),
         ]);
-        await fc7.setFiles(tmpPath7);
-        await page.waitForTimeout(600);
-        require('fs').unlinkSync(tmpPath7);
+        try {
+          await fc7.setFiles(tmpPath7);
+          await page.waitForTimeout(600);
+        } finally {
+          try { require('fs').unlinkSync(tmpPath7); } catch (_) {}
+        }
 
         // Preview should appear in #fn-photo-area
         const previewImg = await page.$('#fn-photo-area .photo-preview-img');
@@ -2227,9 +2230,12 @@ async function testVisualQA(page, fixtures) {
       }, typeKey));
       const tmpPath = require('path').join(require('os').tmpdir(), `test-bp-${typeKey}.png`);
       require('fs').writeFileSync(tmpPath, portraitBuf);
-      await fc.setFiles(tmpPath);
-      await page.waitForTimeout(400);
-      require('fs').unlinkSync(tmpPath);
+      try {
+        await fc.setFiles(tmpPath);
+        await page.waitForTimeout(400);
+      } finally {
+        try { require('fs').unlinkSync(tmpPath); } catch (_) {}
+      }
     }
   }
 

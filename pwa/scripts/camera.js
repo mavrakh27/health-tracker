@@ -19,7 +19,8 @@ const Camera = {
       input.style.display = 'none';
       document.body.appendChild(input);
 
-      const cleanup = () => input.remove();
+      let resolved = false;
+      const cleanup = () => { resolved = true; input.remove(); };
 
       input.addEventListener('change', async () => {
         const file = input.files[0];
@@ -38,6 +39,8 @@ const Camera = {
       });
 
       input.addEventListener('cancel', () => { cleanup(); resolve(null); });
+      // Fallback: older browsers don't fire 'cancel' on dismiss — detect via focus return
+      Camera._onDismiss(() => { if (!resolved) { cleanup(); resolve(null); } });
 
       input.click();
     });
@@ -52,7 +55,8 @@ const Camera = {
       input.style.display = 'none';
       document.body.appendChild(input);
 
-      const cleanup = () => input.remove();
+      let resolved = false;
+      const cleanup = () => { resolved = true; input.remove(); };
 
       input.addEventListener('change', async () => {
         const file = input.files[0];
@@ -71,6 +75,7 @@ const Camera = {
       });
 
       input.addEventListener('cancel', () => { cleanup(); resolve(null); });
+      Camera._onDismiss(() => { if (!resolved) { cleanup(); resolve(null); } });
       input.click();
     });
   },
@@ -86,7 +91,8 @@ const Camera = {
       input.style.display = 'none';
       document.body.appendChild(input);
 
-      const cleanup = () => input.remove();
+      let resolved = false;
+      const cleanup = () => { resolved = true; input.remove(); };
 
       input.addEventListener('change', async () => {
         const files = Array.from(input.files);
@@ -107,6 +113,7 @@ const Camera = {
       });
 
       input.addEventListener('cancel', () => { cleanup(); resolve([]); });
+      Camera._onDismiss(() => { if (!resolved) { cleanup(); resolve([]); } });
       input.click();
     });
   },
@@ -191,5 +198,15 @@ const Camera = {
     if (url && url.startsWith('blob:')) {
       URL.revokeObjectURL(url);
     }
+  },
+
+  // Fallback dismiss detection for browsers that don't fire 'cancel' on file inputs.
+  // When the page regains focus after the picker closes, fires the callback if
+  // neither 'change' nor 'cancel' resolved the promise.
+  _onDismiss(callback) {
+    const onFocus = () => {
+      setTimeout(() => callback(), 500);
+    };
+    window.addEventListener('focus', onFocus, { once: true });
   },
 };
