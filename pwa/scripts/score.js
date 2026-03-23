@@ -133,7 +133,7 @@ const DayScore = {
     const maxDays = 365;
 
     for (let i = 0; i < maxDays; i++) {
-      const dateStr = current.toISOString().split('T')[0];
+      const dateStr = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
       const entries = await DB.getEntriesByDate(dateStr);
       if (!entries.some(e => e.type === 'meal')) break;
       streak++;

@@ -713,11 +713,11 @@ const App = {
       const urlParams = new URLSearchParams(location.search);
       if (urlParams.has('key')) {
         const key = urlParams.get('key');
-        const relay = urlParams.get('relay') || '';
+        const relay = urlParams.get('relay') || 'https://health-sync.emilyn-90a.workers.dev';
         if (key) {
           const config = await CloudRelay.getConfig() || {};
           config.syncKey = key;
-          if (relay) config.workerUrl = relay;
+          config.workerUrl = relay;
           await CloudRelay.saveConfig(config);
           // Clean URL params so they don't persist on refresh
           history.replaceState(null, '', location.pathname + location.hash);
@@ -729,7 +729,10 @@ const App = {
 
       // Load day boundary preference before anything uses UI.today()
       const prefs = await DB.getProfile('preferences');
-      if (prefs?.dayBoundaryHour) UI._dayBoundaryHours = prefs.dayBoundaryHour;
+      if (prefs?.dayBoundaryHour) {
+        UI._dayBoundaryHours = prefs.dayBoundaryHour;
+        App.selectedDate = UI.today(); // Re-derive with correct boundary
+      }
 
       // Check for fresh install (empty DB) and attempt restore from cloud
       const hasData = await DB.hasAnyEntries();
