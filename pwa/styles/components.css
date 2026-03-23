@@ -34,7 +34,8 @@
 .today-panels {
   display: flex;
   width: 100%;
-  overflow: hidden;
+  overflow-x: clip;
+  overflow-y: visible;
   touch-action: pan-y;
 }
 

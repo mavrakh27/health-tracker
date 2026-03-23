@@ -2292,6 +2292,119 @@ async function testVisualQA(page, fixtures) {
   });
   await page.waitForTimeout(200);
 
+  // 10d. Body photo form scroll — adding 3 photos must not block scrolling to Save button
+  // Bug: .today-panels has overflow:hidden for horizontal swiping, but panel height wasn't
+  // updated when photos were added, clipping form content and blocking vertical scroll.
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]);
+  await page.waitForTimeout(300);
+
+  // Open body photo form
+  await page.click('#quick-more-btn');
+  await page.waitForTimeout(300);
+  await page.click('[data-more-type="bodyPhoto"]');
+  await page.waitForTimeout(500);
+
+  // Add 3 photos via file chooser to the body type
+  for (let i = 0; i < 3; i++) {
+    const pickBtn = page.locator('[data-bp-pick="body"]');
+    if (await pickBtn.isVisible()) {
+      const [fc] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        pickBtn.click(),
+      ]);
+      const photoBuf = Buffer.from(await page.evaluate((idx) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 300; canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = ['#2ecc71', '#3498db', '#9b59b6'][idx];
+        ctx.fillRect(0, 0, 300, 400);
+        ctx.fillStyle = '#fff'; ctx.font = '48px sans-serif';
+        ctx.fillText(`${idx + 1}`, 130, 210);
+        return new Promise(r => canvas.toBlob(b => b.arrayBuffer().then(a => r(Array.from(new Uint8Array(a)))), 'image/png'));
+      }, i));
+      const tmpFile = path.join(require('os').tmpdir(), `test-bp-scroll-${i}.png`);
+      fs.writeFileSync(tmpFile, photoBuf);
+      try {
+        await fc.setFiles(tmpFile);
+        await page.waitForTimeout(400);
+      } finally {
+        try { fs.unlinkSync(tmpFile); } catch (_) {}
+      }
+    }
+  }
+
+  // Check: save button is scrollable into view (not clipped by overflow:hidden)
+  const bpScrollCheck = await page.evaluate(() => {
+    const screen = document.querySelector('.screen.active');
+    const saveBtn = document.querySelector('#log-form-content-inline .btn-primary');
+    const panels = document.querySelector('.today-panels');
+    if (!screen || !saveBtn || !panels) return { found: false };
+
+    // Scroll to bottom
+    screen.scrollTop = screen.scrollHeight;
+
+    const saveBtnRect = saveBtn.getBoundingClientRect();
+    const navBar = document.querySelector('.bottom-nav');
+    const navTop = navBar ? navBar.getBoundingClientRect().top : window.innerHeight;
+    const panelsRect = panels.getBoundingClientRect();
+
+    // The save button must be visible (above the nav bar) after scrolling
+    const saveVisible = saveBtnRect.bottom > 0 && saveBtnRect.bottom <= navTop + 5;
+
+    // The panels container must be tall enough to contain the form
+    const panelDiet = document.getElementById('panel-diet');
+    const panelContentHeight = panelDiet ? panelDiet.scrollHeight : 0;
+    const panelsTall = panelsRect.height >= panelContentHeight - 2;
+
+    screen.scrollTop = 0;
+    return {
+      found: true,
+      saveVisible,
+      panelsTall,
+      saveBtnBottom: Math.round(saveBtnRect.bottom),
+      navTop: Math.round(navTop),
+      panelsHeight: Math.round(panelsRect.height),
+      panelContentHeight: Math.round(panelContentHeight),
+    };
+  });
+
+  if (bpScrollCheck.found) {
+    assert(bpScrollCheck.saveVisible,
+      `Body photo form: Save button visible after scroll (bottom=${bpScrollCheck.saveBtnBottom}, navTop=${bpScrollCheck.navTop})`);
+    assert(bpScrollCheck.panelsTall,
+      `Body photo form: panels container tall enough for content (panels=${bpScrollCheck.panelsHeight}, content=${bpScrollCheck.panelContentHeight})`);
+  }
+
+  // 10e. today-panels must NOT use overflow:hidden on Y axis (blocks touch scrolling on iOS)
+  // Bug: overflow:hidden creates a scroll container that traps touch events on iOS Safari,
+  // preventing the parent .screen.active from scrolling. Use overflow-x:clip instead.
+  const panelsOverflow = await page.evaluate(() => {
+    const panels = document.querySelector('.today-panels');
+    if (!panels) return { found: false };
+    const cs = getComputedStyle(panels);
+    return {
+      found: true,
+      overflow: cs.overflow,
+      overflowX: cs.overflowX,
+      overflowY: cs.overflowY,
+    };
+  });
+  if (panelsOverflow.found) {
+    assert(panelsOverflow.overflowY !== 'hidden',
+      `today-panels overflowY is not hidden (got ${panelsOverflow.overflowY}) — hidden blocks iOS touch scroll`);
+    assert(panelsOverflow.overflowX === 'clip' || panelsOverflow.overflowX === 'hidden',
+      `today-panels overflowX clips horizontal content (got ${panelsOverflow.overflowX})`);
+  }
+
+  await screenshot(page, 'body-photo-scroll-test');
+
+  // Close the form
+  await page.evaluate(() => {
+    const form = document.getElementById('log-form-inline');
+    if (form) form.style.display = 'none';
+  });
+  await page.waitForTimeout(200);
+
   // 11. Today button — appears on past dates, hidden on today, meets touch target
   for (let i = 0; i < 2; i++) { await page.click('#header-prev'); await page.waitForTimeout(200); }
   await page.waitForTimeout(300);
