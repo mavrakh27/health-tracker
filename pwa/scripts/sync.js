@@ -635,10 +635,10 @@ const CloudRelay = {
       }
     }
 
-    const icons = { uploading: '\u{2B06}\uFE0F', synced: '\u{2705}', error: '\u{26A0}\uFE0F', pending: '\u{1F504}' };
-    indicator.textContent = icons[status] || '';
+    const labels = { uploading: 'Syncing', synced: 'Synced', error: '!', pending: '...' };
+    indicator.textContent = labels[status] || '';
     if (status === 'synced') {
-      setTimeout(() => { if (indicator.textContent === icons.synced) indicator.textContent = ''; }, 3000);
+      setTimeout(() => { if (indicator.textContent === labels.synced) indicator.textContent = ''; }, 3000);
     }
   },
 

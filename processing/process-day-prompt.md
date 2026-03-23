@@ -31,7 +31,7 @@ After ZIP extraction, the data is at `{EXTRACT_DIR}/`:
 - `daily/{DATE}/log.json` — today's entries (meals, drinks, snacks, workouts, body photos, vices/alcohol, water, weight)
 - `daily/{DATE}/photos/` — meal/snack/drink/workout photos (JPEG)
 - `progress/{DATE}/` — body progress photos (face.jpg, face_2.jpg, body.jpg, body_2.jpg, etc.) — **do NOT describe these, they are private**
-- Health data (steps) may be available at `{RELAY_URL}/sync/{KEY}/health/{DATE}` — if the watcher passes step count data, include it in the daily summary and highlights (e.g., "Great job — 8,500 steps today!")
+- Health data may be available at `{RELAY_URL}/sync/{KEY}/health/{DATE}` — this JSON can contain `steps`, `distance_mi` (or `distance_km`), `flights` (flights climbed), and `activeCalories` from Apple Health. Include available metrics in the daily summary and highlights (e.g., "8,500 steps (3.7 mi) today, 285 active calories burned")
 
 The `{EXTRACT_DIR}` path will be provided in the processing prompt. ZIP extraction may nest paths (e.g. `{EXTRACT_DIR}/daily/{DATE}/daily/{DATE}/log.json`). Use Glob to find the actual `log.json` location.
 
@@ -86,6 +86,9 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
    - If a photo shows a label or menu item, search for that specific product/restaurant item's published nutrition facts.
    - Calculate calories, protein, carbs, and fat based on looked-up data and estimated portions
    - **Always round up / over-estimate** when uncertain - better to over-count than under-count. If a portion could be 300-400 cal, call it 400. If size is ambiguous, assume the larger portion.
+   - **Never assume shared meals.** Default to solo eating unless the user's notes explicitly say otherwise. Don't halve portions because a photo shows a serving platter or tongs.
+   - **Only count food on the user's plate.** Items visible in the background (e.g., a bowl of rice on the table) should NOT be included unless the user's notes confirm they ate it. Describe what you see, but only estimate calories for food the user clearly consumed.
+   - **Photos may show leftovers, not the full meal.** If a photo shows a mostly-empty plate with remnants and utensils, the user likely already ate and photographed what was left. Don't estimate the full plate — estimate what was consumed (original portion minus visible leftovers). When ambiguous, note the uncertainty in the description.
    - Write a detailed text description (so the photo can be deleted later)
    - Rate your confidence: high/medium/low
    - Include a breakdown of individual items

@@ -249,13 +249,13 @@ const GoalsView = {
       if (a.highlights?.length) {
         html += `<div style="margin-bottom: var(--space-sm);">`;
         for (const h of a.highlights) {
-          html += `<div style="font-size:var(--text-sm); color:var(--accent-green); margin-bottom:2px;">\u2713 ${UI.escapeHtml(h)}</div>`;
+          html += `<div style="font-size:var(--text-sm); color:var(--accent-green); margin-bottom:2px;">+ ${UI.escapeHtml(h)}</div>`;
         }
         html += '</div>';
       }
       if (a.concerns?.length) {
         for (const c of a.concerns) {
-          html += `<div style="font-size:var(--text-sm); color:var(--accent-orange); margin-bottom:2px;">\u26A0 ${UI.escapeHtml(c)}</div>`;
+          html += `<div style="font-size:var(--text-sm); color:var(--accent-orange); margin-bottom:2px;">- ${UI.escapeHtml(c)}</div>`;
         }
       }
       html += '</div>';

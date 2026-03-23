@@ -425,8 +425,13 @@ const UI = {
       </div>
       ${photoHtml}
       ${lockBarHtml}
-      <div style="font-size: var(--text-xs); color: var(--text-muted); margin-bottom: var(--space-md);">
-        ${UI.formatTime(entry.timestamp)} &mdash; ${UI.formatDate(entry.date)}
+      <div class="form-group" style="margin-bottom: var(--space-md);">
+        <label class="form-label" style="font-size: var(--text-xs); color: var(--text-muted);">
+          ${UI.formatTime(entry.timestamp)} &mdash; <span id="edit-date-display">${UI.formatDate(entry.date)}</span>
+        </label>
+        <div style="display:flex; align-items:center; gap:var(--space-sm); margin-top:var(--space-xs);">
+          <input type="date" class="form-input" id="edit-date" value="${entry.date}" style="flex:1;"${isBodyPhoto ? ' disabled' : ''}>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label">Notes</label>
@@ -493,6 +498,7 @@ const UI = {
         const deleteBtn = document.getElementById('edit-delete');
         const notesEl = document.getElementById('edit-notes');
 
+        const dateEl = document.getElementById('edit-date');
         if (isLocked) {
           // Unlock
           saveBtn.disabled = false;
@@ -500,6 +506,7 @@ const UI = {
           deleteBtn.disabled = false;
           deleteBtn.classList.remove('btn-locked');
           if (notesEl) notesEl.disabled = false;
+          if (dateEl) dateEl.disabled = false;
           lockToggle.textContent = 'Lock';
           bar.querySelector('.edit-lock-bar-text').textContent = 'Entry unlocked';
         } else {
@@ -509,6 +516,7 @@ const UI = {
           deleteBtn.disabled = true;
           deleteBtn.classList.add('btn-locked');
           if (notesEl) notesEl.disabled = true;
+          if (dateEl) dateEl.disabled = true;
           lockToggle.textContent = 'Unlock to edit';
           bar.querySelector('.edit-lock-bar-text').textContent = 'Entry locked';
         }
@@ -528,14 +536,20 @@ const UI = {
     // Save
     document.getElementById('edit-save').addEventListener('click', async () => {
       const notes = document.getElementById('edit-notes')?.value?.trim() || '';
-      const updated = { ...entry, notes, updatedAt: new Date().toISOString() };
+      const newDate = document.getElementById('edit-date')?.value || entry.date;
+      const oldDate = entry.date;
+      const updated = { ...entry, notes, date: newDate, updatedAt: new Date().toISOString() };
       if (entry.type === 'workout') {
         const dur = document.getElementById('edit-duration')?.value;
         updated.duration_minutes = dur ? parseInt(dur) : null;
       }
       try {
         await DB.updateEntry(updated);
-        UI.toast('Entry updated');
+        // Sync both old and new dates if the entry moved
+        CloudRelay.queueUpload(newDate);
+        if (newDate !== oldDate) CloudRelay.queueUpload(oldDate);
+        const movedNote = newDate !== oldDate ? ` (moved to ${UI.formatRelativeDate(newDate)})` : '';
+        UI.toast(`Entry updated${movedNote}`);
         closeModal();
         App.loadDayView();
       } catch (err) {
