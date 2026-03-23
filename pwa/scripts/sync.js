@@ -434,6 +434,28 @@ const CloudRelay = {
     ).join('');
   },
 
+  // Persistent sync event log — survives page reloads for debugging
+  logSyncEvent(event, date, detail) {
+    try {
+      const log = JSON.parse(localStorage.getItem('syncEventLog') || '[]');
+      log.push({
+        t: Date.now(),
+        event,
+        date: date || null,
+        detail: detail || null,
+      });
+      // Cap at 100 events (rolling window)
+      if (log.length > 100) log.splice(0, log.length - 100);
+      localStorage.setItem('syncEventLog', JSON.stringify(log));
+    } catch (e) { /* localStorage may be unavailable */ }
+  },
+
+  getSyncEventLog() {
+    try {
+      return JSON.parse(localStorage.getItem('syncEventLog') || '[]');
+    } catch (e) { return []; }
+  },
+
   // Get relay config from IndexedDB
   async getConfig() {
     return await DB.getProfile('cloudRelay') || null;
@@ -556,25 +578,38 @@ const CloudRelay = {
   },
 
   // Check for new analysis results from the relay
+  _checkingResults: false,
   async checkForResults() {
+    // Mutex — prevent concurrent checks from racing on download/import/ack
+    if (this._checkingResults) {
+      this.log('Results check already in progress — skipping');
+      return;
+    }
+    this._checkingResults = true;
+
     const config = await this.getConfig();
     if (!config || !config.workerUrl || !config.syncKey) {
       this.log('Results check skipped — not configured');
+      this._checkingResults = false;
       return;
     }
 
+    const baseUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}`;
+
     try {
-      const resultsUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/new`;
+      const resultsUrl = `${baseUrl}/results/new`;
       this.log(`Checking: ${resultsUrl}`);
       const resp = await fetch(resultsUrl);
       if (!resp.ok) {
         this.log(`Results check failed: HTTP ${resp.status}`, 'error');
+        this._checkingResults = false;
         return;
       }
 
       const { newResults } = await resp.json();
       if (!newResults || newResults.length === 0) {
         this.log('No new results available');
+        this._checkingResults = false;
         return;
       }
 
@@ -582,13 +617,19 @@ const CloudRelay = {
       this._gotResults = true;
       this.stopPolling();
 
+      // Phase 1: Download, import, and verify — collect confirmed dates
+      const verified = [];
+      const failed = [];
+
       for (const date of newResults) {
         try {
-          const dlUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}`;
+          const dlUrl = `${baseUrl}/results/${date}`;
           this.log(`Downloading ${date}...`);
           const resultResp = await fetch(dlUrl);
           if (!resultResp.ok) {
             this.log(`Failed to download ${date}: HTTP ${resultResp.status}`, 'error');
+            failed.push(date);
+            this.logSyncEvent('download_fail', date, `HTTP ${resultResp.status}`);
             continue;
           }
 
@@ -599,25 +640,61 @@ const CloudRelay = {
             analysis = JSON.parse(text);
           } catch (parseErr) {
             this.log(`Invalid JSON for ${date}: ${parseErr.message} (first 100 chars: ${text.slice(0, 100)})`, 'error');
+            failed.push(date);
+            this.logSyncEvent('parse_fail', date, parseErr.message);
             continue;
           }
+
           await DB.importAnalysis(date, analysis);
-          this.log(`Imported ${date}`, 'ok');
 
-          const ackUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}/ack`;
-          this.log(`Sending ack: ${ackUrl}`);
-          await fetch(ackUrl, { method: 'POST' });
-          this.log(`Ack sent for ${date}`, 'ok');
+          // Verify the import actually persisted in IDB
+          const stored = await DB.getAnalysis(date);
+          if (!stored || !stored.importedAt) {
+            this.log(`Import verification FAILED for ${date} — data not in IDB after importAnalysis`, 'error');
+            failed.push(date);
+            this.logSyncEvent('verify_fail', date, 'not found in IDB after import');
+            continue;
+          }
 
-          if (date === App.selectedDate) App.loadDayView();
+          this.log(`Imported and verified ${date}`, 'ok');
+          verified.push(date);
+          this.logSyncEvent('import_ok', date);
         } catch (innerErr) {
           this.log(`Error processing ${date}: ${innerErr.message}`, 'error');
+          failed.push(date);
+          this.logSyncEvent('import_error', date, innerErr.message);
         }
       }
-      // Single summary toast instead of per-result
-      UI.toast(`${newResults.length} day(s) of analysis imported`);
+
+      // Phase 2: Ack only verified imports — unverified dates stay in relay queue for retry
+      for (const date of verified) {
+        try {
+          await fetch(`${baseUrl}/results/${date}/ack`, { method: 'POST' });
+          this.log(`Ack sent for ${date}`, 'ok');
+        } catch (ackErr) {
+          // Ack failure is safe — relay keeps the date, we'll re-import (idempotent)
+          this.log(`Ack failed for ${date}: ${ackErr.message} — will retry`, 'error');
+          this.logSyncEvent('ack_fail', date, ackErr.message);
+        }
+      }
+
+      if (failed.length > 0) {
+        this.log(`${failed.length} date(s) failed — will retry on next check: ${failed.join(', ')}`, 'error');
+      }
+
+      // Refresh view if any verified dates match current view
+      if (verified.some(d => d === App.selectedDate)) App.loadDayView();
+
+      if (verified.length > 0) {
+        UI.toast(`${verified.length} day(s) of analysis imported`);
+      } else if (failed.length > 0) {
+        UI.toast(`Analysis import failed — will retry`, 'error');
+      }
     } catch (err) {
       this.log(`Results check error: ${err.message}`, 'error');
+      this.logSyncEvent('check_error', null, err.message);
+    } finally {
+      this._checkingResults = false;
     }
   },
 
@@ -829,6 +906,10 @@ const CloudRelay = {
         <label class="form-label">Sync Log</label>
         <div id="cloud-sync-log" style="font-size: var(--text-xs); font-family: monospace; max-height: 200px; overflow-y: auto; padding: var(--space-sm); background: var(--bg-secondary); border-radius: var(--radius-sm);"></div>
       </div>
+      <div style="margin-top: var(--space-sm);">
+        <label class="form-label">Event History <span style="opacity:0.5">(persists across reloads)</span></label>
+        <div id="cloud-sync-events" style="font-size: var(--text-xs); font-family: monospace; max-height: 150px; overflow-y: auto; padding: var(--space-sm); background: var(--bg-secondary); border-radius: var(--radius-sm);"></div>
+      </div>
     `;
 
     overlay.appendChild(sheet);
@@ -858,6 +939,26 @@ const CloudRelay = {
         logEl.innerHTML = '<div style="color: var(--text-muted)">No sync activity yet</div>';
       } else {
         CloudRelay._renderLog(logEl);
+      }
+    }
+
+    // Render persistent event history
+    const eventsEl = document.getElementById('cloud-sync-events');
+    if (eventsEl) {
+      const events = CloudRelay.getSyncEventLog();
+      if (events.length === 0) {
+        eventsEl.innerHTML = '<div style="color: var(--text-muted)">No events recorded</div>';
+      } else {
+        const colors = { import_ok: 'var(--accent-green)', check_error: 'var(--accent-red)',
+          download_fail: 'var(--accent-red)', parse_fail: 'var(--accent-red)',
+          verify_fail: 'var(--accent-red)', import_error: 'var(--accent-red)',
+          ack_fail: 'var(--accent-yellow, orange)' };
+        eventsEl.innerHTML = events.slice().reverse().map(e => {
+          const time = new Date(e.t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+          const color = colors[e.event] || 'var(--text-muted)';
+          const detail = e.detail ? ` — ${UI.escapeHtml(e.detail)}` : '';
+          return `<div style="color: ${color}"><span style="opacity: 0.6">${UI.escapeHtml(time)}</span> ${UI.escapeHtml(e.event)}${e.date ? ` [${UI.escapeHtml(e.date)}]` : ''}${detail}</div>`;
+        }).join('');
       }
     }
 
