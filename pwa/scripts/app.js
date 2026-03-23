@@ -1290,21 +1290,35 @@ const App = {
       let resultCount = 0;
       const isValidDate = d => /^\d{4}-\d{2}-\d{2}$/.test(d);
 
-      // Pull pending analysis results
+      // Pull pending analysis results — verify before acking
+      const baseUrl = `${config.workerUrl.trim()}/sync/${config.syncKey.trim()}`;
+      const verifiedDates = [];
       try {
-        const resp = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/new`);
+        const resp = await fetch(`${baseUrl}/results/new`);
         if (resp.ok) {
           const { newResults } = await resp.json();
           for (const date of (newResults || []).filter(isValidDate)) {
             try {
-              const r = await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}`);
+              const r = await fetch(`${baseUrl}/results/${date}`);
               if (r.ok) {
                 const analysis = JSON.parse(await r.text());
                 await DB.importAnalysis(date, analysis);
-                await fetch(`${config.workerUrl.trim()}/sync/${config.syncKey.trim()}/results/${date}/ack`, { method: 'POST' });
-                resultCount++;
+                // Verify import persisted
+                const stored = await DB.getAnalysis(date);
+                if (stored && stored.importedAt) {
+                  verifiedDates.push(date);
+                  resultCount++;
+                } else {
+                  console.warn(`AutoRestore: import verification failed for ${date}`);
+                }
               }
             } catch (e) { console.warn(`AutoRestore: result ${date}:`, e); }
+          }
+          // Ack only verified imports
+          for (const date of verifiedDates) {
+            try {
+              await fetch(`${baseUrl}/results/${date}/ack`, { method: 'POST' });
+            } catch (e) { /* ack failure is safe — relay keeps it for retry */ }
           }
         }
       } catch (e) { console.warn('AutoRestore: results check failed:', e); }
