@@ -695,6 +695,16 @@ const App = {
       CloudRelay.checkForResults().catch(() => {});
     });
 
+    // Check for results when app is foregrounded (covers iOS PWA resume,
+    // Android tab switch, and desktop alt-tab). Without this, results that
+    // arrive while the app is backgrounded are never pulled until next full load.
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState !== 'visible') return;
+      const configured = await CloudRelay.isConfigured();
+      if (!configured) return;
+      CloudRelay.checkForResults().catch(() => {});
+    });
+
     // Initialize DB, then load the initial route
     DB.openDB().then(async () => {
       console.log('DB ready');
@@ -716,6 +726,10 @@ const App = {
           CloudRelay.checkForResults().catch(() => {});
         }
       }
+
+      // Load day boundary preference before anything uses UI.today()
+      const prefs = await DB.getProfile('preferences');
+      if (prefs?.dayBoundaryHour) UI._dayBoundaryHours = prefs.dayBoundaryHour;
 
       // Check for fresh install (empty DB) and attempt restore from cloud
       const hasData = await DB.hasAnyEntries();
@@ -786,6 +800,7 @@ const App = {
       Settings.loadGoalsSummary();
       Settings.loadStorageInfo();
       Settings.loadCloudSyncStatus();
+      Settings.loadDayBoundary();
       Settings.initUpdateButton();
       Settings.loadVersion();
     }
@@ -1209,9 +1224,10 @@ const App = {
         </p>
         ${syncNote}
         <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
-          <button class="btn btn-primary btn-block btn-lg" onclick="App.showCoachSetup()">Setup Guide</button>
-          <button class="btn btn-ghost btn-block" onclick="App.showGoalSetup()" style="font-size:var(--text-xs);">Set goals manually</button>
-          <button class="btn btn-ghost btn-block" onclick="window.location.hash=''; App.loadDayView();" style="font-size:var(--text-xs);">Skip -- start logging</button>
+          ${syncConfigured
+            ? '<button class="btn btn-primary btn-block btn-lg" onclick="App.loadDayView();">Continue</button>'
+            : '<button class="btn btn-primary btn-block btn-lg" onclick="App.showCoachSetup()">Set Up Coach</button>'
+          }
         </div>
       </div>
     `;
@@ -1242,7 +1258,6 @@ const App = {
         </ol>
       </div>
       <button class="btn btn-secondary btn-block" id="cs-coach-done">I've already set up Coach</button>
-      <button class="btn btn-ghost btn-block" id="cs-coach-skip" style="margin-top:var(--space-xs); font-size:var(--text-xs);">Skip -- I'll start logging first</button>
     `;
 
     overlay.appendChild(sheet);
@@ -1252,7 +1267,6 @@ const App = {
     document.getElementById('cs-coach-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
     document.getElementById('cs-coach-done').addEventListener('click', closeModal);
-    document.getElementById('cs-coach-skip').addEventListener('click', closeModal);
   },
 
   _openLogGrid() {
@@ -1738,6 +1752,21 @@ const Settings = {
     if (configured && confirm('Also delete photos from the cloud relay?')) {
       await CloudRelay.deleteAllFromRelay();
     }
+  },
+
+  async loadDayBoundary() {
+    const select = document.getElementById('day-boundary-select');
+    if (!select) return;
+    const prefs = await DB.getProfile('preferences') || {};
+    select.value = String(prefs.dayBoundaryHour || 0);
+    select.addEventListener('change', async () => {
+      const hour = parseInt(select.value) || 0;
+      const prefs = await DB.getProfile('preferences') || {};
+      prefs.dayBoundaryHour = hour;
+      await DB.setProfile('preferences', prefs);
+      UI._dayBoundaryHours = hour;
+      UI.toast(`Day starts at ${hour === 0 ? 'midnight' : hour + ' AM'}`);
+    });
   },
 
   async loadCloudSyncStatus() {

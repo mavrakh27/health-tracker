@@ -1,9 +1,14 @@
 // ui.js — Shared UI utilities
 
 const UI = {
+  // --- Day Boundary ---
+  // Hours to subtract from current time to get the "effective date."
+  // 0 = midnight (default), 4 = day starts at 4 AM (entries at 2 AM count as previous day).
+  _dayBoundaryHours: 0,
+
   // --- Date Helpers ---
   today() {
-    const d = new Date();
+    const d = new Date(Date.now() - UI._dayBoundaryHours * 3600000);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   },
 

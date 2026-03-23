@@ -151,8 +151,27 @@
       <p class="s-section-label">App</p>
 
       <div class="s-group">
-        <!-- Storage -->
+        <!-- Day Boundary -->
         <div class="s-card s-card--first">
+          <div class="s-card-row">
+            <div class="s-card-body">
+              <h3 class="s-title">Day Starts At</h3>
+              <p class="s-subtitle">Entries before this time count as the previous day</p>
+            </div>
+            <select class="s-action-btn" id="day-boundary-select" style="background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:6px 10px;font-size:var(--text-sm);">
+              <option value="0">Midnight</option>
+              <option value="1">1 AM</option>
+              <option value="2">2 AM</option>
+              <option value="3">3 AM</option>
+              <option value="4">4 AM</option>
+              <option value="5">5 AM</option>
+              <option value="6">6 AM</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Storage -->
+        <div class="s-card">
           <div class="s-card-row">
             <div class="s-card-body">
               <h3 class="s-title">Storage</h3>
