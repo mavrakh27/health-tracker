@@ -2547,6 +2547,258 @@ async function testVisualQA320(page, context, fixtures) {
   await smallPage.close();
 }
 
+async function testDailiesManager(page, fixtures) {
+  console.log('\n--- Dailies Manager ---');
+
+  // Navigate to Today first
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(500);
+
+  // Clear any pre-existing supplements from earlier tests (e.g. testProfileRoundTrip)
+  await page.evaluate(async () => {
+    await DB.setProfile('supplements', []);
+  });
+
+  // Open dailies manager via supplement quick action button (no supplements = "Add Your First Daily" flow)
+  const suppBtn = await page.$('#quick-supplement-btn');
+  assert(!!suppBtn, 'Supplement quick action button exists');
+  if (suppBtn) {
+    await suppBtn.click();
+    await page.waitForTimeout(300);
+
+    // Since we cleared supplements, should show "Add Your First Daily" button
+    const addFirstBtn = await page.$('#sp-add-first');
+    if (addFirstBtn) {
+      await addFirstBtn.click();
+      await page.waitForTimeout(400);
+    } else {
+      // Fallback — click "Manage Dailies"
+      const manageBtn = await page.$('#sp-manage');
+      if (manageBtn) {
+        await manageBtn.click();
+        await page.waitForTimeout(400);
+      }
+    }
+  }
+
+  // Dailies Manager modal should be open
+  const dmModal = await page.$('.modal-overlay');
+  assert(!!dmModal, 'Dailies Manager modal opens');
+
+  // Verify modal title
+  const modalTitle = await page.$eval('.modal-title', el => el.textContent.trim()).catch(() => '');
+  assert(modalTitle === 'Manage Dailies', `Modal title is "Manage Dailies" (got: "${modalTitle}")`);
+
+  // Camera and gallery pick buttons exist
+  const cameraBtn = await page.$('#dm-camera-btn');
+  const pickBtn = await page.$('#dm-pick-btn');
+  assert(!!cameraBtn, 'Camera button (dm-camera-btn) exists');
+  assert(!!pickBtn, 'Gallery pick button (dm-pick-btn) exists');
+
+  // Camera button has "Take Photo" label
+  if (cameraBtn) {
+    const cameraText = await cameraBtn.textContent();
+    assert(cameraText.includes('Take Photo'), `Camera button has "Take Photo" label (got: "${cameraText.trim()}")`);
+  }
+
+  // Textarea placeholder is present
+  const descTextarea = await page.$('textarea#dm-desc');
+  assert(!!descTextarea, 'Textarea (dm-desc) exists');
+  if (descTextarea) {
+    const placeholder = await descTextarea.getAttribute('placeholder');
+    assert(placeholder && placeholder.length > 0, `Textarea has placeholder text (got: "${placeholder?.slice(0, 50)}...")`);
+  }
+
+  // Details/nutrition toggle exists and opens
+  const detailsEl = await page.$('details#dm-details');
+  assert(!!detailsEl, 'Details element (dm-details) exists');
+  if (detailsEl) {
+    // Should be closed by default
+    const isOpenBefore = await page.$eval('#dm-details', el => el.open);
+    assert(!isOpenBefore, 'Nutrition details collapsed by default');
+
+    // Click summary to open
+    const summary = await page.$('#dm-details summary');
+    if (summary) {
+      await summary.click();
+      await page.waitForTimeout(200);
+      const isOpenAfter = await page.$eval('#dm-details', el => el.open);
+      assert(isOpenAfter, 'Nutrition details opens on click');
+
+      // Calorie and protein fields visible
+      const calField = await page.$('#dm-cal');
+      const proteinField = await page.$('#dm-protein');
+      assert(!!calField, 'Calorie input (dm-cal) exists inside details');
+      assert(!!proteinField, 'Protein input (dm-protein) exists inside details');
+    }
+  }
+
+  // Add button exists
+  const addBtn = await page.$('#dm-add-btn');
+  assert(!!addBtn, 'Add Daily button (dm-add-btn) exists');
+
+  await screenshot(page, 'dailies-manager-empty');
+
+  // --- Test: Add with no text and no photo shows error toast ---
+  if (addBtn) {
+    await addBtn.click();
+    await page.waitForTimeout(500);
+    const toast = await page.$('.toast.error');
+    assert(!!toast, 'Error toast appears when adding with no text or photo');
+    if (toast) {
+      const toastText = await toast.textContent();
+      assert(toastText.includes('photo') || toastText.includes('description'), `Error toast has relevant message (got: "${toastText.trim()}")`);
+    }
+    // Wait for toast to clear
+    await page.waitForTimeout(2000);
+  }
+
+  // --- Test: Add daily with text only (no photo) ---
+  const descInput = await page.$('#dm-desc');
+  if (descInput) {
+    await descInput.fill('Creatine 5g\nTake with water after workout');
+    await page.waitForTimeout(100);
+    await page.click('#dm-add-btn');
+    await page.waitForTimeout(500);
+
+    // Item should appear in the list
+    const listContent = await page.$eval('#dm-list', el => el.textContent);
+    assert(listContent.includes('Creatine 5g'), 'Text-only daily appears in list with name from first line');
+    assert(!listContent.includes('Pending analysis'), 'Text-only daily does not show "Pending analysis"');
+  }
+
+  await screenshot(page, 'dailies-manager-text-added');
+
+  // --- Test: Add daily with text + manual nutrition ---
+  const descInput2 = await page.$('#dm-desc');
+  if (descInput2) {
+    await descInput2.fill('Protein shake');
+    await page.waitForTimeout(100);
+
+    // Open details and fill nutrition
+    const details2 = await page.$('#dm-details');
+    const isOpen = await page.$eval('#dm-details', el => el.open);
+    if (!isOpen) {
+      const summary2 = await page.$('#dm-details summary');
+      if (summary2) await summary2.click();
+      await page.waitForTimeout(200);
+    }
+    await page.fill('#dm-cal', '150');
+    await page.fill('#dm-protein', '25');
+    await page.click('#dm-add-btn');
+    await page.waitForTimeout(500);
+
+    // Item should appear with calories shown
+    const listContent2 = await page.$eval('#dm-list', el => el.textContent);
+    assert(listContent2.includes('Protein shake'), 'Nutrition daily appears in list');
+    assert(listContent2.includes('150'), 'Nutrition daily shows calories in list');
+    assert(listContent2.includes('25'), 'Nutrition daily shows protein in list');
+  }
+
+  await screenshot(page, 'dailies-manager-nutrition-added');
+
+  // --- Test: Existing items render correctly ---
+  const itemCount = await page.$$eval('.dailies-item', els => els.length);
+  assert(itemCount === 2, `Two dailies items in list (got ${itemCount})`);
+
+  // Each item has a remove button
+  const removeBtns = await page.$$('.dailies-remove');
+  assert(removeBtns.length === 2, `Each item has a remove button (got ${removeBtns.length})`);
+
+  // --- Test: Duplicate name shows error ---
+  const descInput3 = await page.$('#dm-desc');
+  if (descInput3) {
+    await descInput3.fill('Creatine 5g');
+    await page.waitForTimeout(100);
+    await page.click('#dm-add-btn');
+    await page.waitForTimeout(500);
+    const dupeToast = await page.$('.toast.error');
+    assert(!!dupeToast, 'Duplicate name shows error toast');
+    if (dupeToast) {
+      const dupeText = await dupeToast.textContent();
+      assert(dupeText.includes('Already exists'), `Duplicate toast says "Already exists" (got: "${dupeText.trim()}")`);
+    }
+    // Clear the textarea for next test
+    await descInput3.fill('');
+    await page.waitForTimeout(2000);
+  }
+
+  // --- Test: Whitespace-only input shows error ---
+  const descInput4 = await page.$('#dm-desc');
+  if (descInput4) {
+    await descInput4.fill('   \n  \n   ');
+    await page.waitForTimeout(100);
+    await page.click('#dm-add-btn');
+    await page.waitForTimeout(500);
+    const wsToast = await page.$('.toast.error');
+    assert(!!wsToast, 'Whitespace-only input shows error toast');
+    await page.waitForTimeout(2000);
+  }
+
+  // --- Test: Very long description truncates name to 50 chars ---
+  const descInput5 = await page.$('#dm-desc');
+  if (descInput5) {
+    const longText = 'A'.repeat(80) + '\nSecond line of description';
+    await descInput5.fill(longText);
+    await page.waitForTimeout(100);
+    await page.click('#dm-add-btn');
+    await page.waitForTimeout(500);
+
+    // The item name should be truncated to 50 chars
+    const itemNames = await page.$$eval('.dailies-item .dailies-item-body div:first-child', els => els.map(e => e.textContent.trim()));
+    const longItem = itemNames.find(n => n.startsWith('AAAA'));
+    assert(longItem && longItem.length <= 50, `Long description name truncated to 50 chars (got ${longItem?.length})`);
+  }
+
+  await screenshot(page, 'dailies-manager-all-items');
+
+  // --- Test: Pending analysis for photo-only item ---
+  // We cannot actually take a photo in tests, but we can inject a pending item via evaluate
+  await page.evaluate(async () => {
+    const profile = await DB.getProfile('supplements') || [];
+    profile.push({
+      key: 'item_pending_test',
+      name: 'New item',
+      notes: '',
+      calories: 0,
+      protein: 0,
+      carbs: 0,
+      fat: 0,
+      pending: true,
+      photo: null,
+    });
+    await DB.setProfile('supplements', profile);
+  });
+
+  // Close and reopen the manager to see the injected pending item
+  const closeBtn = await page.$('#dm-close');
+  if (closeBtn) await closeBtn.click();
+  await page.waitForTimeout(300);
+
+  // Reopen
+  const suppBtn2 = await page.$('#quick-supplement-btn');
+  if (suppBtn2) {
+    await suppBtn2.click();
+    await page.waitForTimeout(300);
+    const manageBtn2 = await page.$('#sp-manage');
+    if (manageBtn2) {
+      await manageBtn2.click();
+      await page.waitForTimeout(400);
+    }
+  }
+
+  // Check "Pending analysis" text appears
+  const listText = await page.$eval('#dm-list', el => el.textContent).catch(() => '');
+  assert(listText.includes('Pending analysis'), '"Pending analysis" text appears for pending items');
+
+  await screenshot(page, 'dailies-manager-pending');
+
+  // Close the modal
+  const closeBtn2 = await page.$('#dm-close');
+  if (closeBtn2) await closeBtn2.click();
+  await page.waitForTimeout(200);
+}
+
 async function run() {
   console.log('=== Health Tracker Validation ===\n');
 
@@ -2606,6 +2858,7 @@ async function run() {
     await testBugRegressions(page, fixtures);
     await testSkincarePanel(page, fixtures);
     await testFitnessPanel(page, fixtures);
+    await testDailiesManager(page, fixtures);
     await testVisualQA(page, fixtures);
     await testVisualQA320(page, context, fixtures);
     await testConsoleErrors(page);

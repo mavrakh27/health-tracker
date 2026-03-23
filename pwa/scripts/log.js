@@ -195,6 +195,14 @@ const Log = {
       Log.clearPendingPhoto();
     });
     area.appendChild(preview);
+
+    // Inform user which date the entry will land on
+    const targetDate = Log._getEntryDate();
+    if (targetDate !== App.selectedDate) {
+      UI.toast(`Will log to ${UI.formatRelativeDate(targetDate)} (photo time)`, 'info', 3000);
+    } else if (!photo.takenAt && App.selectedDate !== UI.today()) {
+      UI.toast(`Will log to ${UI.formatRelativeDate(App.selectedDate)}`, 'info', 3000);
+    }
   },
 
   // --- Food Form (no subtype needed) ---
@@ -621,11 +629,23 @@ const Log = {
     return group;
   },
 
-  // Use photo timestamp only if it falls on the selected date; otherwise use now
+  // For camera captures: use photo's actual timestamp (real time the pic was taken)
+  // For gallery picks / no photo: use current time
   _getEntryTimestamp() {
     const takenAt = Log.pendingPhoto?.takenAt;
-    if (takenAt && takenAt.startsWith(App.selectedDate)) return takenAt;
+    if (takenAt) return takenAt;
     return new Date().toISOString();
+  },
+
+  // Camera captures always log to today (the day you took the photo).
+  // Gallery picks and non-photo entries log to the selected date.
+  _getEntryDate() {
+    const isCameraCapture = Log.pendingPhoto?.takenAt;
+    if (isCameraCapture) {
+      // Derive date from the photo's timestamp
+      return Log.pendingPhoto.takenAt.slice(0, 10);
+    }
+    return App.selectedDate;
   },
 
   // --- Save Handlers ---
@@ -635,11 +655,12 @@ const Log = {
 
     const notes = document.getElementById('log-notes')?.value?.trim() || '';
 
+    const entryDate = Log._getEntryDate();
     const entry = {
       id: UI.generateId(Log.selectedType),
       type: Log.selectedType,
       subtype: Log.selectedSubtype || null,
-      date: App.selectedDate,
+      date: entryDate,
       timestamp: Log._getEntryTimestamp(),
       notes,
       photo: Log.pendingPhoto ? true : null,
@@ -659,7 +680,9 @@ const Log = {
     try {
       const photoBlob = Log.pendingPhoto ? Log.pendingPhoto.blob : null;
       await DB.addEntry(entry, photoBlob);
-      UI.toast(`${UI.entryLabel(entry.type, entry.subtype)} logged`);
+      // Show which date the entry was logged to (helpful when it differs from selected)
+      const dateNote = entryDate !== App.selectedDate ? ` on ${UI.formatRelativeDate(entryDate)}` : '';
+      UI.toast(`${UI.entryLabel(entry.type, entry.subtype)} logged${dateNote}`);
       CloudRelay.queueUpload(entry.date);
       Log.pendingPhoto = null; // Don't revoke — blob is now in DB
 

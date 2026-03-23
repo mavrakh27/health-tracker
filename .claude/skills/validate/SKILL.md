@@ -110,6 +110,8 @@ Plus: goals (1200/1000 cal), weekly regimen, meal plan, fitness goals, streaks.
 
 When adding new features, update `test-fixtures/data.js` to include test cases for the new feature, and add assertions in `test-fixtures/run-tests.js`. The fixtures should grow as the app grows.
 
+**If all new tests pass on the first run, there is a gap.** Tests that never fail are not testing hard enough -- they may be checking the wrong thing, using stale selectors, or missing the actual failure mode. When a new batch of tests passes 100% immediately, write more tests targeting edge cases, error paths, and adversarial inputs until at least one fails. Then fix the code or the test. A test suite that only confirms things work is not catching bugs.
+
 **Critical:** Analysis entries in fixtures MUST have `id` fields matching their corresponding IndexedDB entry IDs. Without matching IDs, analysis-status features (inline calories, pending/stale indicators) won't render — they'll silently fail with no errors. Always visually verify screenshots after changes to entry rendering.
 
 ## Visual UX Review

@@ -543,7 +543,9 @@ const QuickLog = {
           ${item.photo ? `<img src="${item.photo}" class="dailies-item-photo" alt="">` : ''}
           <div class="dailies-item-body">
             <div style="font-weight:500; font-size:var(--text-sm);">${UI.escapeHtml(item.name)}</div>
+            ${item.notes && item.notes !== item.name ? `<div style="font-size:var(--text-xs); color:var(--text-muted);">${UI.escapeHtml(item.notes)}</div>` : ''}
             ${item.calories ? `<div style="font-size:var(--text-xs); color:var(--text-muted);">${item.calories} cal${item.protein ? ` · ${item.protein}g protein` : ''}</div>` : ''}
+            ${item.pending ? `<div style="font-size:var(--text-xs); color:var(--accent-blue);">Pending analysis</div>` : ''}
           </div>
           <button class="dailies-remove" data-index="${i}" title="Remove">&times;</button>
         </div>
@@ -560,13 +562,21 @@ const QuickLog = {
         <div class="dailies-add-form" id="dm-add-form">
           <div id="dm-photo-area" style="margin-bottom:var(--space-sm);"></div>
           <div style="display:flex; gap:var(--space-sm); margin-bottom:var(--space-sm);">
-            <button class="btn btn-ghost" id="dm-camera-btn" style="flex:0 0 auto; padding:var(--space-xs) var(--space-sm);" title="Add photo">${UI.svg.camera || '📷'}</button>
-            <input type="text" class="form-input" id="dm-name" placeholder="Item name (e.g. Creatine)" maxlength="50" style="flex:1;">
+            <button class="btn btn-secondary" id="dm-camera-btn" style="flex:1; display:flex; align-items:center; justify-content:center; gap:var(--space-xs);">
+              <span style="display:inline-flex;">${UI.svg.camera}</span> Take Photo
+            </button>
+            <button class="btn btn-ghost" id="dm-pick-btn" style="flex:0 0 auto; padding:var(--space-xs) var(--space-sm);">
+              <span style="display:inline-flex;">${UI.svg.gallery}</span>
+            </button>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm); margin-bottom:var(--space-sm);">
-            <input type="number" class="form-input" id="dm-cal" placeholder="Calories" inputmode="numeric">
-            <input type="number" class="form-input" id="dm-protein" placeholder="Protein (g)" inputmode="numeric">
-          </div>
+          <textarea class="form-input" id="dm-desc" placeholder="Describe what this is (e.g. Creatine 5g, protein shake, daily vitamin)&#10;&#10;Or just snap a photo — processing will fill in the details" rows="2" style="margin-bottom:var(--space-sm);"></textarea>
+          <details id="dm-details" style="margin-bottom:var(--space-sm);">
+            <summary style="font-size:var(--text-xs); color:var(--text-muted); cursor:pointer; padding:var(--space-xs) 0;">Add nutrition details manually</summary>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm); margin-top:var(--space-sm);">
+              <input type="number" class="form-input" id="dm-cal" placeholder="Calories" inputmode="numeric">
+              <input type="number" class="form-input" id="dm-protein" placeholder="Protein (g)" inputmode="numeric">
+            </div>
+          </details>
           <button class="btn btn-primary btn-block" id="dm-add-btn">Add Daily</button>
         </div>
         <button class="btn btn-primary btn-block btn-lg" id="dm-done" style="margin-top:var(--space-md);">Done</button>
@@ -576,11 +586,9 @@ const QuickLog = {
       document.getElementById('dm-close').addEventListener('click', closeModal);
       document.getElementById('dm-done').addEventListener('click', closeModal);
 
-      document.getElementById('dm-camera-btn').addEventListener('click', async () => {
-        const result = await Camera.capture('meal');
+      const handlePhoto = async (result) => {
         if (!result) return;
         pendingPhoto = result;
-        // Convert to data URL for storage
         const reader = new FileReader();
         reader.onload = () => {
           pendingPhoto.dataURL = reader.result;
@@ -593,20 +601,37 @@ const QuickLog = {
           }));
         };
         reader.readAsDataURL(result.blob);
+      };
+
+      document.getElementById('dm-camera-btn').addEventListener('click', async () => {
+        handlePhoto(await Camera.capture('meal'));
+      });
+      document.getElementById('dm-pick-btn').addEventListener('click', async () => {
+        handlePhoto(await Camera.pick('meal'));
       });
 
+      const descEl = document.getElementById('dm-desc');
+      if (descEl) {
+        UI.autoResize(descEl);
+        descEl.addEventListener('input', () => UI.autoResize(descEl));
+      }
+
       document.getElementById('dm-add-btn').addEventListener('click', () => {
-        const name = document.getElementById('dm-name')?.value?.trim();
-        if (!name) { UI.toast('Enter a name', 'error'); return; }
-        const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+        const desc = document.getElementById('dm-desc')?.value?.trim() || '';
+        if (!desc && !pendingPhoto) { UI.toast('Add a photo or description', 'error'); return; }
+        // Derive name from description or mark as pending
+        const name = desc ? desc.split('\n')[0].slice(0, 50) : 'New item';
+        const key = (name === 'New item' ? `item_${Date.now()}` : name).toLowerCase().replace(/[^a-z0-9]+/g, '_');
         if (items.some(it => it.key === key)) { UI.toast('Already exists', 'error'); return; }
         const cal = parseInt(document.getElementById('dm-cal')?.value) || 0;
         const protein = parseInt(document.getElementById('dm-protein')?.value) || 0;
-        const item = { key, name, notes: name, calories: cal, protein, carbs: 0, fat: 0 };
+        const pending = !desc && pendingPhoto;
+        const item = { key, name, notes: desc || '', calories: cal, protein, carbs: 0, fat: 0, pending: !!pending };
         if (pendingPhoto?.dataURL) item.photo = pendingPhoto.dataURL;
         items.push(item);
         if (pendingPhoto) { Camera.revokeURL(pendingPhoto.url); pendingPhoto = null; }
         saveAndRender();
+        if (pending) UI.toast('Saved — processing will identify this item');
       });
 
       sheet.querySelectorAll('.dailies-remove').forEach(btn => {
@@ -673,6 +698,24 @@ const App = {
     // Initialize DB, then load the initial route
     DB.openDB().then(async () => {
       console.log('DB ready');
+
+      // Auto-configure sync from URL params (pairing link from /setup or welcome page)
+      const urlParams = new URLSearchParams(location.search);
+      if (urlParams.has('key')) {
+        const key = urlParams.get('key');
+        const relay = urlParams.get('relay') || '';
+        if (key) {
+          const config = await CloudRelay.getConfig() || {};
+          config.syncKey = key;
+          if (relay) config.workerUrl = relay;
+          await CloudRelay.saveConfig(config);
+          // Clean URL params so they don't persist on refresh
+          history.replaceState(null, '', location.pathname + location.hash);
+          UI.toast('Sync connected');
+          // Try to pull data from relay immediately
+          CloudRelay.checkForResults().catch(() => {});
+        }
+      }
 
       // Check for fresh install (empty DB) and attempt restore from cloud
       const hasData = await DB.hasAnyEntries();
@@ -959,8 +1002,11 @@ const App = {
     const scoreEl = document.getElementById('today-score');
     if (scoreEl) {
       try {
-        const scoreResult = await DayScore.calculate(date, preloaded);
-        scoreEl.innerHTML = DayScore.render(scoreResult);
+        const [scoreResult, streak] = await Promise.all([
+          DayScore.calculate(date, preloaded),
+          DayScore.calculateStreak(date)
+        ]);
+        scoreEl.innerHTML = DayScore.render(scoreResult, streak);
       } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
     }
 
@@ -1143,6 +1189,12 @@ const App = {
   },
 
   renderWelcomeCard() {
+    // Check if sync is already configured (came via pairing link)
+    const syncConfigured = localStorage.getItem('cloudRelay_backup');
+    const syncNote = syncConfigured
+      ? '<p style="color: var(--accent-primary); font-size: var(--text-sm); margin-bottom: var(--space-sm);">Sync connected -- your goals will arrive once your computer finishes setup.</p>'
+      : '';
+
     return `
       <div class="card welcome-card" style="text-align:center; padding: var(--space-xl) var(--space-lg);">
         <div style="margin-bottom: var(--space-md); display:flex; justify-content:center;">
@@ -1152,12 +1204,14 @@ const App = {
           </svg>
         </div>
         <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-xs);">Welcome to Coach</h2>
-        <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-lg); line-height: 1.6;">
-          Your AI coach sets personalized goals based on your body, lifestyle, and timeline.
+        <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-md); line-height: 1.6;">
+          AI-powered health tracking. Snap food photos, log workouts, and get personalized coaching.
         </p>
+        ${syncNote}
         <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
-          <button class="btn btn-primary btn-block btn-lg" onclick="App.showCoachSetup()">Set Up with Coach</button>
+          <button class="btn btn-primary btn-block btn-lg" onclick="App.showCoachSetup()">Setup Guide</button>
           <button class="btn btn-ghost btn-block" onclick="App.showGoalSetup()" style="font-size:var(--text-xs);">Set goals manually</button>
+          <button class="btn btn-ghost btn-block" onclick="window.location.hash=''; App.loadDayView();" style="font-size:var(--text-xs);">Skip -- start logging</button>
         </div>
       </div>
     `;
@@ -1177,19 +1231,17 @@ const App = {
         </svg>
       </div>
       <p style="font-size:var(--text-sm); color:var(--text-primary); line-height:1.6; margin-bottom:var(--space-md);">
-        Your coach will ask about your weight, height, goals, and timeline -- then create personalized calorie, protein, and workout targets just for you.
+        Coach runs on your computer using Claude Code. It analyzes your food photos, generates meal plans, and gives personalized coaching.
       </p>
       <div style="font-size:var(--text-sm); color:var(--text-secondary); margin-bottom:var(--space-lg);">
-        <p style="font-weight:600; margin-bottom:var(--space-sm);">How to start:</p>
-        <ol style="margin:0; padding-left:var(--space-lg); line-height:1.8;">
-          <li>Install the coach plugin on your computer:<br>
-            <code style="font-size:var(--text-xs); background:var(--bg-input); padding:2px 6px; border-radius:var(--radius-sm); word-break:break-all;">curl -sL https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.sh | bash</code>
-          </li>
-          <li>Open Claude Code in your terminal and type <code style="font-size:var(--text-xs); background:var(--bg-input); padding:2px 6px; border-radius:var(--radius-sm);">/coach</code></li>
-          <li>Tell your coach about yourself -- it'll handle the rest</li>
+        <p style="font-weight:600; margin-bottom:var(--space-sm);">How to set up:</p>
+        <ol style="margin:0; padding-left:1.5em; line-height:1.8; list-style-position:outside;">
+          <li style="padding-left:4px; margin-bottom:4px;">On your computer, open the <a href="welcome.html" style="color:var(--accent-primary);" target="_blank">setup page</a> and run the installer</li>
+          <li style="padding-left:4px; margin-bottom:4px;">In Claude Code, type <code style="font-size:var(--text-xs); background:var(--bg-input); padding:2px 6px; border-radius:var(--radius-sm);">/setup</code> to configure goals and profile</li>
+          <li style="padding-left:4px;">Scan the pairing QR code to connect this phone</li>
         </ol>
       </div>
-      <button class="btn btn-secondary btn-block" id="cs-coach-done">I've set up my goals with Coach</button>
+      <button class="btn btn-secondary btn-block" id="cs-coach-done">I've already set up Coach</button>
       <button class="btn btn-ghost btn-block" id="cs-coach-skip" style="margin-top:var(--space-xs); font-size:var(--text-xs);">Skip -- I'll start logging first</button>
     `;
 
@@ -1504,15 +1556,62 @@ const App = {
       }
     } catch (e) { /* no regimen */ }
 
+    // Calorie ring data — from analysis + goals
+    let calEaten = null;
+    let calTarget = null;
+    const analysis = preloaded?.analysis ?? await DB.getAnalysis(date);
+    const goals = preloaded?.goals ?? (await DB.getProfile('goals') || {});
+    calTarget = goals.calories || 1200;
+    if (analysis?.totals?.calories != null) {
+      calEaten = analysis.totals.calories;
+    }
+
     // Fall back to analysis data when entries are empty (e.g. after reinstall)
     if (entries.length === 0 && date) {
-      const analysis = preloaded?.analysis ?? await DB.getAnalysis(date);
       if (analysis) {
         const aEntries = analysis.entries || [];
         foodCount = aEntries.filter(e => ['meal', 'snack', 'drink'].includes(e.type)).length;
         waterOz = analysis.water_oz || waterOz;
         if (analysis.weight) { weightVal = analysis.weight.value || analysis.weight; weightUnit = analysis.weight.unit || 'lbs'; }
       }
+    }
+
+    // Build calorie ring SVG
+    const radius = 18;
+    const circumference = 2 * Math.PI * radius;
+    let ringHtml;
+    if (calEaten != null) {
+      const ratio = Math.max(0, Math.min(calEaten / calTarget, 1));
+      const offset = circumference - ratio * circumference;
+      const over = calEaten > calTarget;
+      const ringColor = over ? 'var(--accent-red)' : 'var(--accent-green)';
+      const displayCal = Math.round(calEaten);
+      ringHtml = `
+      <div class="stat-card stat-card--tap calorie-ring-card" data-stat-action="food">
+        <div class="calorie-ring-wrap">
+          <svg viewBox="0 0 44 44" class="calorie-ring-svg">
+            <circle cx="22" cy="22" r="${radius}" fill="none" stroke="var(--border-color)" stroke-width="3"/>
+            <circle cx="22" cy="22" r="${radius}" fill="none" stroke="${ringColor}" stroke-width="3"
+              stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
+              stroke-linecap="round" transform="rotate(-90 22 22)"
+              class="calorie-ring-fill"/>
+          </svg>
+          <div class="calorie-ring-center" style="color:${ringColor}">${displayCal}</div>
+        </div>
+        <div class="stat-label">of ${calTarget} cal</div>
+      </div>`;
+    } else {
+      // No analysis yet — show food count fallback
+      ringHtml = `
+      <div class="stat-card stat-card--tap calorie-ring-card" data-stat-action="food">
+        <div class="calorie-ring-wrap">
+          <svg viewBox="0 0 44 44" class="calorie-ring-svg">
+            <circle cx="22" cy="22" r="${radius}" fill="none" stroke="var(--border-color)" stroke-width="3" stroke-dasharray="3 5"/>
+          </svg>
+          <div class="calorie-ring-center" style="color:var(--text-muted)">--</div>
+        </div>
+        <div class="stat-label">${foodCount} food logged</div>
+      </div>`;
     }
 
     const zc = (val) => val === 0 || val === null ? ' stat-value--zero' : '';
@@ -1523,10 +1622,7 @@ const App = {
         <div class="stat-value${zc(waterOz)}" style="color: var(--color-water)">${waterOz}<span class="unit" style="font-size: var(--text-sm); font-weight: 400; color: var(--text-secondary)"> oz</span></div>
         <div class="stat-label">Water</div>
       </div>
-      <div class="stat-card stat-card--tap" data-stat-action="food">
-        <div class="stat-value${zc(foodCount)}" style="color: var(--color-meal)">${foodCount}</div>
-        <div class="stat-label">Food logged</div>
-      </div>
+      ${ringHtml}
       <div class="stat-card stat-card--tap" data-stat-action="workout">
         <div class="stat-value${workoutZero ? ' stat-value--zero' : ''}" style="color: var(--color-workout)">${workoutDisplay}</div>
         <div class="stat-label">${UI.escapeHtml(workoutLabel)}</div>
@@ -1537,16 +1633,32 @@ const App = {
       </div>
     `;
 
-    // Async: fetch steps from relay (non-blocking, updates after render)
+    // Async: fetch health data from relay (non-blocking, updates after render)
     CloudRelay.getHealthData(date).then(health => {
-      if (health?.steps != null) {
-        const stepsCard = document.createElement('div');
-        stepsCard.className = 'stat-card';
-        stepsCard.innerHTML = `
-          <div class="stat-value" style="color: var(--accent-primary)">${Number(health.steps).toLocaleString()}</div>
-          <div class="stat-label">Steps</div>
+      if (!health) return;
+      const metrics = [];
+      if (health.steps != null) {
+        metrics.push({ value: Number(health.steps).toLocaleString(), label: 'Steps', color: 'var(--accent-primary)' });
+      }
+      if (health.distance_mi != null) {
+        metrics.push({ value: Number(health.distance_mi).toFixed(1), label: 'Miles', color: 'var(--accent-secondary, var(--accent-primary))' });
+      } else if (health.distance_km != null) {
+        metrics.push({ value: Number(health.distance_km).toFixed(1), label: 'km', color: 'var(--accent-secondary, var(--accent-primary))' });
+      }
+      if (health.flights != null) {
+        metrics.push({ value: Number(health.flights).toLocaleString(), label: 'Flights', color: 'var(--accent-secondary, var(--accent-primary))' });
+      }
+      if (health.activeCalories != null) {
+        metrics.push({ value: Number(health.activeCalories).toLocaleString(), label: 'Active Cal', color: 'var(--accent-secondary, var(--accent-primary))' });
+      }
+      for (const m of metrics) {
+        const card = document.createElement('div');
+        card.className = 'stat-card';
+        card.innerHTML = `
+          <div class="stat-value" style="color: ${m.color}">${m.value}</div>
+          <div class="stat-label">${m.label}</div>
         `;
-        statsEl.appendChild(stepsCard);
+        statsEl.appendChild(card);
       }
     }).catch(() => {});
 

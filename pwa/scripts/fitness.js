@@ -94,10 +94,10 @@ const Fitness = {
       mistakes: 'Pulling neck forward (hands are just resting behind head). Going too fast (slow and controlled — hold each twist for a beat). Not lifting shoulders (crunch UP, don\'t just move elbows).',
     },
     'leg raises': {
-      muscles: 'Lower abs, hip flexors',
-      why: 'Targets the lower portion of your core — the hardest area to define and usually the last to show. Direct work here accelerates core development.',
-      form: 'Lie flat, hands under hips for support. Legs straight (or slight bend if needed). Raise legs to 90°. Lower SLOWLY — stop before lower back arches off floor. That\'s one rep.',
-      mistakes: 'Lower back arching up (hands under hips help, reduce range if needed). Using momentum (slow on the way down). Legs bending too much (keep them as straight as possible).',
+      muscles: 'Lower rectus abdominis, hip flexors',
+      why: 'Directly targets the lower belly area. EMG studies show high lower ab activation — but ONLY if you maintain posterior pelvic tilt. Without it, your hip flexors do all the work and your abs get nothing.',
+      form: 'Lie flat, hands under hips or gripping something behind you. Press your lower back into the floor (posterior pelvic tilt). Raise legs to 90°. Lower SLOWLY — stop BEFORE your lower back starts to arch off the floor.',
+      mistakes: 'Lower back arching off the floor (the #1 mistake — reduce range if needed). Dropping legs too fast (slow descent is where the work happens). Legs bending (keep as straight as possible).',
     },
     'plank shoulder taps': {
       muscles: 'Core (anti-rotation), shoulders',
@@ -110,6 +110,36 @@ const Fitness = {
       why: 'Trains the same anti-extension as dead bugs but from all fours — different angle means different muscle fibers. Also bulletproofs your lower back, which lets you go harder on everything else.',
       form: 'On hands and knees. Extend opposite arm and leg until parallel to floor. Hold 2 seconds. Return with control. Switch sides. Keep hips level — imagine balancing a cup of water on your lower back.',
       mistakes: 'Rotating hips (keep them square to the floor). Rushing (hold at the top). Arching back (neutral spine the entire time).',
+    },
+    'ab wheel rollouts': {
+      muscles: 'Rectus abdominis, obliques, lats, shoulders',
+      why: 'One of the highest EMG activation exercises for abs — your entire core fights to prevent your spine from extending as you roll out. Builds the thick ab muscle that becomes visible as fat comes off.',
+      form: 'Start on knees, hands on wheel. Roll forward slowly, extending arms. Go as far as you can without your hips sagging or lower back arching. Pull back by squeezing abs — imagine curling your pelvis toward your ribcage.',
+      mistakes: 'Hips sagging (means you went too far — shorten the range). Lower back arching (squeeze abs harder, reduce range). Using arms to pull back (the abs do the work, arms are just holding on).',
+    },
+    'reverse crunches': {
+      muscles: 'Lower rectus abdominis, hip flexors',
+      why: 'Research shows reverse crunches preferentially activate the lower portion of the rectus abdominis more than standard crunches. The movement — curling your hips toward your ribcage — directly targets the area below your belly button.',
+      form: 'Lie on back, knees bent at 90°. Curl your hips off the floor, bringing knees toward your chest. The motion is small — your lower back lifts off the ground. Lower slowly. Don\'t use momentum.',
+      mistakes: 'Swinging legs (the motion is a hip curl, not a knee pull). Using momentum (slow and controlled). Not lifting hips off the floor (that\'s just knee tucks — your hips must curl up).',
+    },
+    'v-sits': {
+      muscles: 'Rectus abdominis, hip flexors',
+      why: 'High activation exercise — EMG studies show ~80% max voluntary contraction. Challenges both upper and lower abs simultaneously as you balance on your sit bones.',
+      form: 'Sit on floor, lean back slightly. Lift legs and torso simultaneously to form a V shape, balancing on sit bones. Arms reach toward feet. Hold briefly at top. Lower with control.',
+      mistakes: 'Rounding upper back excessively (keep chest open). Using momentum to swing up (slow and controlled). Not holding at the top (pause for a beat).',
+    },
+    'stomach vacuums': {
+      muscles: 'Transverse abdominis (deep core)',
+      why: 'Targets the TVA — your body\'s natural corset muscle. Research showed 45% increase in TVA thickness in 5 weeks. A stronger TVA holds your belly tighter at rest, creating a visibly flatter stomach even before all fat is gone.',
+      form: 'Exhale ALL air from your lungs. Pull your belly button toward your spine as hard as you can. Hold 10-20 seconds while breathing shallowly through your chest. Release. That\'s one rep.',
+      mistakes: 'Holding your breath entirely (breathe shallowly through chest). Not exhaling fully first (the vacuum works best when lungs are empty). Sucking in your chest instead of your belly (focus on pulling the navel inward).',
+    },
+    'glute bridges': {
+      muscles: 'Glutes, hamstrings, core',
+      why: 'Strong glutes improve posture, reduce lower back stress, and create the posterior shape that makes your waist look smaller by contrast. Also trains hip extension — the movement pattern behind walking, running, and climbing.',
+      form: 'Lie on back, feet flat on floor hip-width apart, knees bent. Drive hips up by squeezing glutes hard. Hold at the top for 2 seconds. Lower with control. Your body should form a straight line from shoulders to knees at the top.',
+      mistakes: 'Pushing through toes instead of heels (heels drive the movement). Not squeezing at top (hold and squeeze glutes). Arching lower back at top (stop when hips are level, don\'t hyperextend).',
     },
   },
 
