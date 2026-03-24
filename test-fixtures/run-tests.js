@@ -2912,6 +2912,285 @@ async function testDailiesManager(page, fixtures) {
   await page.waitForTimeout(200);
 }
 
+async function testVoiceLogging(page, context, fixtures) {
+  console.log('\n--- Voice Logging ---');
+
+  // We need a fresh page with mocked Speech API to test "supported" path
+  const voicePage = await context.newPage();
+  await voicePage.addInitScript(() => {
+    // Mock webkitSpeechRecognition so VoiceInput.isSupported() returns true
+    window.webkitSpeechRecognition = class {
+      start() {}
+      stop() {}
+      abort() {}
+    };
+  });
+  await voicePage.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await voicePage.waitForTimeout(1000);
+  await voicePage.waitForFunction(() => typeof Log !== 'undefined' && typeof VoiceInput !== 'undefined');
+
+  // 1. Open Food form -- verify mic button exists next to Notes label
+  await voicePage.evaluate(() => {
+    Log.init();
+    Log.selectType('meal');
+  });
+  await voicePage.waitForTimeout(300);
+
+  const foodMicBtn = await voicePage.$('.voice-mic-btn');
+  assert(!!foodMicBtn, 'Food form: mic button exists next to Notes label');
+
+  // Verify mic button is inside notes-label-row (next to the label)
+  const micInLabelRow = await voicePage.evaluate(() => {
+    const btn = document.querySelector('.voice-mic-btn');
+    return btn && btn.parentElement && btn.parentElement.classList.contains('notes-label-row');
+  });
+  assert(micInLabelRow, 'Food form: mic button is inside notes-label-row');
+
+  // 2. Open Workout form -- verify mic button exists there too
+  await voicePage.evaluate(() => {
+    Log.init();
+    Log.selectType('workout');
+  });
+  await voicePage.waitForTimeout(300);
+
+  const workoutMicBtn = await voicePage.$('.voice-mic-btn');
+  assert(!!workoutMicBtn, 'Workout form: mic button exists next to Notes label');
+
+  // 3. Check mic button is hidden when Speech API is not supported
+  const noSpeechPage = await context.newPage();
+  await noSpeechPage.addInitScript(() => {
+    // Ensure Speech API is NOT available
+    delete window.SpeechRecognition;
+    delete window.webkitSpeechRecognition;
+  });
+  await noSpeechPage.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await noSpeechPage.waitForTimeout(1000);
+  await noSpeechPage.waitForFunction(() => typeof Log !== 'undefined');
+
+  await noSpeechPage.evaluate(() => {
+    Log.init();
+    Log.selectType('meal');
+  });
+  await noSpeechPage.waitForTimeout(300);
+
+  const noMicBtn = await noSpeechPage.$('.voice-mic-btn');
+  assert(!noMicBtn, 'Mic button is hidden when Speech API is not supported');
+
+  await noSpeechPage.close();
+
+  // 4. Check mic button has adequate touch target (>= 44px)
+  const micTouchTarget = await voicePage.evaluate(() => {
+    // Re-open food form to get mic button
+    Log.init();
+    Log.selectType('meal');
+    return null;
+  });
+  await voicePage.waitForTimeout(300);
+
+  const touchSize = await voicePage.evaluate(() => {
+    const btn = document.querySelector('.voice-mic-btn');
+    if (!btn) return null;
+    const r = btn.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  assert(
+    touchSize && touchSize.w >= 44 && touchSize.h >= 44,
+    `Mic button touch target >= 44px (actual: ${touchSize ? touchSize.w + 'x' + touchSize.h : 'not found'})`
+  );
+
+  // 5. Verify mic button has an SVG icon (not emoji)
+  const hasSvgIcon = await voicePage.evaluate(() => {
+    const btn = document.querySelector('.voice-mic-btn');
+    if (!btn) return false;
+    const svg = btn.querySelector('svg');
+    if (!svg) return false;
+    // Ensure no text content outside SVG (would indicate emoji)
+    const textOnly = btn.textContent.trim();
+    // voice-status span may have text but should be empty when not active
+    const statusText = btn.querySelector('.voice-status')?.textContent || '';
+    const nonStatusText = textOnly.replace(statusText, '').trim();
+    return svg instanceof SVGElement && nonStatusText.length === 0;
+  });
+  assert(hasSvgIcon, 'Mic button contains SVG icon (not emoji)');
+
+  // 6. Check VoiceInput.isSupported() returns boolean
+  const isSupportedResult = await voicePage.evaluate(() => {
+    const result = VoiceInput.isSupported();
+    return { value: result, type: typeof result };
+  });
+  assert(isSupportedResult.type === 'boolean', `VoiceInput.isSupported() returns boolean (got ${isSupportedResult.type})`);
+  assert(isSupportedResult.value === true, 'VoiceInput.isSupported() returns true when Speech API is mocked');
+
+  // Also check on unsupported page before it was closed -- use voicePage with manual override
+  const isSupportedFalse = await voicePage.evaluate(() => {
+    const origSR = window.SpeechRecognition;
+    const origWebkit = window.webkitSpeechRecognition;
+    delete window.SpeechRecognition;
+    delete window.webkitSpeechRecognition;
+    const result = VoiceInput.isSupported();
+    // Restore
+    if (origSR) window.SpeechRecognition = origSR;
+    if (origWebkit) window.webkitSpeechRecognition = origWebkit;
+    return { value: result, type: typeof result };
+  });
+  assert(isSupportedFalse.value === false, 'VoiceInput.isSupported() returns false when Speech API removed');
+
+  // 7. Verify mic button does not break notes field layout at 320px
+  const smallVoicePage = await context.newPage();
+  await smallVoicePage.setViewportSize({ width: 320, height: 568 });
+  await smallVoicePage.addInitScript(() => {
+    window.webkitSpeechRecognition = class {
+      start() {}
+      stop() {}
+      abort() {}
+    };
+  });
+  await smallVoicePage.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await smallVoicePage.waitForTimeout(1000);
+  await smallVoicePage.waitForFunction(() => typeof Log !== 'undefined');
+
+  await smallVoicePage.evaluate(() => {
+    Log.init();
+    Log.selectType('meal');
+  });
+  await smallVoicePage.waitForTimeout(300);
+
+  const layout320 = await smallVoicePage.evaluate(() => {
+    const row = document.querySelector('.notes-label-row');
+    const textarea = document.querySelector('#log-notes');
+    const btn = document.querySelector('.voice-mic-btn');
+    if (!row || !textarea) return { ok: false, reason: 'elements not found' };
+
+    const rowRect = row.getBoundingClientRect();
+    const taRect = textarea.getBoundingClientRect();
+
+    // Notes label row should not overflow viewport
+    const overflows = rowRect.right > 320;
+    // Textarea should not overflow viewport
+    const taOverflows = taRect.right > 320;
+    // Mic button should be visible (not pushed off-screen)
+    const btnRect = btn ? btn.getBoundingClientRect() : null;
+    const btnVisible = btnRect ? (btnRect.left >= 0 && btnRect.right <= 320) : true;
+
+    return {
+      ok: !overflows && !taOverflows && btnVisible,
+      rowRight: Math.round(rowRect.right),
+      taRight: Math.round(taRect.right),
+      btnRight: btnRect ? Math.round(btnRect.right) : null,
+      overflows,
+      taOverflows,
+      btnVisible
+    };
+  });
+
+  assert(layout320.ok, `Mic button does not break notes layout at 320px (row:${layout320.rowRight}, textarea:${layout320.taRight}, btn:${layout320.btnRight})`);
+
+  // --- Adversarial tests ---
+
+  // 8. Mic button should NOT have id collision when multiple forms exist
+  // (Alcohol form also has notes -- check that opening meal then alcohol doesn't produce duplicate IDs)
+  await voicePage.evaluate(() => {
+    Log.init();
+    Log.selectType('meal');
+  });
+  await voicePage.waitForTimeout(300);
+  await voicePage.evaluate(() => {
+    Log.selectType('custom');
+  });
+  await voicePage.waitForTimeout(300);
+  const voiceBtnCount = await voicePage.evaluate(() => {
+    return document.querySelectorAll('#log-voice-btn').length;
+  });
+  assert(voiceBtnCount <= 1, `No duplicate mic button IDs after switching forms (found ${voiceBtnCount})`);
+
+  // 9. Voice mic button should have accessible title attribute
+  const micTitle = await voicePage.evaluate(() => {
+    Log.init();
+    Log.selectType('meal');
+    return null;
+  });
+  await voicePage.waitForTimeout(300);
+  const titleAttr = await voicePage.evaluate(() => {
+    const btn = document.querySelector('.voice-mic-btn');
+    return btn ? btn.getAttribute('title') : null;
+  });
+  assert(!!titleAttr && titleAttr.length > 0, `Mic button has title attribute for accessibility (title="${titleAttr}")`);
+
+  // 10. Mic button SVG has proper viewBox attribute
+  const svgViewBox = await voicePage.evaluate(() => {
+    const btn = document.querySelector('.voice-mic-btn');
+    if (!btn) return null;
+    const svg = btn.querySelector('svg');
+    return svg ? svg.getAttribute('viewBox') : null;
+  });
+  assert(!!svgViewBox, `Mic button SVG has viewBox attribute (${svgViewBox})`);
+
+  // 11. Voice status span exists and is empty by default
+  const voiceStatusEmpty = await voicePage.evaluate(() => {
+    const span = document.querySelector('.voice-mic-btn .voice-status');
+    if (!span) return { exists: false };
+    return { exists: true, text: span.textContent };
+  });
+  assert(voiceStatusEmpty.exists, 'Voice status span exists inside mic button');
+  assert(voiceStatusEmpty.text === '', 'Voice status span is empty by default');
+
+  // 12. Mic button is NOT present inside body photo form (body photos have notes but no voice)
+  await voicePage.evaluate(() => {
+    Log.init();
+    Log.selectType('bodyPhoto');
+  });
+  await voicePage.waitForTimeout(500);
+  const bodyPhotoMic = await voicePage.$('.voice-mic-btn');
+  // Body photo form also uses buildNotesField, so mic SHOULD appear
+  // This test verifies consistency -- if it shows in food, it should show in bodyPhoto too
+  assert(!!bodyPhotoMic, 'Body photo form also has mic button (uses shared buildNotesField)');
+
+  // 13. Clicking mic button adds "active" class (even if recognition doesn't truly start)
+  await voicePage.evaluate(() => {
+    Log.init();
+    Log.selectType('meal');
+  });
+  await voicePage.waitForTimeout(300);
+  // Need to wait for requestAnimationFrame binding
+  await voicePage.waitForTimeout(100);
+  await voicePage.evaluate(() => {
+    const btn = document.querySelector('.voice-mic-btn');
+    if (btn) btn.click();
+  });
+  await voicePage.waitForTimeout(200);
+  const hasActiveClass = await voicePage.evaluate(() => {
+    const btn = document.querySelector('.voice-mic-btn');
+    return btn ? btn.classList.contains('active') : false;
+  });
+  assert(hasActiveClass, 'Mic button gets "active" class when clicked');
+
+  // Clean up: stop any mock recognition
+  await voicePage.evaluate(() => {
+    VoiceInput.abort();
+  });
+
+  // 14. Notes textarea still functions normally with mic button present
+  await voicePage.evaluate(() => {
+    Log.init();
+    Log.selectType('meal');
+  });
+  await voicePage.waitForTimeout(300);
+  const textarea = await voicePage.$('#log-notes');
+  if (textarea) {
+    await textarea.type('test food entry notes');
+    const typedValue = await voicePage.evaluate(() => document.getElementById('log-notes')?.value);
+    assert(typedValue === 'test food entry notes', 'Notes textarea accepts keyboard input alongside mic button');
+  } else {
+    assert(false, 'Notes textarea accepts keyboard input alongside mic button');
+  }
+
+  await screenshot(voicePage, 'voice-logging-food-form');
+  await screenshot(smallVoicePage, 'voice-logging-320px');
+
+  await smallVoicePage.close();
+  await voicePage.close();
+}
+
 async function run() {
   console.log('=== Health Tracker Validation ===\n');
 
@@ -2974,6 +3253,7 @@ async function run() {
     await testDailiesManager(page, fixtures);
     await testVisualQA(page, fixtures);
     await testVisualQA320(page, context, fixtures);
+    await testVoiceLogging(page, context, fixtures);
     await testConsoleErrors(page);
 
   } catch (err) {

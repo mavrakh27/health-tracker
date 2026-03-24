@@ -1,5 +1,138 @@
 // goals.js — Analysis rendering utilities (shared by app.js, profile views)
 
+// --- Adaptive Calorie Targets ---
+// Analyzes weight trend vs calorie intake to suggest target adjustments.
+// Always a suggestion — user explicitly accepts or dismisses.
+const AdaptiveGoals = {
+  // Minimum data thresholds
+  MIN_DAYS: 14,
+  MIN_WEIGHT_MEASUREMENTS: 6,
+  MIN_CALORIE_DAYS: 10,
+  // Safety bounds (cal/day)
+  MIN_CALORIES: 800,
+  MAX_CALORIES: 4000,
+  // Adjustment step (cal)
+  STEP: 50,
+  // Dismissal cooldown (days)
+  DISMISS_COOLDOWN_DAYS: 14,
+  // Expected weekly rate of change (lbs/wk, negative = loss)
+  DEFAULT_EXPECTED_RATE: -0.5,
+  // Tolerance band: within 0.5 lbs/wk of expected rate = no suggestion
+  TOLERANCE: 0.5,
+
+  // Compute 7-day moving average from an array of { date, weight } objects.
+  // Returns array of { date, ma } where ma is the average of up to 7 preceding values.
+  _movingAverage(points) {
+    if (points.length === 0) return [];
+    const result = [];
+    for (let i = 0; i < points.length; i++) {
+      const windowStart = Math.max(0, i - 6);
+      const window = points.slice(windowStart, i + 1);
+      const avg = window.reduce((s, p) => s + p.weight, 0) / window.length;
+      result.push({ date: points[i].date, ma: avg });
+    }
+    return result;
+  },
+
+  // Main algorithm. Returns null (no suggestion) or { currentTarget, suggestedTarget, reason, direction }.
+  // goals: user's profile goals object
+  // summaries: array of dailySummary objects (from DB.getDailySummaryRange)
+  // analyses: array of analysis objects (from DB.getAnalysisRange)
+  computeSuggestion(goals, summaries, analyses) {
+    if (!goals || !summaries || !analyses) return null;
+
+    // Check dismissal cooldown
+    const dismissedAt = goals.adaptive?.dismissedAt;
+    if (dismissedAt) {
+      const daysSinceDismiss = (Date.now() - dismissedAt) / (1000 * 60 * 60 * 24);
+      if (daysSinceDismiss < AdaptiveGoals.DISMISS_COOLDOWN_DAYS) return null;
+    }
+
+    // Extract weight points from summaries
+    const weightPoints = [];
+    for (const s of summaries) {
+      if (s.weight?.value && s.date) {
+        weightPoints.push({ date: s.date, weight: s.weight.value });
+      }
+    }
+
+    // Sort by date ascending
+    weightPoints.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Count days with calorie analysis
+    const calorieDays = analyses.filter(a => a.totals?.calories != null && a.totals.calories > 0).length;
+
+    // Gating checks
+    const totalDays = summaries.length;
+    if (totalDays < AdaptiveGoals.MIN_DAYS) return null;
+    if (weightPoints.length < AdaptiveGoals.MIN_WEIGHT_MEASUREMENTS) return null;
+    if (calorieDays < AdaptiveGoals.MIN_CALORIE_DAYS) return null;
+
+    // Compute 7-day MA
+    const ma = AdaptiveGoals._movingAverage(weightPoints);
+    if (ma.length < 2) return null;
+
+    // Compare MA at start vs end of window
+    // Use first 7 MA values avg vs last 7 MA values avg for stability
+    const startWindow = ma.slice(0, Math.min(7, ma.length));
+    const endWindow = ma.slice(Math.max(0, ma.length - 7));
+    const startMA = startWindow.reduce((s, p) => s + p.ma, 0) / startWindow.length;
+    const endMA = endWindow.reduce((s, p) => s + p.ma, 0) / endWindow.length;
+
+    // Compute actual weekly change rate
+    const firstDate = new Date(ma[0].date + 'T12:00:00');
+    const lastDate = new Date(ma[ma.length - 1].date + 'T12:00:00');
+    const weeksElapsed = (lastDate - firstDate) / (1000 * 60 * 60 * 24 * 7);
+    if (weeksElapsed < 1) return null;
+
+    const totalChange = endMA - startMA;
+    const weeklyChange = totalChange / weeksElapsed;
+
+    // Expected rate (negative for loss)
+    const expectedRate = goals.adaptive?.expectedRate ?? AdaptiveGoals.DEFAULT_EXPECTED_RATE;
+
+    // Difference: how far off from expected
+    // If expectedRate = -0.5 and weeklyChange = 0 → losing 0.5 lbs/wk too slow
+    // If expectedRate = -0.5 and weeklyChange = -1.0 → losing 0.5 lbs/wk too fast
+    const deviation = weeklyChange - expectedRate;
+
+    const currentTarget = goals.calories || 1200;
+
+    // Within tolerance: no suggestion
+    if (Math.abs(deviation) <= AdaptiveGoals.TOLERANCE) return null;
+
+    let suggestedTarget;
+    let reason;
+    let direction;
+
+    if (deviation > AdaptiveGoals.TOLERANCE) {
+      // Losing too slow (or gaining) — reduce calories
+      suggestedTarget = currentTarget - AdaptiveGoals.STEP;
+      direction = 'decrease';
+      reason = `Weight trend is ${Math.abs(weeklyChange).toFixed(1)} lbs/wk `
+        + (weeklyChange >= 0 ? '(gaining)' : '(losing)')
+        + ` vs target of ${Math.abs(expectedRate).toFixed(1)} lbs/wk loss. `
+        + `Reducing target by ${AdaptiveGoals.STEP} cal to accelerate progress.`;
+    } else {
+      // Losing too fast — increase calories (safety)
+      suggestedTarget = currentTarget + AdaptiveGoals.STEP;
+      direction = 'increase';
+      reason = `Weight trend is ${Math.abs(weeklyChange).toFixed(1)} lbs/wk loss `
+        + `vs target of ${Math.abs(expectedRate).toFixed(1)} lbs/wk. `
+        + `Increasing target by ${AdaptiveGoals.STEP} cal for sustainable progress.`;
+    }
+
+    // Safety bounds
+    if (suggestedTarget < AdaptiveGoals.MIN_CALORIES) return null;
+    if (suggestedTarget > AdaptiveGoals.MAX_CALORIES) return null;
+
+    // Don't suggest if same as current
+    if (suggestedTarget === currentTarget) return null;
+
+    return { currentTarget, suggestedTarget, reason, direction, weeklyChange, expectedRate };
+  },
+};
+
 const GoalsView = {
   // Normalize analysis data to a consistent shape for rendering.
   // Handles both the old schema (a.calories.intake, a.macros.protein.grams) and

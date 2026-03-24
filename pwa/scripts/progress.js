@@ -42,6 +42,38 @@ const ProgressView = {
       });
     });
 
+    // Wire adaptive calorie suggestion buttons (Insights tab)
+    if (activeTab === 'insights') {
+      const acceptBtn = container.querySelector('.adaptive-accept-btn');
+      const dismissBtn = container.querySelector('.adaptive-dismiss-btn');
+      if (acceptBtn) {
+        acceptBtn.addEventListener('click', async () => {
+          const suggested = parseInt(acceptBtn.dataset.suggested, 10);
+          if (!suggested) return;
+          const goals = await DB.getProfile('goals') || {};
+          const oldCal = goals.calories || 1200;
+          goals.calories = suggested;
+          // Also update hardcore variant proportionally
+          if (goals.hardcore?.calories) {
+            const ratio = goals.hardcore.calories / oldCal;
+            goals.hardcore.calories = Math.round(suggested * ratio);
+          }
+          await DB.setProfile('goals', goals);
+          UI.showToast(`Calorie target updated to ${suggested} cal/day`);
+          ProgressView.init();
+        });
+      }
+      if (dismissBtn) {
+        dismissBtn.addEventListener('click', async () => {
+          const goals = await DB.getProfile('goals') || {};
+          if (!goals.adaptive) goals.adaptive = {};
+          goals.adaptive.dismissedAt = Date.now();
+          await DB.setProfile('goals', goals);
+          ProgressView.init();
+        });
+      }
+    }
+
     // Wire calendar day taps (Trends tab)
     container.querySelectorAll('.cal-day:not(.empty)').forEach(el => {
       el.addEventListener('click', () => App.goToDate(el.dataset.date));
@@ -80,6 +112,9 @@ const ProgressView = {
     if (!analysis) analysis = await DB.getAnalysis(UI.yesterday(today));
 
     let html = '';
+
+    // Adaptive calorie target suggestion (top of Insights)
+    html += await ProgressView._renderAdaptiveSuggestion(goals);
 
     // Weekly summary (this week vs last week)
     html += await ProgressView.renderWeeklySummary(goals);
@@ -158,6 +193,54 @@ const ProgressView = {
     }
 
     return html;
+  },
+
+  // --- Adaptive Calorie Suggestion Card ---
+  async _renderAdaptiveSuggestion(goals) {
+    // Gather 28 days of summaries and analyses
+    const today = UI.today();
+    const windowStart = new Date(today + 'T12:00:00');
+    windowStart.setDate(windowStart.getDate() - 28);
+    const startStr = `${windowStart.getFullYear()}-${String(windowStart.getMonth() + 1).padStart(2, '0')}-${String(windowStart.getDate()).padStart(2, '0')}`;
+
+    const summaries = await DB.getDailySummaryRange(startStr, today);
+    const analyses = await DB.getAnalysisRange(startStr, today);
+
+    const suggestion = AdaptiveGoals.computeSuggestion(goals, summaries, analyses);
+    if (!suggestion) return '';
+
+    const arrowIcon = suggestion.direction === 'decrease'
+      ? '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v10M4 9l4 4 4-4"/></svg>'
+      : '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 13V3M4 7l4-4 4 4"/></svg>';
+
+    return `
+      <div class="adaptive-suggestion-card">
+        <div class="adaptive-suggestion-header">
+          <span class="adaptive-suggestion-icon">${arrowIcon}</span>
+          <span class="adaptive-suggestion-title">Calorie Target Adjustment</span>
+        </div>
+        <div class="adaptive-suggestion-body">
+          <div class="adaptive-suggestion-values">
+            <div class="adaptive-suggestion-current">
+              <div class="adaptive-suggestion-label">Current</div>
+              <div class="adaptive-suggestion-value">${suggestion.currentTarget}</div>
+              <div class="adaptive-suggestion-unit">cal/day</div>
+            </div>
+            <div class="adaptive-suggestion-arrow">&#8594;</div>
+            <div class="adaptive-suggestion-proposed">
+              <div class="adaptive-suggestion-label">Suggested</div>
+              <div class="adaptive-suggestion-value">${suggestion.suggestedTarget}</div>
+              <div class="adaptive-suggestion-unit">cal/day</div>
+            </div>
+          </div>
+          <div class="adaptive-suggestion-reason">${UI.escapeHtml(suggestion.reason)}</div>
+        </div>
+        <div class="adaptive-suggestion-actions">
+          <button class="adaptive-dismiss-btn">Dismiss</button>
+          <button class="adaptive-accept-btn" data-suggested="${suggestion.suggestedTarget}">Accept</button>
+        </div>
+      </div>
+    `;
   },
 
   // --- My Plan ---
@@ -747,7 +830,12 @@ const ProgressView = {
       const dates = Object.keys(dateMap).sort((a, b) => b.localeCompare(a));
 
       html += '<div class="progress-photos-subtype">';
+      html += `<div class="progress-photos-subtype-header">`;
       html += `<div class="progress-photos-subtype-label">${UI.escapeHtml(type.name)}</div>`;
+      if (dates.length >= 2) {
+        html += `<button class="photo-compare-btn" data-subtype="${UI.escapeHtml(type.key)}" data-dates='${JSON.stringify(dates)}'>Compare</button>`;
+      }
+      html += `</div>`;
 
       if (dates.length === 0) {
         html += `<div class="progress-photos-empty">No ${UI.escapeHtml(type.name.toLowerCase())} photos yet</div>`;
@@ -777,15 +865,205 @@ const ProgressView = {
 
     html += '</div>'; // .card
 
-    // Wire tap-to-reveal for all scroll rows after paint
+    // Wire tap-to-reveal and compare buttons after paint
     setTimeout(() => {
       for (const id of scrollIds) {
         const el = document.getElementById(id);
         if (el) ProgressView._wirePhotoScroll(el);
       }
+      // Wire compare buttons
+      document.querySelectorAll('.photo-compare-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const subtype = btn.dataset.subtype;
+          const dates = JSON.parse(btn.dataset.dates);
+          const subtypeEntries = {};
+          for (const date of dates) {
+            const card = document.querySelector(`.progress-photo-card[data-date="${date}"]`);
+            if (card) subtypeEntries[date] = card.dataset.entryId;
+          }
+          ProgressView._openComparePicker(subtype, dates, subtypeEntries);
+        });
+      });
     }, 0);
 
     return html;
+  },
+
+  // --- Photo Comparison ---
+
+  _openComparePicker(subtype, dates, entryMap) {
+    // Bottom sheet with date selection
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay photo-compare-picker-overlay';
+    overlay.setAttribute('data-compare-picker', 'true');
+
+    const formatDate = (dateStr) => {
+      const d = new Date(dateStr + 'T12:00:00');
+      return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    };
+
+    let html = '<div class="photo-compare-picker">';
+    html += '<div class="photo-compare-picker-title">Select two dates to compare</div>';
+    html += '<div class="photo-compare-picker-dates">';
+    for (const date of dates) {
+      html += `<button class="photo-compare-date-btn" data-date="${date}">${formatDate(date)}</button>`;
+    }
+    html += '</div>';
+    html += '<button class="photo-compare-picker-cancel">Cancel</button>';
+    html += '</div>';
+    overlay.innerHTML = html;
+
+    const selected = [];
+    overlay.querySelectorAll('.photo-compare-date-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const date = btn.dataset.date;
+        if (btn.classList.contains('selected')) {
+          btn.classList.remove('selected');
+          const idx = selected.indexOf(date);
+          if (idx >= 0) selected.splice(idx, 1);
+        } else {
+          if (selected.length >= 2) {
+            // Deselect the first one
+            const first = selected.shift();
+            overlay.querySelector(`.photo-compare-date-btn[data-date="${first}"]`).classList.remove('selected');
+          }
+          selected.push(date);
+          btn.classList.add('selected');
+        }
+        if (selected.length === 2) {
+          overlay.remove();
+          // Sort chronologically — left is older, right is newer
+          selected.sort();
+          ProgressView._openCompareModal(selected[0], selected[1], entryMap);
+        }
+      });
+    });
+
+    overlay.querySelector('.photo-compare-picker-cancel').addEventListener('click', () => {
+      overlay.remove();
+    });
+
+    // Close on backdrop tap
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    document.body.appendChild(overlay);
+  },
+
+  async _openCompareModal(dateA, dateB, entryMap) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay photo-compare-modal-overlay';
+    modal.setAttribute('data-compare-modal', 'true');
+
+    const formatLabel = (dateStr) => {
+      const d = new Date(dateStr + 'T12:00:00');
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
+    // Load photos for both dates
+    const entryIdA = entryMap[dateA];
+    const entryIdB = entryMap[dateB];
+    const [photosA, photosB] = await Promise.all([
+      DB.getPhotos(entryIdA),
+      DB.getPhotos(entryIdB),
+    ]);
+
+    const blobA = photosA.length > 0 && photosA[0].blob ? photosA[0].blob : null;
+    const blobB = photosB.length > 0 && photosB[0].blob ? photosB[0].blob : null;
+
+    const urlA = blobA ? URL.createObjectURL(blobA) : null;
+    const urlB = blobB ? URL.createObjectURL(blobB) : null;
+
+    let html = '<div class="photo-compare-modal">';
+    html += '<div class="photo-compare-container">';
+
+    // Right image (newer, full width behind)
+    html += `<div class="photo-compare-side photo-compare-right">`;
+    html += urlB ? `<img src="${urlB}" alt="After" class="photo-compare-img" data-side="right">` : '<div class="photo-compare-placeholder">No photo</div>';
+    html += `<div class="photo-compare-date-label photo-compare-label-right">${formatLabel(dateB)}</div>`;
+    html += '</div>';
+
+    // Left image (older, clipped by slider)
+    html += `<div class="photo-compare-side photo-compare-left">`;
+    html += urlA ? `<img src="${urlA}" alt="Before" class="photo-compare-img" data-side="left">` : '<div class="photo-compare-placeholder">No photo</div>';
+    html += `<div class="photo-compare-date-label photo-compare-label-left">${formatLabel(dateA)}</div>`;
+    html += '</div>';
+
+    // Slider handle
+    html += '<div class="photo-compare-slider-handle" data-compare-handle="true">';
+    html += '<div class="photo-compare-slider-line"></div>';
+    html += '<div class="photo-compare-slider-grip">';
+    html += '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7 4L3 10L7 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13 4L17 10L13 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    html += '</div>';
+    html += '</div>';
+
+    html += '</div>'; // .photo-compare-container
+    html += '<button class="photo-compare-done-btn" data-compare-done="true">Done</button>';
+    html += '</div>'; // .photo-compare-modal
+    modal.innerHTML = html;
+
+    // Wire slider drag
+    const container = modal.querySelector('.photo-compare-container');
+    const leftSide = modal.querySelector('.photo-compare-left');
+    const handle = modal.querySelector('.photo-compare-slider-handle');
+    let dragging = false;
+
+    const setPosition = (fraction) => {
+      const pct = Math.max(0, Math.min(1, fraction)) * 100;
+      leftSide.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+      handle.style.left = pct + '%';
+    };
+
+    // Start at 50%
+    setPosition(0.5);
+
+    const getX = (e) => {
+      const touch = e.touches ? e.touches[0] : e;
+      const rect = container.getBoundingClientRect();
+      return (touch.clientX - rect.left) / rect.width;
+    };
+
+    handle.addEventListener('mousedown', (e) => { dragging = true; e.preventDefault(); });
+    handle.addEventListener('touchstart', (e) => { dragging = true; }, { passive: true });
+
+    const onMove = (e) => {
+      if (!dragging) return;
+      if (e.cancelable) e.preventDefault();
+      setPosition(getX(e));
+    };
+
+    const onEnd = () => { dragging = false; };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+
+    // Also allow tapping on the container to reposition
+    container.addEventListener('click', (e) => {
+      setPosition(getX(e));
+    });
+
+    // Done button
+    const cleanup = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onEnd);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      if (urlA) URL.revokeObjectURL(urlA);
+      if (urlB) URL.revokeObjectURL(urlB);
+      modal.remove();
+    };
+
+    modal.querySelector('.photo-compare-done-btn').addEventListener('click', cleanup);
+
+    // Close on backdrop tap (outside modal content)
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) cleanup();
+    });
+
+    document.body.appendChild(modal);
   },
 
   // Shared tap-to-reveal wiring for a .progress-photos-scroll element
