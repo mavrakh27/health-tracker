@@ -562,11 +562,11 @@ const QuickLog = {
         <div class="dailies-add-form" id="dm-add-form">
           <div id="dm-photo-area" style="margin-bottom:var(--space-sm);"></div>
           <div style="display:flex; gap:var(--space-sm); margin-bottom:var(--space-sm);">
-            <button class="btn btn-secondary" id="dm-camera-btn" style="flex:1; display:flex; align-items:center; justify-content:center; gap:var(--space-xs);">
+            <button class="btn btn-secondary btn-block" id="dm-camera-btn" style="display:flex; align-items:center; justify-content:center; gap:var(--space-xs);">
               <span style="display:inline-flex;">${UI.svg.camera}</span> Take Photo
             </button>
-            <button class="btn btn-ghost" id="dm-pick-btn" style="flex:0 0 auto; padding:var(--space-xs) var(--space-sm);">
-              <span style="display:inline-flex;">${UI.svg.gallery}</span>
+            <button class="btn btn-ghost btn-block" id="dm-pick-btn" style="display:flex; align-items:center; justify-content:center; gap:var(--space-xs);">
+              <span style="display:inline-flex;">${UI.svg.gallery}</span> Choose from Library
             </button>
           </div>
           <textarea class="form-input" id="dm-desc" placeholder="Describe what this is (e.g. Creatine 5g, protein shake, daily vitamin)&#10;&#10;Or just snap a photo — processing will fill in the details" rows="2" style="margin-bottom:var(--space-sm);"></textarea>
@@ -579,7 +579,7 @@ const QuickLog = {
           </details>
           <button class="btn btn-primary btn-block" id="dm-add-btn">Add Daily</button>
         </div>
-        <button class="btn btn-primary btn-block btn-lg" id="dm-done" style="margin-top:var(--space-md);">Done</button>
+        <button class="btn btn-ghost btn-block btn-lg" id="dm-done" style="margin-top:var(--space-md);">Done</button>
       `;
 
       // Bind events
@@ -1762,14 +1762,21 @@ const Settings = {
     if (!select) return;
     const prefs = await DB.getProfile('preferences') || {};
     select.value = String(prefs.dayBoundaryHour || 0);
-    select.addEventListener('change', async () => {
-      const hour = parseInt(select.value) || 0;
-      const prefs = await DB.getProfile('preferences') || {};
-      prefs.dayBoundaryHour = hour;
-      await DB.setProfile('preferences', prefs);
-      UI._dayBoundaryHours = hour;
-      UI.toast(`Day starts at ${hour === 0 ? 'midnight' : hour + ' AM'}`);
-    });
+    // Prevent stacking listeners on repeated Settings visits
+    if (!select._boundaryBound) {
+      select._boundaryBound = true;
+      select.addEventListener('change', async () => {
+        const hour = parseInt(select.value) || 0;
+        const fresh = await DB.getProfile('preferences') || {};
+        fresh.dayBoundaryHour = hour;
+        await DB.setProfile('preferences', fresh);
+        UI._dayBoundaryHours = hour;
+        // Re-derive selected date and refresh view
+        App.selectedDate = UI.today();
+        App.updateHeaderDate();
+        UI.toast(`Day starts at ${hour === 0 ? 'midnight' : hour + ' AM'}`);
+      });
+    }
   },
 
   async loadCloudSyncStatus() {

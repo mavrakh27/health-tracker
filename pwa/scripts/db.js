@@ -324,7 +324,7 @@ async function importAnalysis(dateStr, data) {
   const stores = ['analysis', 'photos'];
   if (db.objectStoreNames.contains('analysisHistory')) stores.push('analysisHistory');
   if (data.mealPlan) stores.push('mealPlan');
-  if (data.regimen || data.pwaProfile) stores.push('profile');
+  if (data.regimen || data.pwaProfile || data.supplementUpdates) stores.push('profile');
   const tx = db.transaction(stores, 'readwrite');
 
   // Extract and save bundled meal plan and regimen before storing analysis
@@ -357,6 +357,30 @@ async function importAnalysis(dateStr, data) {
     }
     if (data.pwaProfile.preferences) {
       profileStore.put({ key: 'preferences', value: data.pwaProfile.preferences });
+    }
+  }
+
+  // Merge supplement updates from AI processing (photo → nutrition extraction)
+  if (data.supplementUpdates && Array.isArray(data.supplementUpdates)) {
+    const profileStore2 = stores.includes('profile') ? tx.objectStore('profile') : null;
+    if (profileStore2) {
+      const suppReq = profileStore2.get('supplements');
+      suppReq.onsuccess = () => {
+        const existing = suppReq.result?.value || [];
+        for (const update of data.supplementUpdates) {
+          const match = existing.find(s => s.key === update.key);
+          if (match) {
+            if (update.name) match.name = update.name;
+            if (update.calories != null) match.calories = update.calories;
+            if (update.protein != null) match.protein = update.protein;
+            if (update.carbs != null) match.carbs = update.carbs;
+            if (update.fat != null) match.fat = update.fat;
+            match.pending = false;
+            delete match.photo; // Photo served its purpose — free the space
+          }
+        }
+        profileStore2.put({ key: 'supplements', value: existing });
+      };
     }
   }
 

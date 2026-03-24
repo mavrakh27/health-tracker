@@ -88,6 +88,15 @@ The processing pipeline runs every 30 minutes via scheduled task. It:
 
 Processing scripts live in `processing/`. The relay URL and sync key are in environment variables (`HEALTH_SYNC_URL`, `HEALTH_SYNC_KEY`).
 
+## Terminal Alias
+
+The `coach` command should be set up so the user can type `coach` from any terminal to start a session. The alias `cd`s into this folder and runs `claude`. If the alias isn't set up yet, tell the user:
+
+**PowerShell:** `Add-Content $PROFILE "function coach { Set-Location 'COACH_DIR'; claude }"`
+**Bash/Zsh:** `echo 'alias coach="cd COACH_DIR && claude"' >> ~/.bashrc ~/.zshrc`
+
+(Replace COACH_DIR with the actual path to this folder.)
+
 ## First-Time Setup
 
 If `USER.md` doesn't exist, run `/setup` to onboard a new user.
