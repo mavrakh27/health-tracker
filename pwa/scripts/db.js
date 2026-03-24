@@ -155,7 +155,11 @@ async function getEntriesByType(type, startDate, endDate) {
       request.onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
-          results.push(cursor.value);
+          // Compound key range includes entries between [startDate,type] and [endDate,type]
+          // which can match other types lexicographically between the bounds — filter to exact type
+          if (cursor.value.type === type) {
+            results.push(cursor.value);
+          }
           cursor.continue();
         } else {
           resolve(results);

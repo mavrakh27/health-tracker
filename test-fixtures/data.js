@@ -42,6 +42,9 @@ function buildFixtures() {
     { id: `meal_${ts(day2,9,0)}_test6`, date: day2, type: 'meal', subtype: 'breakfast', timestamp: ts(day2,9,0), notes: 'Greek yogurt with granola', photo: true },
     { id: `meal_${ts(day2,13,0)}_test7`, date: day2, type: 'meal', subtype: 'lunch', timestamp: ts(day2,13,0), notes: 'Turkey sandwich' },
 
+    // Day 2: Body photo (second date for comparison testing)
+    { id: `bodyPhoto_${ts(day2,9,0)}_test_body2`, date: day2, type: 'bodyPhoto', timestamp: ts(day2,9,0), notes: 'Day 2 progress', photo: true },
+
     // Day 3: Rest day (high score)
     { id: `meal_${ts(day3,8,0)}_test8`, date: day3, type: 'meal', subtype: 'breakfast', timestamp: ts(day3,8,0), notes: 'Eggs and toast' },
     { id: `meal_${ts(day3,12,0)}_test9`, date: day3, type: 'meal', subtype: 'lunch', timestamp: ts(day3,12,0), notes: 'Chicken bowl' },
@@ -241,6 +244,13 @@ function buildFixtures() {
       entryId: `bodyPhoto_${ts(day1,9,0)}_test_body`,
       date: day1, category: 'body', syncStatus: 'processed',
       scene: { type: 'body', bg: '#2c3e50', silhouette: '#7f8c8d', label: 'Side', pose: 'side' },
+    },
+    // Day 2 body photo — front view (second date for comparison)
+    {
+      id: `photo_body_${ts(day2,9,0)}_front`,
+      entryId: `bodyPhoto_${ts(day2,9,0)}_test_body2`,
+      date: day2, category: 'body', syncStatus: 'processed',
+      scene: { type: 'body', bg: '#34495e', silhouette: '#95a5a6', label: 'Front Day2', pose: 'front' },
     },
     // Day 2 breakfast — yogurt (light, pastel)
     {

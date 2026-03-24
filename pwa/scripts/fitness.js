@@ -141,6 +141,18 @@ const Fitness = {
       form: 'Lie on back, feet flat on floor hip-width apart, knees bent. Drive hips up by squeezing glutes hard. Hold at the top for 2 seconds. Lower with control. Your body should form a straight line from shoulders to knees at the top.',
       mistakes: 'Pushing through toes instead of heels (heels drive the movement). Not squeezing at top (hold and squeeze glutes). Arching lower back at top (stop when hips are level, don\'t hyperextend).',
     },
+    'dumbbell bicep curls': {
+      muscles: 'Biceps, forearms',
+      why: 'Isolation work for arm size and strength. Balanced biceps complement pushing movements and improve pulling exercises like rows.',
+      form: 'Stand with feet hip-width, dumbbells at sides, palms forward. Curl up by bending elbows — keep upper arms still. Squeeze at the top, lower with control (3 seconds down).',
+      mistakes: 'Swinging the body for momentum (stand still, use less weight). Letting elbows drift forward (pin them to your sides). Rushing the lowering phase (slow eccentric builds more muscle).',
+    },
+    'calf raises': {
+      muscles: 'Calves (gastrocnemius, soleus)',
+      why: 'Calves are used in every step you take. Strong calves improve ankle stability, reduce injury risk, and support running and hiking.',
+      form: 'Stand on edge of a step or flat ground. Rise up onto toes, squeezing calves at the top. Hold for 1 second. Lower slowly until heels are below the step (full stretch).',
+      mistakes: 'Bouncing at the bottom (pause and stretch). Not going high enough (full contraction at top). Using momentum (slow and controlled).',
+    },
   },
 
   // Get exercise list from a day plan — supports structured (exercises array) and legacy (description text)

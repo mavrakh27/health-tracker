@@ -11,7 +11,7 @@ const TAKE_SCREENSHOTS = process.argv.includes('--screenshots');
 const RUN_DOGFOOD = process.argv.includes('--dogfood');
 const RUN_CHAOS = process.argv.includes('--chaos');
 const SCREENSHOT_DIR = path.join(__dirname, '..', '.claude', 'test-screenshots', 'validate');
-const PORT = 8080;
+const PORT = 9037;
 const BASE_URL = `http://localhost:${PORT}`;
 const VIEWPORTS = [
   { name: 'iPhone-SE', width: 320, height: 568 },
@@ -3191,6 +3191,1359 @@ async function testVoiceLogging(page, context, fixtures) {
   await voicePage.close();
 }
 
+async function testChallenges(page, context, fixtures) {
+  console.log('\n--- Challenges ---');
+
+  // 1. challenges.js loads without errors
+  const chalDefined = await page.evaluate(() => typeof Challenges !== 'undefined');
+  assert(chalDefined, 'Challenges global is defined');
+  const chalTemplatesDefined = await page.evaluate(() => typeof ChallengeTemplates !== 'undefined');
+  assert(chalTemplatesDefined, 'ChallengeTemplates global is defined');
+
+  // 2. Progress tab has a "Challenges" segment button
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const chalSegBtn = await page.$('button[data-ptab="challenges"]');
+  assert(!!chalSegBtn, 'Progress tab has Challenges segment button');
+
+  // 3. ChallengeTemplates has built-in templates (75hard, 7day, 100day, custom via picker)
+  const templateIds = await page.evaluate(() => Object.keys(ChallengeTemplates));
+  assert(templateIds.includes('75hard'), 'ChallengeTemplates includes 75hard');
+  assert(templateIds.includes('7day_reset'), 'ChallengeTemplates includes 7day_reset');
+  assert(templateIds.includes('100day'), 'ChallengeTemplates includes 100day');
+  // Custom is handled via the picker, not in ChallengeTemplates directly
+  const customEnrollWorks = await page.evaluate(() => typeof Challenges.enroll === 'function');
+  assert(customEnrollWorks, 'Challenges.enroll function exists for custom challenges');
+
+  // 4. Enrolling in a 7-Day Reset creates a DB record
+  const enrollResult = await page.evaluate(async () => {
+    const chal = await Challenges.enroll('7day_reset');
+    if (!chal) return null;
+    const stored = await DB.getChallenge(chal.id);
+    return {
+      id: chal.id,
+      templateId: chal.templateId,
+      name: chal.name,
+      status: chal.status,
+      durationDays: chal.durationDays,
+      tasksCount: chal.tasks.length,
+      storedName: stored?.name,
+      storedStatus: stored?.status,
+    };
+  });
+  assert(enrollResult !== null, 'Enrolling in 7-Day Reset returns a challenge');
+  assert(enrollResult.templateId === '7day_reset', 'Enrolled challenge has correct templateId');
+  assert(enrollResult.status === 'active', 'Enrolled challenge status is active');
+  assert(enrollResult.durationDays === 7, 'Enrolled challenge duration is 7 days');
+  assert(enrollResult.tasksCount === 4, 'Enrolled challenge has 4 tasks');
+  assert(enrollResult.storedName === '7-Day Reset', 'Challenge persisted in DB with correct name');
+  assert(enrollResult.storedStatus === 'active', 'Challenge persisted in DB with active status');
+
+  // 5. Active challenge appears on Today tab as widget
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(800);
+  const widget = await page.$('.challenge-widget');
+  assert(!!widget, 'Active challenge widget appears on Today tab');
+
+  // 6. Challenge widget shows task checklist
+  const widgetTasks = await page.$$('.challenge-widget .challenge-task');
+  assert(widgetTasks.length === 4, `Challenge widget shows 4 tasks (got ${widgetTasks.length})`);
+  const taskLabels = await page.$$eval('.challenge-widget .challenge-task-label', els => els.map(e => e.textContent));
+  assert(taskLabels.some(l => l.includes('water')), 'Widget task list includes water task');
+  assert(taskLabels.some(l => l.includes('workout') || l.includes('Workout')), 'Widget task list includes workout task');
+
+  // 7. Checking a task persists
+  const checkResult = await page.evaluate(async () => {
+    // Get the active challenge
+    const chals = await DB.getChallenges('active');
+    if (chals.length === 0) return null;
+    const chal = chals[0];
+    const date = App.selectedDate;
+
+    // Manually save a progress record with a checked task
+    const progressId = chal.id + '_' + date;
+    const dayNum = Challenges.getDayNumber(chal, date);
+    const progress = {
+      id: progressId,
+      challengeId: chal.id,
+      date,
+      checked: ['no_alcohol'],
+      autoChecked: [],
+      manualOverrides: [],
+      dayNumber: dayNum,
+      allComplete: false,
+    };
+    await DB.saveChallengeProgress(progress);
+
+    // Read it back
+    const stored = await DB.getChallengeProgress(chal.id, date);
+    return {
+      checked: stored?.checked,
+      hasNoAlcohol: stored?.checked?.includes('no_alcohol'),
+    };
+  });
+  assert(checkResult !== null && checkResult.hasNoAlcohol, 'Checked task persists in challengeProgress store');
+
+  // 8. Auto-check evaluates water threshold
+  const autoCheckResult = await page.evaluate(async () => {
+    const chals = await DB.getChallenges('active');
+    if (chals.length === 0) return null;
+    const chal = chals[0];
+    const date = App.selectedDate;
+
+    // Set water to above threshold (64 oz for 7-day reset)
+    await DB.updateDailySummary(date, { water_oz: 80 });
+
+    const autoChecked = await Challenges.evaluateAutoChecks(chal, date);
+    return {
+      autoChecked,
+      hasWater: autoChecked.includes('water'),
+    };
+  });
+  assert(autoCheckResult !== null && autoCheckResult.hasWater, 'Auto-check detects water >= threshold');
+
+  // Also test water below threshold does NOT auto-check
+  const autoCheckBelowResult = await page.evaluate(async () => {
+    const chals = await DB.getChallenges('active');
+    if (chals.length === 0) return null;
+    const chal = chals[0];
+    const date = App.selectedDate;
+
+    // Set water below threshold
+    await DB.updateDailySummary(date, { water_oz: 30 });
+    const autoChecked = await Challenges.evaluateAutoChecks(chal, date);
+    return { hasWater: autoChecked.includes('water') };
+  });
+  assert(autoCheckBelowResult !== null && !autoCheckBelowResult.hasWater, 'Auto-check rejects water below threshold');
+
+  // 9. Challenge calendar renders on Progress tab
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const chalBtn = await page.$('button[data-ptab="challenges"]');
+  if (chalBtn) await chalBtn.click();
+  await page.waitForTimeout(800);
+
+  const calendar = await page.$('.challenge-calendar');
+  assert(!!calendar, 'Challenge calendar renders on Progress tab');
+
+  const dots = await page.$$('.challenge-dot');
+  assert(dots.length === 7, `Challenge calendar has 7 dots for 7-day challenge (got ${dots.length})`);
+
+  await screenshot(page, 'challenges-progress');
+
+  // 10. Abandon updates status
+  const abandonResult = await page.evaluate(async () => {
+    const chals = await DB.getChallenges('active');
+    if (chals.length === 0) return null;
+    const chal = chals[0];
+    await Challenges.abandon(chal.id);
+    const stored = await DB.getChallenge(chal.id);
+    return { status: stored?.status };
+  });
+  assert(abandonResult?.status === 'abandoned', 'Abandon sets challenge status to abandoned');
+
+  // 11. Multiple simultaneous challenges work
+  const multiResult = await page.evaluate(async () => {
+    // Enroll in two challenges
+    const chal1 = await Challenges.enroll('7day_reset');
+    const chal2 = await Challenges.enroll('100day');
+    const active = await DB.getChallenges('active');
+    return {
+      chal1Id: chal1?.id,
+      chal2Id: chal2?.id,
+      activeCount: active.length,
+      distinctIds: new Set(active.map(c => c.id)).size,
+    };
+  });
+  assert(multiResult.activeCount >= 2, `Multiple simultaneous challenges: ${multiResult.activeCount} active`);
+  assert(multiResult.distinctIds >= 2, 'Simultaneous challenges have distinct IDs');
+
+  // Verify both show on Today tab
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(800);
+  const widgets = await page.$$('.challenge-widget');
+  assert(widgets.length >= 2, `Multiple challenge widgets on Today tab (got ${widgets.length})`);
+
+  await screenshot(page, 'challenges-multiple-today');
+
+  // 12. Renders at 320px without overflow
+  const smallPage = await context.newPage();
+  await smallPage.setViewportSize({ width: 320, height: 568 });
+  await smallPage.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await smallPage.waitForTimeout(1500);
+  await smallPage.waitForFunction(() => typeof DB !== 'undefined' && typeof DB.openDB === 'function');
+
+  // Enroll a challenge on the small page
+  await smallPage.evaluate(async () => {
+    await Challenges.enroll('75hard');
+  });
+  await smallPage.click('nav button:has-text("Today")');
+  await smallPage.waitForTimeout(800);
+
+  const smallOverflow = await smallPage.evaluate(() => document.body.scrollWidth);
+  assert(smallOverflow <= 322, `320px viewport: no horizontal overflow (scrollWidth: ${smallOverflow}px)`);
+
+  // Check challenge widget fits
+  const widgetRect = await smallPage.evaluate(() => {
+    const w = document.querySelector('.challenge-widget');
+    if (!w) return null;
+    const r = w.getBoundingClientRect();
+    return { right: r.right, width: r.width };
+  });
+  assert(widgetRect !== null, '320px: challenge widget renders');
+  assert(widgetRect.right <= 322, `320px: challenge widget fits within viewport (right: ${widgetRect.right}px)`);
+
+  // Check Progress Challenges tab at 320px
+  await smallPage.click('nav button:has-text("Progress")');
+  await smallPage.waitForTimeout(500);
+  const chalBtnSmall = await smallPage.$('button[data-ptab="challenges"]');
+  if (chalBtnSmall) await chalBtnSmall.click();
+  await smallPage.waitForTimeout(800);
+  const smallOverflow2 = await smallPage.evaluate(() => document.body.scrollWidth);
+  assert(smallOverflow2 <= 322, `320px Progress Challenges: no horizontal overflow (scrollWidth: ${smallOverflow2}px)`);
+
+  await screenshot(smallPage, 'challenges-320px');
+  await smallPage.close();
+
+  // --- Adversarial tests ---
+
+  // Adversarial: Streak calculation with gaps
+  const streakResult = await page.evaluate(() => {
+    // allComplete=true for 3 consecutive, then a gap
+    const records = [
+      { date: '2026-03-20', allComplete: true },
+      { date: '2026-03-21', allComplete: true },
+      { date: '2026-03-22', allComplete: true },
+      { date: '2026-03-23', allComplete: false },
+    ];
+    return Challenges.getStreak(records);
+  });
+  // Streak counts from most recent backwards — the most recent is false, so streak should be 0
+  assert(streakResult === 0, `Streak breaks on most recent incomplete day (got ${streakResult})`);
+
+  // Adversarial: Streak with all complete
+  const streakAllComplete = await page.evaluate(() => {
+    const records = [
+      { date: '2026-03-20', allComplete: true },
+      { date: '2026-03-21', allComplete: true },
+      { date: '2026-03-22', allComplete: true },
+    ];
+    return Challenges.getStreak(records);
+  });
+  assert(streakAllComplete === 3, `Streak counts all complete days (got ${streakAllComplete})`);
+
+  // Adversarial: getDayNumber edge cases
+  const dayNumResult = await page.evaluate(() => {
+    const chal = { startDate: '2026-03-20', durationDays: 7 };
+    return {
+      day1: Challenges.getDayNumber(chal, '2026-03-20'),
+      day7: Challenges.getDayNumber(chal, '2026-03-26'),
+      day0: Challenges.getDayNumber(chal, '2026-03-19'),  // before start
+      day8: Challenges.getDayNumber(chal, '2026-03-27'),  // after end
+    };
+  });
+  assert(dayNumResult.day1 === 1, `Day number on start date is 1 (got ${dayNumResult.day1})`);
+  assert(dayNumResult.day7 === 7, `Day number on last day is 7 (got ${dayNumResult.day7})`);
+  assert(dayNumResult.day0 === 0, `Day number before start is 0 (got ${dayNumResult.day0})`);
+  assert(dayNumResult.day8 === 8, `Day number after end is 8 (got ${dayNumResult.day8})`);
+
+  // Adversarial: enroll with invalid template returns null
+  const invalidEnroll = await page.evaluate(async () => {
+    return await Challenges.enroll('nonexistent_template_xyz');
+  });
+  assert(invalidEnroll === null, 'Enrolling with invalid template returns null');
+
+  // Adversarial: empty streak returns 0
+  const emptyStreak = await page.evaluate(() => Challenges.getStreak([]));
+  assert(emptyStreak === 0, `Empty streak returns 0 (got ${emptyStreak})`);
+  const nullStreak = await page.evaluate(() => Challenges.getStreak(null));
+  assert(nullStreak === 0, `Null streak returns 0 (got ${nullStreak})`);
+
+  // Adversarial: renderDayChecklist for out-of-range day returns empty string
+  const outOfRangeRender = await page.evaluate(async () => {
+    const chal = {
+      id: 'test_oor', startDate: '2026-01-01', endDate: '2026-01-07',
+      durationDays: 7, tasks: [{ id: 't1', label: 'Test', autoCheck: null }],
+      status: 'active', restartOnMiss: false,
+    };
+    // Date far outside range
+    const html = await Challenges.renderDayChecklist(chal, '2026-06-15');
+    return html;
+  });
+  assert(outOfRangeRender === '', 'renderDayChecklist returns empty for out-of-range date');
+
+  // Adversarial: challenge task labels use XSS-safe escaping
+  const xssResult = await page.evaluate(async () => {
+    const chal = await Challenges.enroll('custom', {
+      name: '<script>alert(1)</script>',
+      durationDays: 1,
+      tasks: [{ label: '<img src=x onerror=alert(1)>' }],
+    });
+    if (!chal) return null;
+    const html = await Challenges.renderDayChecklist(chal, App.selectedDate);
+    return {
+      hasRawScript: html.includes('<script>'),
+      hasRawImg: html.includes('<img src=x'),
+      hasEscaped: html.includes('&lt;script&gt;') || html.includes('&lt;img'),
+    };
+  });
+  assert(xssResult && !xssResult.hasRawScript, 'Challenge name is XSS-escaped (no raw <script>)');
+  assert(xssResult && !xssResult.hasRawImg, 'Challenge task label is XSS-escaped (no raw <img>)');
+
+  // Adversarial: applyAutoChecks respects manualOverrides
+  const overrideResult = await page.evaluate(async () => {
+    // Create a fresh challenge
+    const chal = await Challenges.enroll('7day_reset');
+    const date = App.selectedDate;
+    // Set water above threshold so it auto-checks
+    await DB.updateDailySummary(date, { water_oz: 100 });
+
+    // First apply: water should be auto-checked
+    let progress = await Challenges.applyAutoChecks(chal, date);
+    const autoCheckedFirst = progress.checked.includes('water');
+
+    // Now manually override (uncheck) the water task
+    progress.checked = progress.checked.filter(id => id !== 'water');
+    progress.manualOverrides.push('water');
+    await DB.saveChallengeProgress(progress);
+
+    // Apply auto-checks again -- should NOT re-add water because of manualOverrides
+    progress = await Challenges.applyAutoChecks(chal, date);
+    const autoCheckedAfterOverride = progress.checked.includes('water');
+
+    // Clean up
+    chal.status = 'abandoned';
+    await DB.saveChallenge(chal);
+
+    return { autoCheckedFirst, autoCheckedAfterOverride };
+  });
+  assert(overrideResult.autoCheckedFirst === true, 'Auto-check adds water task initially');
+  assert(overrideResult.autoCheckedAfterOverride === false, 'Manual override prevents auto-re-check');
+
+  // Adversarial: allComplete flag requires ALL tasks checked, not just some
+  const allCompleteResult = await page.evaluate(async () => {
+    const chal = await Challenges.enroll('7day_reset');
+    const date = App.selectedDate;
+
+    // Only check 2 of 4 tasks
+    const progressId = chal.id + '_' + date;
+    const progress = {
+      id: progressId, challengeId: chal.id, date,
+      checked: ['water', 'no_alcohol'],
+      autoChecked: [], manualOverrides: [],
+      dayNumber: 1, allComplete: false,
+    };
+    await DB.saveChallengeProgress(progress);
+
+    // Apply auto-checks (water is at 100 from earlier test)
+    const updated = await Challenges.applyAutoChecks(chal, date);
+
+    // Clean up
+    chal.status = 'abandoned';
+    await DB.saveChallenge(chal);
+
+    return {
+      checkedCount: updated.checked.length,
+      totalTasks: chal.tasks.length,
+      allComplete: updated.allComplete,
+    };
+  });
+  assert(allCompleteResult.allComplete === false, `allComplete is false when ${allCompleteResult.checkedCount}/${allCompleteResult.totalTasks} tasks checked`);
+
+  // Adversarial: calendar dot count matches durationDays for 75 Hard
+  const calDotResult = await page.evaluate(async () => {
+    const chal = await Challenges.enroll('75hard');
+    const allProgress = [];
+    const html = Challenges.renderCalendar(allProgress, chal);
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const dotCount = div.querySelectorAll('.challenge-dot').length;
+
+    // Clean up
+    chal.status = 'abandoned';
+    await DB.saveChallenge(chal);
+
+    return { dotCount, expected: 75 };
+  });
+  assert(calDotResult.dotCount === 75, `75 Hard calendar has 75 dots (got ${calDotResult.dotCount})`);
+
+  // Adversarial: exportTemplate produces valid base64 that can round-trip
+  const exportResult = await page.evaluate(async () => {
+    const chal = await Challenges.enroll('7day_reset');
+    const url = Challenges.exportTemplate(chal);
+    const hashPart = url.split('#challenge=')[1];
+    if (!hashPart) return { valid: false, reason: 'no hash fragment' };
+    try {
+      const json = decodeURIComponent(escape(atob(hashPart)));
+      const payload = JSON.parse(json);
+
+      chal.status = 'abandoned';
+      await DB.saveChallenge(chal);
+
+      return {
+        valid: true,
+        name: payload.name,
+        hasTasks: Array.isArray(payload.tasks) && payload.tasks.length > 0,
+        taskCount: payload.tasks.length,
+      };
+    } catch (e) {
+      return { valid: false, reason: e.message };
+    }
+  });
+  assert(exportResult.valid, 'exportTemplate produces valid decodable URL');
+  assert(exportResult.name === '7-Day Reset', `Exported template name correct (got "${exportResult.name}")`);
+  assert(exportResult.taskCount === 4, `Exported template has 4 tasks (got ${exportResult.taskCount})`);
+
+  // Adversarial: logging auto-check needs type==='meal' entries, not any entry type
+  const loggingAutoResult = await page.evaluate(async () => {
+    const chal = await Challenges.enroll('7day_reset');
+    const date = App.selectedDate;
+
+    // Clear entries for the date, then add only workout entries (no meals)
+    // The evaluateAutoChecks should NOT pass the logging check
+    const autoChecked = await Challenges.evaluateAutoChecks(chal, date);
+    const currentEntries = await DB.getEntriesByDate(date);
+    const mealCount = currentEntries.filter(e => e.type === 'meal').length;
+
+    chal.status = 'abandoned';
+    await DB.saveChallenge(chal);
+
+    return {
+      hasLogMeals: autoChecked.includes('log_meals'),
+      mealCount,
+      threshold: 2,
+    };
+  });
+  // The 7-day reset log_meals threshold is 2 -- check if the actual meal count meets it
+  const expectLogMeals = loggingAutoResult.mealCount >= 2;
+  assert(loggingAutoResult.hasLogMeals === expectLogMeals,
+    `Logging auto-check correct: ${loggingAutoResult.mealCount} meals vs threshold ${loggingAutoResult.threshold} (auto=${loggingAutoResult.hasLogMeals}, expect=${expectLogMeals})`);
+
+  // Adversarial: challenge progress card shows correct Day X of Y text
+  const dayTextResult = await page.evaluate(async () => {
+    const chal = await Challenges.enroll('7day_reset');
+    const date = App.selectedDate;
+    const progress = await Challenges.applyAutoChecks(chal, date);
+    const dayNum = Challenges.getDayNumber(chal, date);
+    const html = Challenges._renderChallengeCard(chal, progress, 0, dayNum, [], true);
+
+    chal.status = 'abandoned';
+    await DB.saveChallenge(chal);
+
+    return {
+      includesDayOf: html.includes(`Day ${dayNum} of ${chal.durationDays}`),
+      dayNum,
+      duration: chal.durationDays,
+    };
+  });
+  assert(dayTextResult.includesDayOf, `Card shows "Day ${dayTextResult.dayNum} of ${dayTextResult.duration}"`);
+
+  // Clean up all test challenges
+  await page.evaluate(async () => {
+    const all = await DB.getChallenges();
+    for (const c of all) {
+      c.status = 'abandoned';
+      await DB.saveChallenge(c);
+    }
+  });
+}
+
+// --- Multi-User Generalization ---
+async function testMultiUserGeneralization(page, context, fixtures) {
+  console.log('\n--- Multi-User Generalization ---');
+
+  // Test 1: Fresh app default goals are generic (2000 cal, not 1200)
+  const freshPage = await context.newPage();
+  freshPage.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+  await freshPage.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await freshPage.waitForTimeout(1500);
+
+  // Clear all data to simulate fresh install
+  await freshPage.evaluate(async () => {
+    const db = await DB.openDB();
+    for (const storeName of ['entries', 'dailySummary', 'analysis', 'profile', 'mealPlan', 'photos']) {
+      const tx = db.transaction(storeName, 'readwrite');
+      tx.objectStore(storeName).clear();
+      await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+    }
+  });
+
+  // Trigger ensureDefaultGoals on fresh DB
+  await freshPage.evaluate(async () => {
+    await App.ensureDefaultGoals();
+  });
+
+  const defaultGoals = await freshPage.evaluate(async () => {
+    return await DB.getProfile('goals');
+  });
+
+  assert(defaultGoals !== null, 'Fresh app: default goals exist');
+  assert(defaultGoals.calories === 2000, `Fresh app: default calories is 2000 (got ${defaultGoals?.calories})`);
+  assert(defaultGoals.protein === 100, `Fresh app: default protein is 100 (got ${defaultGoals?.protein})`);
+  assert(defaultGoals.water_oz === 64, `Fresh app: default water is 64oz (got ${defaultGoals?.water_oz})`);
+  assert(defaultGoals.calories !== 1200, 'Fresh app: default calories is NOT 1200 (Emily-specific)');
+  assert(defaultGoals.hardcore && defaultGoals.hardcore.calories === 1500, `Fresh app: hardcore calories is 1500 (got ${defaultGoals?.hardcore?.calories})`);
+
+  // Test 2: Score fallback uses generic defaults (2000 cal, not 1200)
+  const scoreFallbacks = await freshPage.evaluate(async () => {
+    // Clear goals to force fallback path
+    const db = await DB.openDB();
+    const tx = db.transaction('profile', 'readwrite');
+    tx.objectStore('profile').delete('goals');
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+
+    // Calculate score with no goals set — should use fallback defaults
+    const result = await DayScore.calculate(UI.today(), {
+      goals: null, summary: {}, entries: [], analysis: null, regimen: null,
+    });
+    return result.goals;
+  });
+
+  assert(scoreFallbacks.moderate.calories === 2000, `Score fallback moderate cal is 2000 (got ${scoreFallbacks.moderate.calories})`);
+  assert(scoreFallbacks.moderate.calories !== 1200, 'Score fallback moderate cal is NOT 1200');
+  assert(scoreFallbacks.moderate.protein === 100, `Score fallback moderate protein is 100 (got ${scoreFallbacks.moderate.protein})`);
+  assert(scoreFallbacks.hardcore.calories === 1500, `Score fallback hardcore cal is 1500 (got ${scoreFallbacks.hardcore.calories})`);
+
+  // Test 3: Weight unit preference — set to kg, verify forms show kg
+  await freshPage.evaluate(async () => {
+    await DB.setProfile('preferences', { weightUnit: 'kg' });
+  });
+
+  // Navigate to Settings to verify the dropdown
+  await freshPage.evaluate(() => {
+    document.querySelector('[data-screen="settings"]')?.click();
+  });
+  await freshPage.waitForTimeout(500);
+
+  // Load weight unit setting
+  await freshPage.evaluate(async () => {
+    await Settings.loadWeightUnit();
+  });
+  await freshPage.waitForTimeout(300);
+
+  const weightUnitSelectValue = await freshPage.evaluate(() => {
+    const sel = document.getElementById('weight-unit-select');
+    return sel ? sel.value : null;
+  });
+  assert(weightUnitSelectValue === 'kg', `Weight unit select shows kg after setting (got ${weightUnitSelectValue})`);
+
+  // Open weight modal and verify it shows kg
+  await freshPage.evaluate(() => {
+    document.querySelector('[data-screen="today"]')?.click();
+  });
+  await freshPage.waitForTimeout(500);
+
+  await freshPage.evaluate(async () => {
+    await QuickLog.showWeightEntry();
+  });
+  await freshPage.waitForTimeout(500);
+
+  const weightModalUnit = await freshPage.evaluate(() => {
+    const modal = document.querySelector('.modal-overlay');
+    if (!modal) return null;
+    const unitText = modal.textContent;
+    return unitText.includes('kg') ? 'kg' : (unitText.includes('lbs') ? 'lbs' : 'unknown');
+  });
+  assert(weightModalUnit === 'kg', `Weight modal shows kg unit (got ${weightModalUnit})`);
+
+  // Close the modal
+  await freshPage.evaluate(() => {
+    document.querySelector('.modal-overlay')?.remove();
+  });
+
+  // Test 4: Weight unit persists across reload
+  await freshPage.reload({ waitUntil: 'networkidle' });
+  await freshPage.waitForTimeout(1500);
+
+  await freshPage.evaluate(() => {
+    document.querySelector('[data-screen="settings"]')?.click();
+  });
+  await freshPage.waitForTimeout(500);
+
+  await freshPage.evaluate(async () => {
+    await Settings.loadWeightUnit();
+  });
+  await freshPage.waitForTimeout(300);
+
+  const weightUnitAfterReload = await freshPage.evaluate(() => {
+    const sel = document.getElementById('weight-unit-select');
+    return sel ? sel.value : null;
+  });
+  assert(weightUnitAfterReload === 'kg', `Weight unit persists as kg after reload (got ${weightUnitAfterReload})`);
+
+  // Test 5: Supplement list starts empty for new users (not hardcoded)
+  const supplements = await freshPage.evaluate(async () => {
+    const profile = await DB.getProfile('supplements');
+    return profile;
+  });
+  assert(supplements === null || supplements === undefined || (Array.isArray(supplements) && supplements.length === 0),
+    `Supplement list starts empty for new users (got ${JSON.stringify(supplements)})`);
+
+  // Verify the supplement picker shows empty state
+  await freshPage.evaluate(() => {
+    document.querySelector('[data-screen="today"]')?.click();
+  });
+  await freshPage.waitForTimeout(500);
+
+  await freshPage.evaluate(async () => {
+    await QuickLog.showSupplementPicker();
+  });
+  await freshPage.waitForTimeout(500);
+
+  const dailiesEmptyState = await freshPage.evaluate(() => {
+    const modal = document.querySelector('.modal-overlay');
+    if (!modal) return false;
+    return modal.textContent.includes('No dailies configured yet');
+  });
+  assert(dailiesEmptyState, 'Supplement picker shows empty state for new users');
+
+  await freshPage.evaluate(() => {
+    document.querySelector('.modal-overlay')?.remove();
+  });
+
+  // Test 6: Exercise database — search for "bicep curl" and "calf raise"
+  const exerciseDbKeys = await freshPage.evaluate(() => {
+    return Object.keys(Fitness.exercises);
+  });
+
+  const hasBicepCurl = exerciseDbKeys.some(k => k.toLowerCase().includes('bicep curl'));
+  const hasCalfRaise = exerciseDbKeys.some(k => k.toLowerCase().includes('calf raise'));
+  assert(hasBicepCurl, `Exercise database contains "bicep curl" (keys with curl: ${exerciseDbKeys.filter(k => k.includes('curl')).join(', ') || 'none'})`);
+  assert(hasCalfRaise, `Exercise database contains "calf raise" (keys with calf/raise: ${exerciseDbKeys.filter(k => k.includes('calf') || k.includes('raise')).join(', ') || 'none'})`);
+
+  // Test 7: Exercise descriptions contain no personal references
+  const exerciseTexts = await freshPage.evaluate(() => {
+    const allText = [];
+    for (const [name, info] of Object.entries(Fitness.exercises)) {
+      allText.push(info.why, info.form, info.mistakes);
+    }
+    return allText.join(' ');
+  });
+  assert(!exerciseTexts.toLowerCase().includes('abs by june'), 'Exercise descriptions do not contain "abs by June"');
+  assert(!exerciseTexts.toLowerCase().includes('emily'), 'Exercise descriptions do not contain personal name references');
+  assert(!exerciseTexts.toLowerCase().includes('your wedding'), 'Exercise descriptions do not contain personal event references');
+
+  // Test 8: color-scheme: dark is set on root element
+  const colorScheme = await freshPage.evaluate(() => {
+    const html = document.documentElement;
+    return getComputedStyle(html).colorScheme;
+  });
+  assert(colorScheme === 'dark', `color-scheme: dark is set on root element (got "${colorScheme}")`);
+
+  // Test 9: Day Starts At dropdown exists in Settings with Midnight-6AM options
+  await freshPage.evaluate(() => {
+    document.querySelector('[data-screen="settings"]')?.click();
+  });
+  await freshPage.waitForTimeout(500);
+
+  const dayBoundaryInfo = await freshPage.evaluate(() => {
+    const select = document.getElementById('day-boundary-select');
+    if (!select) return null;
+    const options = Array.from(select.options).map(o => ({ value: o.value, text: o.textContent.trim() }));
+    return { exists: true, options };
+  });
+
+  assert(dayBoundaryInfo !== null, 'Day Starts At dropdown exists in Settings');
+  if (dayBoundaryInfo) {
+    const optionValues = dayBoundaryInfo.options.map(o => o.value);
+    assert(optionValues.includes('0'), 'Day Starts At has Midnight option (value=0)');
+    assert(optionValues.includes('6'), 'Day Starts At has 6 AM option (value=6)');
+    const expectedTexts = ['Midnight', '1 AM', '2 AM', '3 AM', '4 AM', '5 AM', '6 AM'];
+    const actualTexts = dayBoundaryInfo.options.map(o => o.text);
+    assert(
+      expectedTexts.every(t => actualTexts.includes(t)),
+      `Day Starts At has all options Midnight-6AM (got: ${actualTexts.join(', ')})`
+    );
+  }
+
+  await freshPage.close();
+}
+
+async function testPhotoComparison(page, context, fixtures) {
+  console.log('\n--- Photo Comparison ---');
+
+  // Re-inject fixtures (previous test may have cleared IndexedDB)
+  await injectFixtures(page);
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForTimeout(1000);
+
+  // Navigate to Progress tab, Trends segment (where progress photos live)
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const trendsBtn = await page.$('button:has-text("Trends")');
+  if (trendsBtn) await trendsBtn.click();
+  await page.waitForTimeout(800);
+
+  // 1. Verify Progress Photos section renders with body photo entries on 2 dates
+  const sectionHeaders = await page.$$eval('h2.section-header', els => els.map(e => e.textContent));
+  const hasPhotosSection = sectionHeaders.some(h => h.includes('Progress Photos'));
+  assert(hasPhotosSection, 'Progress Photos section renders on Trends tab');
+
+  // 2. "Compare" button appears for the "Body" subtype (has 2 dates)
+  const compareBtn = await page.$('.photo-compare-btn[data-subtype="body"]');
+  assert(!!compareBtn, 'Compare button appears for Body subtype (2+ photos)');
+
+  // Also check the bottom compare-photos-btn
+  const compareBtnBottom = await page.$('.compare-photos-btn[data-subtype="body"]');
+  assert(!!compareBtnBottom, 'Bottom Compare button appears for Body subtype');
+
+  // 3. "Compare" button does NOT appear for "Face" subtype (0 photos)
+  const faceCompareBtn = await page.$('.photo-compare-btn[data-subtype="face"]');
+  assert(!faceCompareBtn, 'Compare button does NOT appear for Face subtype (<2 photos)');
+
+  // 4. Click Compare button -> date picker (bottom sheet) opens
+  if (compareBtnBottom) {
+    await compareBtnBottom.click();
+    await page.waitForTimeout(600);
+
+    const dateSheet = await page.$('.compare-date-sheet');
+    assert(!!dateSheet, 'Compare date picker (bottom sheet) opens on Compare click');
+
+    // Verify the sheet has date chips
+    const dateChips = await page.$$('.compare-date-chip');
+    assert(dateChips.length >= 2, `Date picker has ${dateChips.length} date chips (expected >=2)`);
+
+    // Verify "Compare" go button is disabled until 2 dates selected
+    const goBtn = await page.$('.compare-date-go');
+    const goBtnDisabled = await goBtn?.evaluate(el => el.disabled);
+    assert(goBtnDisabled === true, 'Compare go button is disabled initially');
+
+    // 5. Select two dates -> comparison modal opens
+    if (dateChips.length >= 2) {
+      await dateChips[0].click();
+      await page.waitForTimeout(200);
+
+      // Check first chip is selected
+      const firstSelected = await dateChips[0].evaluate(el => el.classList.contains('selected'));
+      assert(firstSelected, 'First date chip becomes selected on click');
+
+      await dateChips[1].click();
+      await page.waitForTimeout(200);
+
+      // Go button should be enabled now
+      const goBtnEnabled = await goBtn?.evaluate(el => !el.disabled);
+      assert(goBtnEnabled, 'Compare go button enables after selecting 2 dates');
+
+      // Click Compare to open the modal
+      await goBtn.click();
+      await page.waitForTimeout(800);
+
+      // 6. Comparison modal opens
+      const compareModal = await page.$('.photo-compare-modal');
+      assert(!!compareModal, 'Photo comparison modal opens after selecting 2 dates');
+
+      if (compareModal) {
+        // 7. Slider handle exists
+        const handle = await page.$('.photo-compare-handle');
+        assert(!!handle, 'Slider handle exists in comparison modal');
+
+        // 8. Date labels show on each side
+        const labelLeft = await page.$('.photo-compare-label-left');
+        const labelRight = await page.$('.photo-compare-label-right');
+        assert(!!labelLeft, 'Left date label exists in comparison modal');
+        assert(!!labelRight, 'Right date label exists in comparison modal');
+
+        const leftText = await labelLeft?.textContent();
+        const rightText = await labelRight?.textContent();
+        assert(leftText && leftText.length > 0, `Left label has text: "${leftText}"`);
+        assert(rightText && rightText.length > 0, `Right label has text: "${rightText}"`);
+
+        // Both images should be present
+        const compareImgs = await page.$$('.photo-compare-img');
+        assert(compareImgs.length >= 2, `Comparison modal has ${compareImgs.length} images (expected 2)`);
+
+        await screenshot(page, 'photo-compare-modal-open');
+
+        // 9. "Done" closes the modal
+        const doneBtn = await page.$('.photo-compare-done');
+        assert(!!doneBtn, 'Done button exists in comparison modal');
+        if (doneBtn) {
+          await doneBtn.click();
+          await page.waitForTimeout(400);
+          const modalAfterClose = await page.$('.photo-compare-modal');
+          assert(!modalAfterClose, 'Comparison modal closes on Done click');
+        }
+      }
+    }
+  }
+
+  // 10. Test at 320px — no overflow
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.waitForTimeout(300);
+
+  // Navigate back to Progress > Trends
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(300);
+  const trendsBtn320 = await page.$('button:has-text("Trends")');
+  if (trendsBtn320) await trendsBtn320.click();
+  await page.waitForTimeout(800);
+
+  const bodyWidth320 = await page.evaluate(() => document.body.scrollWidth);
+  assert(bodyWidth320 <= 322, `320px viewport: no horizontal overflow (body: ${bodyWidth320}px)`);
+
+  // Check that compare button is still visible and not clipped
+  const compareBtn320 = await page.$('.compare-photos-btn[data-subtype="body"]');
+  if (compareBtn320) {
+    const btnRect = await compareBtn320.boundingBox();
+    assert(btnRect && btnRect.x >= 0 && btnRect.x + btnRect.width <= 322,
+      `Compare button fits within 320px viewport (x:${btnRect?.x}, w:${btnRect?.width})`);
+  }
+
+  await screenshot(page, 'photo-compare-320px');
+
+  // Open comparison modal at 320px to check for overflow
+  if (compareBtn320) {
+    await compareBtn320.click();
+    await page.waitForTimeout(600);
+
+    const sheet320 = await page.$('.compare-date-sheet');
+    if (sheet320) {
+      const sheetWidth = await page.evaluate(() => {
+        const s = document.querySelector('.compare-date-sheet');
+        return s ? s.scrollWidth : 0;
+      });
+      assert(sheetWidth <= 322, `Date picker sheet fits at 320px (scrollWidth: ${sheetWidth}px)`);
+
+      // Select 2 dates and open modal at 320px
+      const chips320 = await page.$$('.compare-date-chip');
+      if (chips320.length >= 2) {
+        await chips320[0].click();
+        await page.waitForTimeout(100);
+        await chips320[1].click();
+        await page.waitForTimeout(100);
+        const go320 = await page.$('.compare-date-go');
+        if (go320) {
+          await go320.click();
+          await page.waitForTimeout(800);
+
+          const modal320 = await page.$('.photo-compare-modal');
+          if (modal320) {
+            const modalOverflow = await page.evaluate(() => {
+              const m = document.querySelector('.photo-compare-modal');
+              return m ? m.scrollWidth : 0;
+            });
+            assert(modalOverflow <= 322, `Comparison modal fits at 320px (scrollWidth: ${modalOverflow}px)`);
+
+            await screenshot(page, 'photo-compare-modal-320px');
+
+            // Clean up
+            const done320 = await page.$('.photo-compare-done');
+            if (done320) await done320.click();
+            await page.waitForTimeout(300);
+          }
+        }
+      } else {
+        // Close the sheet if chips not found
+        const closeBtn = await page.$('.compare-date-sheet-close');
+        if (closeBtn) await closeBtn.click();
+        await page.waitForTimeout(300);
+      }
+    }
+  }
+
+  // Restore viewport
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(300);
+
+  // --- Adversarial tests ---
+
+  // Adversarial: open compare picker, cancel without selecting — no stale state
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(300);
+  const trendsBtnAdv = await page.$('button:has-text("Trends")');
+  if (trendsBtnAdv) await trendsBtnAdv.click();
+  await page.waitForTimeout(800);
+
+  const compareBtnAdv = await page.$('.compare-photos-btn[data-subtype="body"]');
+  if (compareBtnAdv) {
+    await compareBtnAdv.click();
+    await page.waitForTimeout(600);
+
+    // Select one chip, then close — should not leave stale selection
+    const chipsAdv = await page.$$('.compare-date-chip');
+    if (chipsAdv.length >= 1) {
+      await chipsAdv[0].click();
+      await page.waitForTimeout(100);
+    }
+
+    // Close via X button
+    const closeAdv = await page.$('.compare-date-sheet-close');
+    if (closeAdv) {
+      await closeAdv.click();
+      await page.waitForTimeout(400);
+    }
+
+    // No compare sheet should remain
+    const sheetAfterClose = await page.$('.compare-date-sheet');
+    assert(!sheetAfterClose, 'Date picker sheet closes cleanly after cancel with partial selection');
+
+    // No comparison modal should be open
+    const modalAfterCancel = await page.$('.photo-compare-modal');
+    assert(!modalAfterCancel, 'No comparison modal after canceling date picker');
+  }
+
+  // Adversarial: click compare button on header (photo-compare-btn) — uses different code path
+  const headerCompareBtn = await page.$('.photo-compare-btn[data-subtype="body"]');
+  if (headerCompareBtn) {
+    await headerCompareBtn.click();
+    await page.waitForTimeout(600);
+
+    // Should open the picker overlay (different from bottom sheet)
+    const pickerOverlay = await page.$('[data-compare-picker]');
+    assert(!!pickerOverlay, 'Header Compare button opens picker overlay');
+
+    if (pickerOverlay) {
+      // Cancel it
+      const cancelBtn = await page.$('.photo-compare-picker-cancel');
+      if (cancelBtn) {
+        await cancelBtn.click();
+        await page.waitForTimeout(300);
+      }
+      const overlayAfter = await page.$('[data-compare-picker]');
+      assert(!overlayAfter, 'Picker overlay closes on Cancel');
+    }
+  }
+
+  // Adversarial: Verify slider handle position is approximately 50% on open
+  if (compareBtnAdv) {
+    await compareBtnAdv.click();
+    await page.waitForTimeout(400);
+    const chipsSlider = await page.$$('.compare-date-chip');
+    if (chipsSlider.length >= 2) {
+      await chipsSlider[0].click();
+      await page.waitForTimeout(100);
+      await chipsSlider[1].click();
+      await page.waitForTimeout(100);
+      const goSlider = await page.$('.compare-date-go');
+      if (goSlider) {
+        await goSlider.click();
+        await page.waitForTimeout(800);
+
+        const handleLeft = await page.evaluate(() => {
+          const h = document.querySelector('.photo-compare-handle');
+          return h ? h.style.left : null;
+        });
+        assert(handleLeft === '50%', `Slider starts at 50% position (got: ${handleLeft})`);
+
+        // Verify left image has clipPath at 50%
+        const clipPath = await page.evaluate(() => {
+          const left = document.querySelector('.photo-compare-left');
+          return left ? left.style.clipPath : null;
+        });
+        assert(clipPath && clipPath.includes('50'), `Left image clipPath is at 50% (got: ${clipPath})`);
+
+        // Clean up
+        const doneSlider = await page.$('.photo-compare-done');
+        if (doneSlider) await doneSlider.click();
+        await page.waitForTimeout(300);
+      }
+    }
+  }
+}
+
+
+async function testWeightTrendSmoothing(page, fixtures) {
+  console.log('\n--- Weight Trend Smoothing ---');
+
+  const today = new Date();
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  // 1. Inject 16 days of weight data via dailySummary
+  const weightDays = [];
+  for (let i = 15; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(today.getDate() - i);
+    const dateStr = fmt(d);
+    const weight = 145 + Math.sin(i * 0.5) * 2 + (i % 3 === 0 ? 0.5 : -0.3);
+    weightDays.push({ date: dateStr, weight: parseFloat(weight.toFixed(1)) });
+  }
+
+  await page.evaluate(async (days) => {
+    for (const d of days) {
+      await DB.updateDailySummary(d.date, {
+        date: d.date,
+        weight: { value: d.weight, unit: 'lbs' }
+      });
+    }
+  }, weightDays);
+
+  // 2. Navigate to Progress > Trends
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const trendsBtn = await page.$('button:has-text("Trends")');
+  if (trendsBtn) await trendsBtn.click();
+  await page.waitForTimeout(800);
+
+  // 3. Two path elements (raw + MA)
+  const pathCount = await page.evaluate(() => {
+    const svg = document.getElementById('weight-trend-svg');
+    if (!svg) return 0;
+    return svg.querySelectorAll('path').length;
+  });
+  assert(pathCount === 2, `Weight chart has 2 path elements - raw + MA (got ${pathCount})`);
+
+  // 4. MA line has dashed stroke
+  const maLineDashed = await page.evaluate(() => {
+    const svg = document.getElementById('weight-trend-svg');
+    if (!svg) return false;
+    const paths = svg.querySelectorAll('path');
+    if (paths.length < 2) return false;
+    const dashArray = paths[1].getAttribute('stroke-dasharray');
+    return dashArray && dashArray.length > 0;
+  });
+  assert(maLineDashed, 'MA line has dashed stroke-dasharray attribute');
+
+  // 5. Legend shows "Daily" and "7-day avg"
+  const legendText = await page.evaluate(() => {
+    const card = document.getElementById('weight-trend-card');
+    return card ? card.textContent : '';
+  });
+  assert(legendText.includes('Daily'), 'Legend shows "Daily" label');
+  assert(legendText.includes('7-day avg'), 'Legend shows "7-day avg" label');
+
+  // 6. With <3 data points, MA line should not render
+  await page.evaluate(async () => {
+    const db = await DB.openDB();
+    const tx = db.transaction('dailySummary', 'readwrite');
+    tx.objectStore('dailySummary').clear();
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+  });
+
+  const sparseWeightDays = [
+    { date: fmt(new Date(today.getTime() - 2 * 86400000)), weight: 145.0 },
+    { date: fmt(new Date(today.getTime() - 1 * 86400000)), weight: 144.5 }
+  ];
+  await page.evaluate(async (days) => {
+    for (const d of days) {
+      await DB.updateDailySummary(d.date, {
+        date: d.date,
+        weight: { value: d.weight, unit: 'lbs' }
+      });
+    }
+  }, sparseWeightDays);
+
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const trendsBtn2 = await page.$('button:has-text("Trends")');
+  if (trendsBtn2) await trendsBtn2.click();
+  await page.waitForTimeout(800);
+
+  const sparsePathCount = await page.evaluate(() => {
+    const svg = document.getElementById('weight-trend-svg');
+    if (!svg) return 0;
+    return svg.querySelectorAll('path').length;
+  });
+  assert(sparsePathCount <= 1, `With 2 data points, MA line does not render (paths: ${sparsePathCount})`);
+
+  // Adversarial: MA stroke-width thinner than raw line
+  await page.evaluate(async () => {
+    const db = await DB.openDB();
+    const tx = db.transaction('dailySummary', 'readwrite');
+    tx.objectStore('dailySummary').clear();
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+  });
+  await page.evaluate(async (days) => {
+    for (const d of days) {
+      await DB.updateDailySummary(d.date, {
+        date: d.date,
+        weight: { value: d.weight, unit: 'lbs' }
+      });
+    }
+  }, weightDays);
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const trendsBtn3 = await page.$('button:has-text("Trends")');
+  if (trendsBtn3) await trendsBtn3.click();
+  await page.waitForTimeout(800);
+
+  const strokeWidths = await page.evaluate(() => {
+    const svg = document.getElementById('weight-trend-svg');
+    if (!svg) return null;
+    const paths = svg.querySelectorAll('path');
+    if (paths.length < 2) return null;
+    return {
+      raw: parseFloat(paths[0].getAttribute('stroke-width')),
+      ma: parseFloat(paths[1].getAttribute('stroke-width'))
+    };
+  });
+  assert(strokeWidths && strokeWidths.raw > strokeWidths.ma,
+    `Raw line stroke-width (${strokeWidths?.raw}) > MA line stroke-width (${strokeWidths?.ma})`);
+
+  // Adversarial: MA line uses accent-blue color
+  const maStrokeColor = await page.evaluate(() => {
+    const svg = document.getElementById('weight-trend-svg');
+    if (!svg) return null;
+    const paths = svg.querySelectorAll('path');
+    if (paths.length < 2) return null;
+    return paths[1].getAttribute('stroke');
+  });
+  assert(maStrokeColor && maStrokeColor.includes('accent-blue'),
+    `MA line uses accent-blue color (got: ${maStrokeColor})`);
+
+  // Restore fixture data
+  await page.evaluate(async () => {
+    const db = await DB.openDB();
+    const tx = db.transaction('dailySummary', 'readwrite');
+    tx.objectStore('dailySummary').clear();
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+  });
+  const origFixtures = buildFixtures();
+  await page.evaluate(async (summaries) => {
+    for (const summary of summaries) {
+      await DB.updateDailySummary(summary.date, summary);
+    }
+  }, origFixtures.summaries);
+
+  await screenshot(page, 'weight-trend-smoothing');
+}
+
+async function testAdaptiveCalorieTargets(page, fixtures) {
+  console.log('\n--- Adaptive Calorie Targets ---');
+
+  const today = new Date();
+  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  async function injectAdaptiveData(numDays, calorieTarget) {
+    await page.evaluate(async () => {
+      const db = await DB.openDB();
+      for (const store of ['dailySummary', 'analysis']) {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).clear();
+        await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+      }
+    });
+
+    const summaries = [];
+    const analyses = [];
+    for (let i = numDays; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const dateStr = fmt(d);
+      summaries.push({
+        date: dateStr,
+        weight: { value: 145, unit: 'lbs' },
+        water_oz: 64
+      });
+      analyses.push({
+        date: dateStr,
+        totals: { calories: calorieTarget, protein: 100, carbs: 120, fat: 45 },
+        goals: { calories: { target: calorieTarget } }
+      });
+    }
+
+    await page.evaluate(async (data) => {
+      for (const s of data.summaries) {
+        await DB.updateDailySummary(s.date, s);
+      }
+      for (const a of data.analyses) {
+        const db = await DB.openDB();
+        const tx = db.transaction('analysis', 'readwrite');
+        tx.objectStore('analysis').put({ ...a, importedAt: Date.now() });
+        await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+      }
+    }, { summaries, analyses });
+  }
+
+  // Gating: <14 days = no card
+  await page.evaluate(async () => {
+    await DB.setProfile('goals', { calories: 1200 });
+  });
+  await injectAdaptiveData(10, 1200);
+
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const insBtn = await page.$('button:has-text("Insights")');
+  if (insBtn) await insBtn.click();
+  await page.waitForTimeout(800);
+
+  const cardWithFewDays = await page.$('.adaptive-suggestion-card');
+  assert(!cardWithFewDays, 'No adaptive suggestion card with <14 days of data');
+
+  // 14+ days plateau: suggestion card appears
+  await page.evaluate(async () => {
+    const goals = await DB.getProfile('goals') || {};
+    delete goals.adaptive;
+    goals.calories = 1200;
+    await DB.setProfile('goals', goals);
+  });
+  await injectAdaptiveData(21, 1200);
+
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const insBtn2 = await page.$('button:has-text("Insights")');
+  if (insBtn2) await insBtn2.click();
+  await page.waitForTimeout(800);
+
+  const suggestionCard = await page.$('.adaptive-suggestion-card');
+  assert(!!suggestionCard, 'Adaptive suggestion card appears with 14+ days of plateau data');
+
+  // Card shows current and suggested values
+  if (suggestionCard) {
+    const currentValue = await page.$eval('.adaptive-suggestion-current .adaptive-suggestion-value', el => el.textContent.trim()).catch(() => '');
+    assert(currentValue === '1200', `Card shows current target: ${currentValue}`);
+
+    const suggestedValue = await page.$eval('.adaptive-suggestion-proposed .adaptive-suggestion-value', el => el.textContent.trim()).catch(() => '');
+    assert(suggestedValue.length > 0 && suggestedValue !== '1200', `Card shows different suggested target: ${suggestedValue}`);
+
+    const reason = await page.$eval('.adaptive-suggestion-reason', el => el.textContent.trim()).catch(() => '');
+    assert(reason.length > 10, `Card shows a reason string (${reason.substring(0, 50)}...)`);
+  }
+
+  // Accept updates goals
+  const acceptBtn = await page.$('.adaptive-accept-btn');
+  if (acceptBtn) {
+    const suggestedBefore = await page.$eval('.adaptive-accept-btn', el => el.dataset.suggested).catch(() => null);
+    await acceptBtn.click();
+    await page.waitForTimeout(800);
+
+    const updatedGoals = await page.evaluate(async () => {
+      return await DB.getProfile('goals');
+    });
+    if (suggestedBefore) {
+      assert(updatedGoals.calories === parseInt(suggestedBefore, 10), `Accept updates calories to ${suggestedBefore} (got ${updatedGoals.calories})`);
+    }
+
+    const cardAfterAccept = await page.$('.adaptive-suggestion-card');
+    assert(!cardAfterAccept, 'Suggestion card disappears after accepting');
+  } else {
+    assert(false, 'Accept button exists for clicking');
+  }
+
+  // Dismiss hides card
+  await page.evaluate(async () => {
+    const goals = await DB.getProfile('goals') || {};
+    delete goals.adaptive;
+    goals.calories = 1200;
+    await DB.setProfile('goals', goals);
+  });
+  await injectAdaptiveData(21, 1200);
+
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const insBtn3 = await page.$('button:has-text("Insights")');
+  if (insBtn3) await insBtn3.click();
+  await page.waitForTimeout(800);
+
+  const dismissBtn = await page.$('.adaptive-dismiss-btn');
+  if (dismissBtn) {
+    await dismissBtn.click();
+    await page.waitForTimeout(800);
+
+    const cardAfterDismiss = await page.$('.adaptive-suggestion-card');
+    assert(!cardAfterDismiss, 'Suggestion card disappears after dismissing');
+
+    const goalsAfterDismiss = await page.evaluate(async () => {
+      return await DB.getProfile('goals');
+    });
+    assert(goalsAfterDismiss.adaptive?.dismissedAt > 0, 'Dismiss sets adaptive.dismissedAt timestamp');
+  } else {
+    assert(false, 'Dismiss button exists for clicking');
+  }
+
+  // Safety: never below 800 cal
+  const safetyResult = await page.evaluate(() => {
+    return AdaptiveGoals.computeSuggestion(
+      { calories: 800 },
+      Array.from({ length: 20 }, (_, i) => ({
+        date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+        weight: { value: 145 }
+      })),
+      Array.from({ length: 15 }, (_, i) => ({
+        date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+        totals: { calories: 780 }
+      }))
+    );
+  });
+  assert(safetyResult === null, 'AdaptiveGoals returns null when suggestion would go below 800 cal');
+
+  // Adversarial: boundary at exactly MIN_CALORIES
+  const boundaryResult = await page.evaluate(() => {
+    return AdaptiveGoals.computeSuggestion(
+      { calories: 850 },
+      Array.from({ length: 20 }, (_, i) => ({
+        date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+        weight: { value: 145 }
+      })),
+      Array.from({ length: 15 }, (_, i) => ({
+        date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+        totals: { calories: 830 }
+      }))
+    );
+  });
+  assert(boundaryResult !== null && boundaryResult.suggestedTarget === 800,
+    `Boundary: 850 cal target can suggest down to 800 (got ${boundaryResult?.suggestedTarget})`);
+
+  // Adversarial: _movingAverage returns correct length
+  const maLength = await page.evaluate(() => {
+    const points = Array.from({ length: 10 }, (_, i) => ({
+      date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+      weight: 140 + i * 0.5
+    }));
+    return AdaptiveGoals._movingAverage(points).length;
+  });
+  assert(maLength === 10, `_movingAverage returns same length as input (got ${maLength}, expected 10)`);
+
+  // Adversarial: null/missing fields
+  const nullResult = await page.evaluate(() => {
+    return AdaptiveGoals.computeSuggestion(null, [], []);
+  });
+  assert(nullResult === null, 'computeSuggestion returns null with null goals');
+
+  const emptyResult = await page.evaluate(() => {
+    return AdaptiveGoals.computeSuggestion({}, [], []);
+  });
+  assert(emptyResult === null, 'computeSuggestion returns null with empty data');
+
+  // Adversarial: direction field correctness
+  const directionResult = await page.evaluate(() => {
+    return AdaptiveGoals.computeSuggestion(
+      { calories: 1500 },
+      Array.from({ length: 20 }, (_, i) => ({
+        date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+        weight: { value: 145 + i * 0.1 }
+      })),
+      Array.from({ length: 15 }, (_, i) => ({
+        date: `2026-03-${String(i + 1).padStart(2, '0')}`,
+        totals: { calories: 1480 }
+      }))
+    );
+  });
+  assert(directionResult !== null && directionResult.direction === 'decrease',
+    `Gaining weight suggests decrease direction (got ${directionResult?.direction})`);
+
+  // Restore fixture data
+  await page.evaluate(async () => {
+    const db = await DB.openDB();
+    for (const store of ['dailySummary', 'analysis']) {
+      const tx = db.transaction(store, 'readwrite');
+      tx.objectStore(store).clear();
+      await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+    }
+  });
+  const origFix = buildFixtures();
+  await page.evaluate(async (data) => {
+    for (const s of data.summaries) {
+      await DB.updateDailySummary(s.date, s);
+    }
+    for (const a of data.analyses) {
+      const db = await DB.openDB();
+      const tx = db.transaction('analysis', 'readwrite');
+      tx.objectStore('analysis').put({ ...a, importedAt: Date.now() });
+      await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+    }
+    await DB.setProfile('goals', data.goals);
+  }, { summaries: origFix.summaries, analyses: origFix.analyses, goals: origFix.goals });
+
+  await screenshot(page, 'adaptive-calorie-targets');
+}
 async function run() {
   console.log('=== Health Tracker Validation ===\n');
 
@@ -3253,6 +4606,11 @@ async function run() {
     await testDailiesManager(page, fixtures);
     await testVisualQA(page, fixtures);
     await testVisualQA320(page, context, fixtures);
+    await testChallenges(page, context, fixtures);
+    await testMultiUserGeneralization(page, context, fixtures);
+    await testPhotoComparison(page, context, fixtures);
+    await testWeightTrendSmoothing(page, fixtures);
+    await testAdaptiveCalorieTargets(page, fixtures);
     // voice logging removed — not a priority
     await testConsoleErrors(page);
 

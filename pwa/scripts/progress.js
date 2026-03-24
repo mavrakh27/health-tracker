@@ -58,9 +58,12 @@ const ProgressView = {
             const ratio = goals.hardcore.calories / oldCal;
             goals.hardcore.calories = Math.round(suggested * ratio);
           }
+          // Mark as accepted to prevent immediate re-suggestion
+          if (!goals.adaptive) goals.adaptive = {};
+          goals.adaptive.acceptedAt = Date.now();
           await DB.setProfile('goals', goals);
-          UI.showToast(`Calorie target updated to ${suggested} cal/day`);
-          ProgressView.init();
+          UI.toast(`Calorie target updated to ${suggested} cal/day`);
+          await ProgressView.init();
         });
       }
       if (dismissBtn) {
@@ -69,7 +72,7 @@ const ProgressView = {
           if (!goals.adaptive) goals.adaptive = {};
           goals.adaptive.dismissedAt = Date.now();
           await DB.setProfile('goals', goals);
-          ProgressView.init();
+          await ProgressView.init();
         });
       }
     }
@@ -1686,7 +1689,7 @@ const ProgressView = {
     ]);
 
     if (!photosA.length || !photosB.length || !photosA[0].blob || !photosB[0].blob) {
-      UI.showToast('Could not load photos');
+      UI.toast('Could not load photos');
       return;
     }
 

@@ -41,11 +41,16 @@ const AdaptiveGoals = {
   computeSuggestion(goals, summaries, analyses) {
     if (!goals || !summaries || !analyses) return null;
 
-    // Check dismissal cooldown
+    // Check dismissal/acceptance cooldown
     const dismissedAt = goals.adaptive?.dismissedAt;
     if (dismissedAt) {
       const daysSinceDismiss = (Date.now() - dismissedAt) / (1000 * 60 * 60 * 24);
       if (daysSinceDismiss < AdaptiveGoals.DISMISS_COOLDOWN_DAYS) return null;
+    }
+    const acceptedAt = goals.adaptive?.acceptedAt;
+    if (acceptedAt) {
+      const daysSinceAccept = (Date.now() - acceptedAt) / (1000 * 60 * 60 * 24);
+      if (daysSinceAccept < AdaptiveGoals.DISMISS_COOLDOWN_DAYS) return null;
     }
 
     // Extract weight points from summaries
@@ -99,13 +104,13 @@ const AdaptiveGoals = {
     const currentTarget = goals.calories || 1200;
 
     // Within tolerance: no suggestion
-    if (Math.abs(deviation) <= AdaptiveGoals.TOLERANCE) return null;
+    if (Math.abs(deviation) < AdaptiveGoals.TOLERANCE) return null;
 
     let suggestedTarget;
     let reason;
     let direction;
 
-    if (deviation > AdaptiveGoals.TOLERANCE) {
+    if (deviation >= AdaptiveGoals.TOLERANCE) {
       // Losing too slow (or gaining) — reduce calories
       suggestedTarget = currentTarget - AdaptiveGoals.STEP;
       direction = 'decrease';
