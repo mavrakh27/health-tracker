@@ -937,7 +937,10 @@ const ProgressView = {
           overlay.remove();
           // Sort chronologically — left is older, right is newer
           selected.sort();
-          ProgressView._openCompareModal(selected[0], selected[1], entryMap);
+          const entryIdA = entryMap[selected[0]];
+          const entryIdB = entryMap[selected[1]];
+          const fmtDate = (ds) => new Date(ds + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          ProgressView._openCompareModal(entryIdA, entryIdB, fmtDate(selected[0]), fmtDate(selected[1]));
         }
       });
     });
@@ -954,120 +957,6 @@ const ProgressView = {
     document.body.appendChild(overlay);
   },
 
-  async _openCompareModal(dateA, dateB, entryMap) {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay photo-compare-modal-overlay';
-    modal.setAttribute('data-compare-modal', 'true');
-
-    const formatLabel = (dateStr) => {
-      const d = new Date(dateStr + 'T12:00:00');
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    };
-
-    // Load photos for both dates
-    const entryIdA = entryMap[dateA];
-    const entryIdB = entryMap[dateB];
-    const [photosA, photosB] = await Promise.all([
-      DB.getPhotos(entryIdA),
-      DB.getPhotos(entryIdB),
-    ]);
-
-    const blobA = photosA.length > 0 && photosA[0].blob ? photosA[0].blob : null;
-    const blobB = photosB.length > 0 && photosB[0].blob ? photosB[0].blob : null;
-
-    const urlA = blobA ? URL.createObjectURL(blobA) : null;
-    const urlB = blobB ? URL.createObjectURL(blobB) : null;
-
-    let html = '<div class="photo-compare-modal">';
-    html += '<div class="photo-compare-container">';
-
-    // Right image (newer, full width behind)
-    html += `<div class="photo-compare-side photo-compare-right">`;
-    html += urlB ? `<img src="${urlB}" alt="After" class="photo-compare-img" data-side="right">` : '<div class="photo-compare-placeholder">No photo</div>';
-    html += `<div class="photo-compare-date-label photo-compare-label-right">${formatLabel(dateB)}</div>`;
-    html += '</div>';
-
-    // Left image (older, clipped by slider)
-    html += `<div class="photo-compare-side photo-compare-left">`;
-    html += urlA ? `<img src="${urlA}" alt="Before" class="photo-compare-img" data-side="left">` : '<div class="photo-compare-placeholder">No photo</div>';
-    html += `<div class="photo-compare-date-label photo-compare-label-left">${formatLabel(dateA)}</div>`;
-    html += '</div>';
-
-    // Slider handle
-    html += '<div class="photo-compare-slider-handle" data-compare-handle="true">';
-    html += '<div class="photo-compare-slider-line"></div>';
-    html += '<div class="photo-compare-slider-grip">';
-    html += '<svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M7 4L3 10L7 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M13 4L17 10L13 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
-    html += '</div>';
-    html += '</div>';
-
-    html += '</div>'; // .photo-compare-container
-    html += '<button class="photo-compare-done-btn" data-compare-done="true">Done</button>';
-    html += '</div>'; // .photo-compare-modal
-    modal.innerHTML = html;
-
-    // Wire slider drag
-    const container = modal.querySelector('.photo-compare-container');
-    const leftSide = modal.querySelector('.photo-compare-left');
-    const handle = modal.querySelector('.photo-compare-slider-handle');
-    let dragging = false;
-
-    const setPosition = (fraction) => {
-      const pct = Math.max(0, Math.min(1, fraction)) * 100;
-      leftSide.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
-      handle.style.left = pct + '%';
-    };
-
-    // Start at 50%
-    setPosition(0.5);
-
-    const getX = (e) => {
-      const touch = e.touches ? e.touches[0] : e;
-      const rect = container.getBoundingClientRect();
-      return (touch.clientX - rect.left) / rect.width;
-    };
-
-    handle.addEventListener('mousedown', (e) => { dragging = true; e.preventDefault(); });
-    handle.addEventListener('touchstart', (e) => { dragging = true; }, { passive: true });
-
-    const onMove = (e) => {
-      if (!dragging) return;
-      if (e.cancelable) e.preventDefault();
-      setPosition(getX(e));
-    };
-
-    const onEnd = () => { dragging = false; };
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onEnd);
-    document.addEventListener('touchmove', onMove, { passive: false });
-    document.addEventListener('touchend', onEnd);
-
-    // Also allow tapping on the container to reposition
-    container.addEventListener('click', (e) => {
-      setPosition(getX(e));
-    });
-
-    // Done button
-    const cleanup = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onEnd);
-      document.removeEventListener('touchmove', onMove);
-      document.removeEventListener('touchend', onEnd);
-      if (urlA) URL.revokeObjectURL(urlA);
-      if (urlB) URL.revokeObjectURL(urlB);
-      modal.remove();
-    };
-
-    modal.querySelector('.photo-compare-done-btn').addEventListener('click', cleanup);
-
-    // Close on backdrop tap (outside modal content)
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) cleanup();
-    });
-
-    document.body.appendChild(modal);
-  },
 
   // Shared tap-to-reveal wiring for a .progress-photos-scroll element
   _wirePhotoScroll(scrollEl) {

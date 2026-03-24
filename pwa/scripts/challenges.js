@@ -127,7 +127,7 @@ const Challenges = {
 
       let passes = false;
       if (src === 'water') {
-        passes = (summary.water_oz || 0) >= threshold;
+        passes = (summary?.water_oz || 0) >= threshold;
       } else if (src === 'bodyPhotos') {
         passes = (photos || []).length >= threshold;
       } else if (src === 'workout') {
@@ -170,6 +170,16 @@ const Challenges = {
     }
 
     const autoResults = await Challenges.evaluateAutoChecks(challenge, date);
+    const previousAuto = progress.autoChecked || [];
+
+    // Remove previously auto-checked tasks that no longer pass and weren't manually overridden
+    progress.checked = progress.checked.filter(taskId => {
+      if (previousAuto.includes(taskId) && !autoResults.includes(taskId) && !progress.manualOverrides.includes(taskId)) {
+        return false;
+      }
+      return true;
+    });
+
     progress.autoChecked = autoResults;
 
     // Add auto-checked tasks that are not manually overridden
@@ -676,7 +686,7 @@ const Challenges = {
         <div style="padding:var(--space-md);">
           <div class="challenge-template-card" style="pointer-events:none;">
             <div class="challenge-template-name">${UI.escapeHtml(payload.name)}</div>
-            <div class="challenge-template-meta">${payload.duration} days -- ${payload.tasks.length} tasks${payload.restart ? ' -- restarts on miss' : ''}</div>
+            <div class="challenge-template-meta">${UI.escapeHtml(String(payload.duration))} days -- ${UI.escapeHtml(String(payload.tasks.length))} tasks${payload.restart ? ' -- restarts on miss' : ''}</div>
           </div>
           <div style="display:flex; gap:var(--space-sm); margin-top:var(--space-md);">
             <button class="btn btn-primary" id="chal-import-start" style="flex:1;">Start Challenge</button>
@@ -704,7 +714,7 @@ const Challenges = {
           restartOnMiss: payload.restart,
           tasks: payload.tasks.map(t => ({
             label: t.label,
-            autoCheck: t.auto || null,
+            autoCheck: null,
           })),
         });
         close();
