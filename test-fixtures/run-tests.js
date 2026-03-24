@@ -3253,7 +3253,7 @@ async function run() {
     await testDailiesManager(page, fixtures);
     await testVisualQA(page, fixtures);
     await testVisualQA320(page, context, fixtures);
-    await testVoiceLogging(page, context, fixtures);
+    // voice logging removed — not a priority
     await testConsoleErrors(page);
 
   } catch (err) {

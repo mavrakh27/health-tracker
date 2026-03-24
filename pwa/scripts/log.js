@@ -1,75 +1,5 @@
 // log.js — Entry logging UI
 
-const VoiceInput = {
-  _rec: null,
-  _active: false,
-
-  isSupported() {
-    return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
-  },
-
-  start(onResult, onEnd) {
-    if (VoiceInput._active) { VoiceInput.stop(); return; }
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-
-    const rec = new SR();
-    rec.continuous = false;
-    rec.interimResults = true;
-    rec.lang = 'en-US';
-    VoiceInput._rec = rec;
-    VoiceInput._active = true;
-
-    let finalTranscript = '';
-
-    rec.onresult = (e) => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const t = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          finalTranscript += t;
-        } else {
-          interim += t;
-        }
-      }
-      if (onResult) onResult(finalTranscript, interim);
-    };
-
-    rec.onerror = (e) => {
-      if (e.error === 'not-allowed') {
-        UI.toast('Microphone permission denied', 'error');
-      } else if (e.error !== 'aborted') {
-        UI.toast('Voice input error: ' + e.error, 'error');
-      }
-      VoiceInput._active = false;
-      if (onEnd) onEnd(finalTranscript);
-    };
-
-    rec.onend = () => {
-      VoiceInput._active = false;
-      if (onEnd) onEnd(finalTranscript);
-    };
-
-    rec.start();
-  },
-
-  stop() {
-    if (VoiceInput._rec) {
-      VoiceInput._rec.stop();
-      VoiceInput._rec = null;
-    }
-    VoiceInput._active = false;
-  },
-
-  abort() {
-    if (VoiceInput._rec) {
-      VoiceInput._rec.abort();
-      VoiceInput._rec = null;
-    }
-    VoiceInput._active = false;
-  },
-};
-
 const Log = {
   selectedType: null,
   selectedSubtype: null,
@@ -81,7 +11,6 @@ const Log = {
   _formContentId: 'log-form-content',
 
   init(gridId, formContentId) {
-    VoiceInput.abort();
     Log.selectedType = null;
     Log.selectedSubtype = null;
     Log.clearPendingPhoto();
@@ -684,56 +613,12 @@ const Log = {
   // --- Shared Form Pieces ---
   buildNotesField(placeholder) {
     const group = UI.createElement('div', 'form-group');
-    const showMic = VoiceInput.isSupported();
     group.innerHTML = `
-      <div class="notes-label-row">
-        <label class="form-label" style="margin-bottom:0;">Notes</label>
-        ${showMic ? `<button type="button" class="voice-mic-btn" id="log-voice-btn" title="Voice input">${UI.svg.mic}<span class="voice-status"></span></button>` : ''}
-      </div>
+      <label class="form-label">Notes</label>
       <textarea class="form-input" id="log-notes" placeholder="${placeholder}" rows="1"></textarea>
     `;
     const ta = group.querySelector('textarea');
     ta.addEventListener('input', () => UI.autoResize(ta));
-
-    if (showMic) {
-      requestAnimationFrame(() => {
-        const btn = group.querySelector('#log-voice-btn');
-        if (!btn) return;
-        const statusEl = btn.querySelector('.voice-status');
-
-        btn.addEventListener('click', () => {
-          if (VoiceInput._active) {
-            VoiceInput.stop();
-            return;
-          }
-
-          const existingText = ta.value;
-          const prefix = existingText && !existingText.endsWith(' ') ? existingText + ' ' : existingText;
-
-          btn.classList.add('active');
-          btn.classList.remove('done');
-          if (statusEl) statusEl.textContent = 'Listening...';
-
-          VoiceInput.start(
-            // onResult — update textarea with interim results
-            (finalText, interimText) => {
-              ta.value = prefix + finalText + interimText;
-              UI.autoResize(ta);
-            },
-            // onEnd — finalize
-            (finalText) => {
-              ta.value = prefix + finalText;
-              UI.autoResize(ta);
-              btn.classList.remove('active');
-              btn.classList.add('done');
-              if (statusEl) statusEl.textContent = '';
-              setTimeout(() => btn.classList.remove('done'), 1200);
-            }
-          );
-        });
-      });
-    }
-
     return group;
   },
 
