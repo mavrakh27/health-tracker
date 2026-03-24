@@ -367,7 +367,7 @@ const SkincareCoach = {
       sheet.innerHTML = `
         <div class="modal-header">
           <span class="modal-title">Edit Routine</span>
-          <button class="modal-close" id="sc-re-close">&times;</button>
+          <button class="modal-close" id="sc-re-close" aria-label="Close">&times;</button>
         </div>
         <div class="sc-day-selector">
           <button class="sc-day-sel-btn${selectedDay === 'default' ? ' active' : ''}" data-day="default">Default</button>
@@ -511,7 +511,7 @@ const SkincareCoach = {
     pickerSheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Add Product</span>
-        <button class="modal-close" id="sc-picker-close">&times;</button>
+        <button class="modal-close" id="sc-picker-close" aria-label="Close">&times;</button>
       </div>
       <div class="sc-product-picker-list">
         ${products.map(p => `
@@ -560,7 +560,7 @@ const SkincareCoach = {
       sheet.innerHTML = `
         <div class="modal-header">
           <span class="modal-title">Manage Products</span>
-          <button class="modal-close" id="sc-pc-close">&times;</button>
+          <button class="modal-close" id="sc-pc-close" aria-label="Close">&times;</button>
         </div>
         <div id="sc-pc-list">
           ${products.length === 0 ? `<div style="text-align:center; padding:var(--space-md); color:var(--text-muted); font-size:var(--text-sm);">

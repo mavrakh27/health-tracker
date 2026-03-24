@@ -746,7 +746,7 @@ const CloudRelay = {
       const resp = await fetch(url, { method: 'POST' });
       if (!resp.ok) {
         this.log(`Resync failed: HTTP ${resp.status}`, 'error');
-        UI.toast('Resync failed');
+        UI.toast('Resync failed', 'error');
         return;
       }
       const { resyncDates } = await resp.json();
@@ -756,7 +756,7 @@ const CloudRelay = {
       App.loadDayView();
     } catch (err) {
       this.log(`Resync error: ${err.message}`, 'error');
-      UI.toast('Resync failed');
+      UI.toast('Resync failed', 'error');
     }
   },
 
@@ -886,7 +886,7 @@ const CloudRelay = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Cloud Sync Setup</span>
-        <button class="modal-close" id="cs-close">&times;</button>
+        <button class="modal-close" id="cs-close" aria-label="Close">&times;</button>
       </div>
       <div class="form-group">
         <label class="form-label">Worker URL</label>

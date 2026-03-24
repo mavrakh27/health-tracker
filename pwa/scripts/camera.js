@@ -183,6 +183,7 @@ const Camera = {
     const removeBtn = document.createElement('button');
     removeBtn.className = 'photo-preview-remove';
     removeBtn.innerHTML = '&times;';
+    removeBtn.setAttribute('aria-label', 'Remove photo');
     removeBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (onRemove) onRemove();

@@ -31,10 +31,7 @@ const UI = {
   formatRelativeDate(dateStr) {
     const today = UI.today();
     if (dateStr === today) return 'Today';
-    const y = new Date();
-    y.setDate(y.getDate() - 1);
-    const yesterday = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
-    if (dateStr === yesterday) return 'Yesterday';
+    if (dateStr === UI.yesterday()) return 'Yesterday';
     return UI.formatDate(dateStr);
   },
 
@@ -442,7 +439,7 @@ const UI = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Edit ${UI.entryLabel(entry.type, entry.subtype)}</span>
-        <button class="modal-close" id="edit-close">&times;</button>
+        <button class="modal-close" id="edit-close" aria-label="Close">&times;</button>
       </div>
       ${photoHtml}
       ${lockBarHtml}
@@ -610,6 +607,7 @@ const UI = {
     const closeBtn = document.createElement('button');
     closeBtn.className = 'photo-viewer-close';
     closeBtn.innerHTML = '&times;';
+    closeBtn.setAttribute('aria-label', 'Close');
 
     const imgWrap = document.createElement('div');
     imgWrap.className = 'photo-viewer-img-wrap';

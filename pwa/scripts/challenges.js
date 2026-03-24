@@ -435,7 +435,7 @@ const Challenges = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Start a Challenge</span>
-        <button class="modal-close" id="chal-picker-close">&times;</button>
+        <button class="modal-close" id="chal-picker-close" aria-label="Close">&times;</button>
       </div>
       <div style="overflow-y:auto; padding:var(--space-md);">
         ${templates.map(t => `
@@ -484,7 +484,7 @@ const Challenges = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Custom Challenge</span>
-        <button class="modal-close" id="custom-chal-close">&times;</button>
+        <button class="modal-close" id="custom-chal-close" aria-label="Close">&times;</button>
       </div>
       <div style="padding:var(--space-md); overflow-y:auto;">
         <div style="margin-bottom:var(--space-md);">
@@ -681,7 +681,7 @@ const Challenges = {
       sheet.innerHTML = `
         <div class="modal-header">
           <span class="modal-title">Import Challenge</span>
-          <button class="modal-close" id="chal-import-close">&times;</button>
+          <button class="modal-close" id="chal-import-close" aria-label="Close">&times;</button>
         </div>
         <div style="padding:var(--space-md);">
           <div class="challenge-template-card" style="pointer-events:none;">
@@ -733,7 +733,7 @@ const Challenges = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Share</span>
-        <button class="modal-close" id="share-menu-close">&times;</button>
+        <button class="modal-close" id="share-menu-close" aria-label="Close">&times;</button>
       </div>
       <div class="more-sheet-options">
         <button class="more-sheet-option" id="share-image-btn">

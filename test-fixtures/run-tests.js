@@ -1851,6 +1851,62 @@ async function testFitnessPanel(page, fixtures) {
 }
 
 async function testVisualQA(page, fixtures) {
+  console.log('\n--- Accessibility & Polish ---');
+
+  // All modal close buttons should have aria-label="Close"
+  // Open a modal to test
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  const moreBtn = await page.$('#quick-more-btn');
+  if (moreBtn) {
+    await moreBtn.click();
+    await page.waitForTimeout(400);
+    const closeBtn = await page.$('.modal-close');
+    const ariaLabel = closeBtn ? await closeBtn.getAttribute('aria-label') : null;
+    assert(ariaLabel === 'Close', `Modal close button has aria-label="Close" (got "${ariaLabel}")`);
+    await closeBtn.click();
+    await page.waitForTimeout(200);
+  }
+
+  // Edit modal close button should also have aria-label
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(500);
+  const entryForA11y = await page.$('.entry-item[data-type="meal"]');
+  if (entryForA11y) {
+    await entryForA11y.click();
+    await page.waitForTimeout(400);
+    const editClose = await page.$('#edit-close');
+    const editAriaLabel = editClose ? await editClose.getAttribute('aria-label') : null;
+    assert(editAriaLabel === 'Close', `Edit modal close has aria-label="Close" (got "${editAriaLabel}")`);
+    await editClose.click();
+    await page.waitForTimeout(200);
+  }
+
+  // formatRelativeDate uses UI.yesterday() (boundary-aware), not raw Date
+  const relDateCheck = await page.evaluate(() => {
+    // UI.yesterday() is boundary-aware; verify formatRelativeDate matches
+    const yesterday = UI.yesterday();
+    const result = UI.formatRelativeDate(yesterday);
+    return { result, yesterday };
+  });
+  assert(relDateCheck.result === 'Yesterday', `formatRelativeDate(yesterday) returns "Yesterday" (got "${relDateCheck.result}")`);
+
+  // Stale copy check: sync setup text should say "Settings > Cloud Sync", not "Profile > Cloud Sync"
+  const staleCopyCheck = await page.evaluate(() => {
+    if (typeof App._showSyncSetupStep === 'function') {
+      const src = App._showSyncSetupStep.toString();
+      return {
+        hasStaleRef: src.includes('Profile &gt; Cloud Sync') || src.includes('Profile > Cloud Sync'),
+        hasCorrectRef: src.includes('Settings &gt; Cloud Sync') || src.includes('Settings > Cloud Sync'),
+      };
+    }
+    return null;
+  });
+  if (staleCopyCheck) {
+    assert(!staleCopyCheck.hasStaleRef, 'Sync setup does not say "Profile > Cloud Sync"');
+    assert(staleCopyCheck.hasCorrectRef, 'Sync setup says "Settings > Cloud Sync"');
+  }
+
   console.log('\n--- Visual QA ---');
 
   // Ensure we're on the Today screen, Diet panel
