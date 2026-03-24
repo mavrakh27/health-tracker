@@ -16,6 +16,7 @@ const ProgressView = {
         <button class="segment-btn${activeTab === 'plan' ? ' active' : ''}" data-ptab="plan">Plan</button>
         <button class="segment-btn${activeTab === 'trends' ? ' active' : ''}" data-ptab="trends">Trends</button>
         <button class="segment-btn${activeTab === 'skin' ? ' active' : ''}" data-ptab="skin">Skin</button>
+        <button class="segment-btn${activeTab === 'challenges' ? ' active' : ''}" data-ptab="challenges">Challenges</button>
       </div>
     `;
 
@@ -27,6 +28,8 @@ const ProgressView = {
       html += await ProgressView.renderTrends();
     } else if (activeTab === 'skin') {
       html += await ProgressView.renderSkin();
+    } else if (activeTab === 'challenges') {
+      html += await Challenges.renderActive(container, App.selectedDate);
     }
 
     container.innerHTML = html;
@@ -62,6 +65,10 @@ const ProgressView = {
       container.querySelectorAll('.compare-photos-btn').forEach(btn => {
         btn.addEventListener('click', () => ProgressView._showPhotoComparison(btn.dataset.subtype));
       });
+    }
+    // Wire challenge events (Challenges tab)
+    if (activeTab === 'challenges') {
+      Challenges.bindEvents(container);
     }
   },
 
