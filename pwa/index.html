@@ -276,19 +276,15 @@
   <!-- Register Service Worker -->
   <script>
     if ('serviceWorker' in navigator) {
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        UI.toast('App updated — reloading...');
+        setTimeout(() => window.location.reload(), 1000);
+      });
       navigator.serviceWorker.register('./sw.js', { scope: './' })
-        .then(reg => {
-          console.log('SW registered:', reg.scope);
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'activated') {
-                UI.toast('App updated — reloading...');
-                setTimeout(() => window.location.reload(), 1000);
-              }
-            });
-          });
-        })
+        .then(reg => console.log('SW registered:', reg.scope))
         .catch(err => console.error('SW registration failed:', err));
     }
   </script>
