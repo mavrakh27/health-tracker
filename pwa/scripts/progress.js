@@ -49,11 +49,19 @@ const ProgressView = {
       ProgressView._initWeightChartTouch();
       // Wire photo scroll reveal
       container.querySelectorAll('.progress-photos-scroll').forEach(el => ProgressView._wirePhotoScroll(el));
+      // Wire compare buttons
+      container.querySelectorAll('.compare-photos-btn').forEach(btn => {
+        btn.addEventListener('click', () => ProgressView._showPhotoComparison(btn.dataset.subtype));
+      });
     }
     // Wire face photo scroll (Skin tab)
     if (activeTab === 'skin') {
       const faceScroll = container.querySelector('.progress-photos-scroll');
       if (faceScroll) ProgressView._wirePhotoScroll(faceScroll);
+      // Wire compare button for face photos
+      container.querySelectorAll('.compare-photos-btn').forEach(btn => {
+        btn.addEventListener('click', () => ProgressView._showPhotoComparison(btn.dataset.subtype));
+      });
     }
   },
 
@@ -752,6 +760,9 @@ const ProgressView = {
           </div>`;
         }
         html += '</div>';
+        if (dates.length >= 2) {
+          html += `<button class="compare-photos-btn" data-subtype="${UI.escapeHtml(type.key)}">Compare</button>`;
+        }
       }
 
       html += '</div>'; // .progress-photos-subtype
@@ -1267,6 +1278,10 @@ const ProgressView = {
 
     html += '</div>';
 
+    if (dates.length >= 2) {
+      html += `<button class="compare-photos-btn" data-subtype="face">Compare</button>`;
+    }
+
     // Wire up tap-to-reveal after DOM is painted
     setTimeout(() => {
       const scroll = document.getElementById('face-photos-scroll');
@@ -1274,6 +1289,214 @@ const ProgressView = {
     }, 0);
 
     return html;
+  },
+
+  // --- Photo Comparison ---
+
+  async _showPhotoComparison(subtype) {
+    // Load body photo entries for this subtype (last 90 days)
+    const today = UI.today();
+    const ninetyDaysAgo = new Date(today + 'T12:00:00');
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const startDate = fmt(ninetyDaysAgo);
+
+    const entries = await DB.getEntriesByType('bodyPhoto', startDate, today);
+    if (!entries || entries.length === 0) return;
+
+    // Filter to matching subtype, group by date (first entry per date)
+    const byDate = {};
+    for (const e of entries) {
+      const key = e.subtype || 'body';
+      if (key !== subtype) continue;
+      if (!byDate[e.date]) byDate[e.date] = e;
+    }
+    const dates = Object.keys(byDate).sort((a, b) => a.localeCompare(b)); // oldest first
+    if (dates.length < 2) return;
+
+    // Remove any existing sheet
+    const existing = document.querySelector('.compare-date-sheet');
+    if (existing) existing.remove();
+
+    // Build bottom sheet with date picker
+    const sheet = document.createElement('div');
+    sheet.className = 'compare-date-sheet';
+
+    let sheetHtml = '<div class="compare-date-sheet-inner">';
+    sheetHtml += '<div class="compare-date-sheet-header">';
+    sheetHtml += `<span class="compare-date-sheet-title">Compare ${UI.escapeHtml(subtype.charAt(0).toUpperCase() + subtype.slice(1))} Photos</span>`;
+    sheetHtml += '<button class="compare-date-sheet-close" aria-label="Close">&times;</button>';
+    sheetHtml += '</div>';
+    sheetHtml += '<div class="compare-date-sheet-hint">Pick two dates to compare</div>';
+    sheetHtml += '<div class="compare-date-grid">';
+
+    for (const date of dates) {
+      const d = new Date(date + 'T12:00:00');
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const entryId = byDate[date].id;
+      sheetHtml += `<button class="compare-date-chip" data-date="${date}" data-entry-id="${entryId}">${label}</button>`;
+    }
+
+    sheetHtml += '</div>';
+    sheetHtml += '<button class="compare-date-go" disabled>Compare</button>';
+    sheetHtml += '</div>';
+
+    sheet.innerHTML = sheetHtml;
+    document.body.appendChild(sheet);
+
+    // Force reflow then animate in
+    sheet.offsetHeight;
+    sheet.classList.add('open');
+
+    const selected = [];
+    const goBtn = sheet.querySelector('.compare-date-go');
+    const chips = sheet.querySelectorAll('.compare-date-chip');
+
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        if (chip.classList.contains('selected')) {
+          chip.classList.remove('selected');
+          const idx = selected.findIndex(s => s.date === chip.dataset.date);
+          if (idx >= 0) selected.splice(idx, 1);
+        } else {
+          if (selected.length >= 2) {
+            // Deselect oldest selection
+            const removed = selected.shift();
+            const oldChip = sheet.querySelector(`.compare-date-chip[data-date="${removed.date}"]`);
+            if (oldChip) oldChip.classList.remove('selected');
+          }
+          selected.push({ date: chip.dataset.date, entryId: chip.dataset.entryId });
+          chip.classList.add('selected');
+        }
+        goBtn.disabled = selected.length !== 2;
+      });
+    });
+
+    const closeSheet = () => {
+      sheet.classList.remove('open');
+      setTimeout(() => sheet.remove(), 250);
+    };
+
+    sheet.querySelector('.compare-date-sheet-close').addEventListener('click', closeSheet);
+    sheet.addEventListener('click', (e) => {
+      if (e.target === sheet) closeSheet();
+    });
+
+    goBtn.addEventListener('click', () => {
+      if (selected.length !== 2) return;
+      // Sort so earlier date is on the left
+      selected.sort((a, b) => a.date.localeCompare(b.date));
+      const labelA = new Date(selected[0].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const labelB = new Date(selected[1].date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      closeSheet();
+      ProgressView._openCompareModal(selected[0].entryId, selected[1].entryId, labelA, labelB);
+    });
+  },
+
+  async _openCompareModal(entryIdA, entryIdB, labelA, labelB) {
+    // Load photos for both entries
+    const [photosA, photosB] = await Promise.all([
+      DB.getPhotos(entryIdA),
+      DB.getPhotos(entryIdB),
+    ]);
+
+    if (!photosA.length || !photosB.length || !photosA[0].blob || !photosB[0].blob) {
+      UI.showToast('Could not load photos');
+      return;
+    }
+
+    const urlA = URL.createObjectURL(photosA[0].blob);
+    const urlB = URL.createObjectURL(photosB[0].blob);
+
+    const modal = document.createElement('div');
+    modal.className = 'photo-compare-modal';
+
+    modal.innerHTML = `
+      <div class="photo-compare-viewport">
+        <img class="photo-compare-img photo-compare-right" src="${urlB}" alt="After" draggable="false">
+        <img class="photo-compare-img photo-compare-left" src="${urlA}" alt="Before" draggable="false">
+        <div class="photo-compare-handle">
+          <div class="photo-compare-handle-line"></div>
+          <div class="photo-compare-handle-grip"></div>
+          <div class="photo-compare-handle-line"></div>
+        </div>
+      </div>
+      <div class="photo-compare-labels">
+        <span class="photo-compare-label-left">${UI.escapeHtml(labelA)}</span>
+        <span class="photo-compare-label-right">${UI.escapeHtml(labelB)}</span>
+      </div>
+      <button class="photo-compare-done">Done</button>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Force reflow then show
+    modal.offsetHeight;
+    modal.classList.add('open');
+
+    // Wire slider
+    ProgressView._initCompareSlider(modal);
+
+    // Done button and cleanup
+    const cleanup = () => {
+      modal.classList.remove('open');
+      setTimeout(() => {
+        modal.remove();
+        URL.revokeObjectURL(urlA);
+        URL.revokeObjectURL(urlB);
+      }, 250);
+    };
+
+    modal.querySelector('.photo-compare-done').addEventListener('click', cleanup);
+  },
+
+  _initCompareSlider(modal) {
+    const viewport = modal.querySelector('.photo-compare-viewport');
+    const leftImg = modal.querySelector('.photo-compare-left');
+    const handle = modal.querySelector('.photo-compare-handle');
+
+    let sliderPct = 50; // start at center
+
+    const updateSlider = (pct) => {
+      sliderPct = Math.max(2, Math.min(98, pct));
+      leftImg.style.clipPath = `inset(0 ${100 - sliderPct}% 0 0)`;
+      handle.style.left = sliderPct + '%';
+    };
+
+    // Initialize at 50%
+    updateSlider(50);
+
+    const getPointerPct = (clientX) => {
+      const rect = viewport.getBoundingClientRect();
+      if (rect.width === 0) return 50;
+      return ((clientX - rect.left) / rect.width) * 100;
+    };
+
+    // Pointer events with capture for smooth dragging
+    handle.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+
+      const onMove = (ev) => {
+        updateSlider(getPointerPct(ev.clientX));
+      };
+
+      const onUp = () => {
+        handle.removeEventListener('pointermove', onMove);
+        handle.removeEventListener('pointerup', onUp);
+        handle.removeEventListener('pointercancel', onUp);
+      };
+
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onUp);
+      handle.addEventListener('pointercancel', onUp);
+    });
+
+    // Also allow tapping anywhere on the viewport to reposition
+    viewport.addEventListener('pointerdown', (e) => {
+      if (e.target === handle || handle.contains(e.target)) return;
+      updateSlider(getPointerPct(e.clientX));
+    });
   },
 
   async _renderProductUsage(routine, today) {
