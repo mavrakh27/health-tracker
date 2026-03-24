@@ -805,6 +805,7 @@ const App = {
       Settings.loadGoalsSummary();
       Settings.loadStorageInfo();
       Settings.loadCloudSyncStatus();
+      Settings.loadWeightUnit();
       Settings.loadDayBoundary();
       Settings.initUpdateButton();
       Settings.loadVersion();
@@ -1773,6 +1774,23 @@ const Settings = {
     const configured = await CloudRelay.isConfigured();
     if (configured && confirm('Also delete photos from the cloud relay?')) {
       await CloudRelay.deleteAllFromRelay();
+    }
+  },
+
+  async loadWeightUnit() {
+    const select = document.getElementById('weight-unit-select');
+    if (!select) return;
+    const prefs = await DB.getProfile('preferences') || {};
+    select.value = prefs.weightUnit || 'lbs';
+    if (!select._weightUnitBound) {
+      select._weightUnitBound = true;
+      select.addEventListener('change', async () => {
+        const unit = select.value;
+        const fresh = await DB.getProfile('preferences') || {};
+        fresh.weightUnit = unit;
+        await DB.setProfile('preferences', fresh);
+        UI.toast(`Weight unit set to ${unit}`);
+      });
     }
   },
 
