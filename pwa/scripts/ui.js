@@ -556,10 +556,16 @@ const UI = {
       const notes = document.getElementById('edit-notes')?.value?.trim() || '';
       const newDate = document.getElementById('edit-date')?.value || entry.date;
       const oldDate = entry.date;
-      const updated = { ...entry, notes, date: newDate, updatedAt: new Date().toISOString() };
+      const updated = { ...entry, notes, date: newDate };
       if (entry.type === 'workout') {
         const dur = document.getElementById('edit-duration')?.value;
         updated.duration_minutes = dur ? parseInt(dur) : null;
+      }
+      // Only set updatedAt if something actually changed
+      const changed = notes !== (entry.notes || '') || newDate !== oldDate
+        || (entry.type === 'workout' && updated.duration_minutes !== entry.duration_minutes);
+      if (changed) {
+        updated.updatedAt = new Date().toISOString();
       }
       try {
         await DB.updateEntry(updated);

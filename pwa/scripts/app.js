@@ -123,6 +123,8 @@ const QuickLog = {
       UI.toast(`${saved} photo${saved !== 1 ? 's' : ''} saved`);
       CloudRelay.queueUpload(date);
       App.loadDayView();
+    } else {
+      UI.toast('Failed to save photos', 'error');
     }
   },
 
@@ -222,6 +224,8 @@ const QuickLog = {
         } catch (err) {
           console.error('Quick water failed:', err);
           UI.toast('Failed to save water', 'error');
+          waterSaving = false;
+          btn.classList.remove('water-pick-saved');
         }
       });
     });

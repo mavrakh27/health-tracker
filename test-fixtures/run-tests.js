@@ -1907,6 +1907,48 @@ async function testVisualQA(page, fixtures) {
     assert(staleCopyCheck.hasCorrectRef, 'Sync setup says "Settings > Cloud Sync"');
   }
 
+  // --color-danger should be defined in CSS (not just fallback)
+  const dangerVar = await page.evaluate(() => {
+    return getComputedStyle(document.documentElement).getPropertyValue('--color-danger').trim();
+  });
+  assert(dangerVar.length > 0, `--color-danger CSS variable is defined (got "${dangerVar}")`);
+
+  // Edit modal: updatedAt should not change when nothing is edited
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(500);
+  const noChangeTest = await page.evaluate(async () => {
+    const entries = await DB.getEntriesByDate(App.selectedDate);
+    const meal = entries.find(e => e.type === 'meal');
+    if (!meal) return null;
+    const origUpdatedAt = meal.updatedAt || null;
+    return { id: meal.id, origUpdatedAt };
+  });
+  if (noChangeTest) {
+    // Open edit modal, save without changes
+    const editEntry = await page.$('.entry-item[data-type="meal"]');
+    if (editEntry) {
+      await editEntry.click();
+      await page.waitForTimeout(400);
+      await page.click('#edit-save');
+      await page.waitForTimeout(400);
+      const afterSave = await page.evaluate(async (id) => {
+        const entries = await DB.getEntriesByDate(App.selectedDate);
+        const e = entries.find(x => x.id === id);
+        return e ? (e.updatedAt || null) : null;
+      }, noChangeTest.id);
+      assert(afterSave === noChangeTest.origUpdatedAt, `Edit modal: updatedAt unchanged when nothing edited (before=${noChangeTest.origUpdatedAt}, after=${afterSave})`);
+    }
+  }
+
+  // batchPhotos: verify error feedback path exists (check source for error toast)
+  const batchErrorCheck = await page.evaluate(() => {
+    const src = QuickLog.batchPhotos.toString();
+    return src.includes("'error'") && src.includes('Failed');
+  });
+  assert(batchErrorCheck, 'batchPhotos has error toast for zero-save case');
+
   console.log('\n--- Visual QA ---');
 
   // Ensure we're on the Today screen, Diet panel
