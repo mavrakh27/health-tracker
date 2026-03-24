@@ -37,10 +37,22 @@ The `{EXTRACT_DIR}` path will be provided in the processing prompt. ZIP extracti
 
 Profile files (check BOTH locations — ZIP-bundled profile takes priority over fixed-path):
 - `{EXTRACT_DIR}/profile/goals.json` — goals bundled from the PWA (most up-to-date, **use this first**)
+- `{EXTRACT_DIR}/profile/pwa-profile.json` — full PWA profile including supplements, skincare, preferences
 - `{DATA_DIR}/profile/goals.json` — fallback goals on the processing machine
 - `{DATA_DIR}/profile/regimen.json` — workout plans (moderate + hardcore schedules)
 - `{DATA_DIR}/profile/preferences.json` — dietary preferences
 - `{DATA_DIR}/profile/bio.txt` — user's personal stats, goals, and context (optional but recommended)
+
+## Supplement Photo Processing
+
+Check `pwa-profile.json` for supplements with `pending: true` and a `photo` field (base64 dataURL). These are new daily items where the user took a photo of the product (e.g. supplement jar, protein powder) instead of manually entering nutrition info. For each pending supplement:
+
+1. Analyze the photo — read the nutrition label, product name, serving size
+2. Update the supplement entry in the analysis output with: `name` (product name), `calories` (per serving), `protein` (grams per serving), `carbs`, `fat`
+3. Set `pending: false` to mark it as processed
+4. Include the updated supplements array in the analysis JSON under `supplementUpdates` so the PWA can merge the changes back
+
+The photo is for identification only — once processed, the PWA will clear the photo data to save space.
 
 ## Corrections System (CRITICAL)
 
