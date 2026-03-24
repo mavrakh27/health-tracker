@@ -473,6 +473,26 @@ const ProgressView = {
       pathD += (i === 0 ? 'M' : 'L') + `${x.toFixed(1)},${y.toFixed(1)}`;
     }
 
+    // 7-day moving average
+    let maPathD = '';
+    const maPoints = [];
+    for (let i = 0; i < points.length; i++) {
+      const windowStart = Math.max(0, i - 6);
+      const windowSlice = points.slice(windowStart, i + 1);
+      // Only emit MA points where >=3 raw points exist in the window
+      if (windowSlice.length >= 3) {
+        const avg = windowSlice.reduce((sum, p) => sum + p.weight, 0) / windowSlice.length;
+        const x = (i / (points.length - 1)) * svgW;
+        const y = svgH - ((avg - minW) / range) * svgH;
+        maPoints.push({ x, y });
+      }
+    }
+    if (maPoints.length >= 2) {
+      for (let i = 0; i < maPoints.length; i++) {
+        maPathD += (i === 0 ? 'M' : 'L') + `${maPoints[i].x.toFixed(1)},${maPoints[i].y.toFixed(1)}`;
+      }
+    }
+
     const latest = points[points.length - 1];
     const first = points[0];
     const delta = (latest.weight - first.weight).toFixed(1);
@@ -489,11 +509,18 @@ const ProgressView = {
       <svg id="weight-trend-svg" viewBox="0 0 ${svgW} ${svgH}" width="100%" height="${svgH}" preserveAspectRatio="none"
            data-points='${pointsJson.replace(/'/g, '&apos;')}' data-minw="${minW}" data-maxw="${maxW}" data-svgw="${svgW}" data-svgh="${svgH}" style="display:block; overflow:visible;">
         <path d="${pathD}" fill="none" stroke="var(--accent-primary)" stroke-width="2"/>
+        ${maPathD ? `<path d="${maPathD}" fill="none" stroke="var(--accent-blue)" stroke-width="1.5" stroke-dasharray="4,3"/>` : ''}
       </svg>
     </div>`;
     html += `<div style="display:flex; justify-content:space-between; font-size:var(--text-xs); color:var(--text-muted);">
       <span>${UI.formatDate(first.date)}</span><span>${UI.formatDate(latest.date)}</span>
     </div>`;
+    if (maPathD) {
+      html += `<div style="display:flex; gap:var(--space-sm); margin-top:var(--space-xs); font-size:var(--text-xs); color:var(--text-muted);">
+        <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:16px; height:2px; background:var(--accent-primary);"></span>Daily</span>
+        <span style="display:inline-flex; align-items:center; gap:4px;"><span style="display:inline-block; width:16px; height:0; border-top:1.5px dashed var(--accent-blue);"></span>7-day avg</span>
+      </div>`;
+    }
     html += '</div>';
 
     // Touch interaction is wired in init() after innerHTML is set
