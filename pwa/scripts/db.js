@@ -1,7 +1,7 @@
 // db.js — IndexedDB wrapper (view-agnostic data API)
 
 const DB_NAME = 'health-tracker';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbInstance = null;
 
@@ -64,6 +64,20 @@ function openDB() {
       if (e.oldVersion < 3) {
         if (!db.objectStoreNames.contains('skincare')) {
           db.createObjectStore('skincare', { keyPath: 'date' });
+        }
+      }
+
+      // Challenges (v4)
+      if (e.oldVersion < 4) {
+        if (!db.objectStoreNames.contains('challenges')) {
+          const chalStore = db.createObjectStore('challenges', { keyPath: 'id' });
+          chalStore.createIndex('status', 'status', { unique: false });
+          chalStore.createIndex('startDate', 'startDate', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('challengeProgress')) {
+          const progStore = db.createObjectStore('challengeProgress', { keyPath: 'id' });
+          progStore.createIndex('challengeId', 'challengeId', { unique: false });
+          progStore.createIndex('date', 'date', { unique: false });
         }
       }
     };
@@ -759,6 +773,97 @@ function resolveRoutineForDate(skincareProfile, dateStr) {
   return { am, pm };
 }
 
+// --- Challenges ---
+
+async function getChallenges(status) {
+  const db = await openDB();
+  const tx = db.transaction('challenges', 'readonly');
+  if (status) {
+    const index = tx.objectStore('challenges').index('status');
+    const request = index.getAll(status);
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = (e) => reject(e.target.error);
+    });
+  }
+  const request = tx.objectStore('challenges').getAll();
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function getActiveChallenges() {
+  return getChallenges('active');
+}
+
+async function getChallenge(id) {
+  const db = await openDB();
+  const tx = db.transaction('challenges', 'readonly');
+  const request = tx.objectStore('challenges').get(id);
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function saveChallenge(challenge) {
+  const db = await openDB();
+  const tx = db.transaction('challenges', 'readwrite');
+  tx.objectStore('challenges').put(challenge);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve(challenge);
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function updateChallengeStatus(id, status) {
+  const challenge = await getChallenge(id);
+  if (!challenge) return null;
+  challenge.status = status;
+  if (status === 'completed' || status === 'abandoned') {
+    challenge.completedDate = UI.today();
+  }
+  return saveChallenge(challenge);
+}
+
+async function getChallengeProgress(challengeId, date) {
+  const id = challengeId + '_' + date;
+  const db = await openDB();
+  const tx = db.transaction('challengeProgress', 'readonly');
+  const request = tx.objectStore('challengeProgress').get(id);
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function saveChallengeProgress(progress) {
+  const db = await openDB();
+  const tx = db.transaction('challengeProgress', 'readwrite');
+  tx.objectStore('challengeProgress').put(progress);
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve(progress);
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function getChallengeProgressRange(challengeId, startDate, endDate) {
+  const db = await openDB();
+  const tx = db.transaction('challengeProgress', 'readonly');
+  const index = tx.objectStore('challengeProgress').index('challengeId');
+  const request = index.getAll(challengeId);
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => {
+      const all = request.result || [];
+      const filtered = all.filter(p => p.date >= startDate && p.date <= endDate);
+      filtered.sort((a, b) => a.date.localeCompare(b.date));
+      resolve(filtered);
+    };
+    request.onerror = (e) => reject(e.target.error);
+  });
+}
+
 // Make functions available globally
 window.DB = {
   openDB,
@@ -796,6 +901,14 @@ window.DB = {
   addSkincareProduct,
   getSkincareLog,
   updateSkincareLog,
+  getChallenges,
+  getActiveChallenges,
+  getChallenge,
+  saveChallenge,
+  updateChallengeStatus,
+  getChallengeProgress,
+  saveChallengeProgress,
+  getChallengeProgressRange,
 };
 
 window.Skincare = {

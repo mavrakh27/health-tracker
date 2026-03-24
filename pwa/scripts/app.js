@@ -745,8 +745,10 @@ const App = {
         }
       }
 
-      // Run goal migrations on every init (fixes water_oz 96→64, adds hardcore)
+      // Run goal migrations on every init (fixes water_oz 96->64, adds hardcore)
       await App.ensureDefaultGoals();
+      // Check for challenge import from URL
+      if (typeof Challenges !== 'undefined') Challenges.importFromURL();
       // Check for cloud relay results
       CloudRelay.checkForResults().catch(err => console.warn('CloudRelay check failed:', err));
       App.handleRoute();
@@ -1096,6 +1098,23 @@ const App = {
         } else { mealSuggEl.innerHTML = ''; }
       } catch (e) { mealSuggEl.innerHTML = ''; }
     }
+
+    // Challenge widgets on Diet panel
+    try {
+      const activeChallenges = await DB.getActiveChallenges();
+      if (activeChallenges.length > 0) {
+        let chalHtml = '';
+        for (const chal of activeChallenges) {
+          chalHtml += await Challenges.renderDayChecklist(chal, date);
+        }
+        if (chalHtml) {
+          const chalContainer = UI.createElement('div', '');
+          chalContainer.innerHTML = chalHtml;
+          entryList.parentNode.appendChild(chalContainer);
+          Challenges.bindEvents(chalContainer);
+        }
+      }
+    } catch (e) { console.warn('Challenge widget error:', e); }
 
     // Update panel container height (panels use transform, which doesn't affect layout)
     App._updatePanelHeight();
