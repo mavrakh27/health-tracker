@@ -329,24 +329,32 @@ const UI = {
         });
         div.appendChild(lock);
       } else {
-        const thumb = UI.createElement('img', 'entry-photo-thumb');
-        thumb.alt = '';
-        thumb.loading = 'lazy';
-        thumb.style.display = 'none'; // Hidden until photo loads
+        const thumbWrap = UI.createElement('div', 'entry-photo-thumbs');
+        thumbWrap.style.display = 'none';
         DB.getPhotos(entry.id).then(photos => {
-          if (photos.length > 0 && photos[0].blob) {
-            const blobUrl = URL.createObjectURL(photos[0].blob);
-            if (!thumb.isConnected) {
-              URL.revokeObjectURL(blobUrl);
-              return;
-            }
-            thumb.src = blobUrl;
-            thumb.style.display = ''; // Show once loaded
-          } else {
-            thumb.remove(); // No photo blob — remove empty box
+          const validPhotos = photos.filter(p => p.blob);
+          if (validPhotos.length === 0) { thumbWrap.remove(); return; }
+
+          const first = validPhotos[0];
+          const blobUrl = URL.createObjectURL(first.blob);
+          if (!thumbWrap.isConnected) { URL.revokeObjectURL(blobUrl); return; }
+
+          const thumb = UI.createElement('img', 'entry-photo-thumb');
+          thumb.alt = '';
+          thumb.loading = 'lazy';
+          thumb.src = blobUrl;
+          thumbWrap.appendChild(thumb);
+
+          // Show count badge if multiple photos
+          if (validPhotos.length > 1) {
+            const badge = UI.createElement('span', 'photo-count-badge');
+            badge.textContent = validPhotos.length;
+            thumbWrap.appendChild(badge);
           }
+
+          thumbWrap.style.display = '';
         });
-        div.appendChild(thumb);
+        div.appendChild(thumbWrap);
       }
     }
 
@@ -396,24 +404,31 @@ const UI = {
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
 
-    // Load photo if exists
-    let photoUrl = null;
+    // Load photos if exist
+    let photoUrls = [];
     if (entry.photo) {
       const photos = await DB.getPhotos(entry.id);
-      if (photos.length > 0 && photos[0].blob) {
-        photoUrl = URL.createObjectURL(photos[0].blob);
+      for (const p of photos) {
+        if (p.blob) photoUrls.push(URL.createObjectURL(p.blob));
       }
     }
 
     const isBodyPhoto = entry.type === 'bodyPhoto';
-    const photoHtml = photoUrl
-      ? isBodyPhoto
-        ? `<div class="ql-photo-preview edit-photo-locked" id="edit-photo-lock">
+    let photoHtml = '';
+    if (photoUrls.length > 0) {
+      if (isBodyPhoto) {
+        photoHtml = `<div class="ql-photo-preview edit-photo-locked" id="edit-photo-lock">
             <div class="edit-photo-lock-overlay">${UI.svg.lock}<span>Tap to reveal</span></div>
-            <img src="${photoUrl}" alt="" class="edit-photo-blurred">
-          </div>`
-        : `<div class="ql-photo-preview"><img src="${photoUrl}" alt=""></div>`
-      : '';
+            <img src="${photoUrls[0]}" alt="" class="edit-photo-blurred">
+          </div>`;
+      } else if (photoUrls.length === 1) {
+        photoHtml = `<div class="ql-photo-preview"><img src="${photoUrls[0]}" alt=""></div>`;
+      } else {
+        photoHtml = `<div class="edit-photo-grid">${photoUrls.map((url, i) =>
+          `<div class="ql-photo-preview edit-photo-grid-item" data-photo-idx="${i}"><img src="${url}" alt=""></div>`
+        ).join('')}</div>`;
+      }
+    }
 
     // Body photo entries are locked by default to prevent accidental edits/deletions
     const lockBarHtml = isBodyPhoto ? `
@@ -457,7 +472,7 @@ const UI = {
     document.body.appendChild(overlay);
 
     const closeModal = () => {
-      if (photoUrl) URL.revokeObjectURL(photoUrl);
+      for (const url of photoUrls) URL.revokeObjectURL(url);
       // Also close any open photo viewer (it's on document.body, not inside the modal)
       document.querySelector('.photo-viewer-overlay')?.remove();
       overlay.remove();
@@ -473,23 +488,23 @@ const UI = {
         if (!photoLock.classList.contains('revealed')) {
           // First tap: reveal the photo
           photoLock.classList.add('revealed');
-        } else if (photoUrl) {
+        } else if (photoUrls[0]) {
           // Already revealed: open full-screen viewer
-          UI.showPhotoViewer(photoUrl, entry);
+          UI.showPhotoViewer(photoUrls[0], entry);
         }
       });
     }
 
     // Photo expand for non-body photos — tap preview to open viewer
-    if (photoUrl && !isBodyPhoto) {
-      const previewEl = sheet.querySelector('.ql-photo-preview');
-      if (previewEl) {
+    if (photoUrls.length > 0 && !isBodyPhoto) {
+      sheet.querySelectorAll('.ql-photo-preview').forEach(previewEl => {
         previewEl.style.cursor = 'pointer';
+        const idx = previewEl.dataset.photoIdx != null ? parseInt(previewEl.dataset.photoIdx) : 0;
         previewEl.addEventListener('click', (e) => {
           e.stopPropagation();
-          UI.showPhotoViewer(photoUrl, entry);
+          if (photoUrls[idx]) UI.showPhotoViewer(photoUrls[idx], entry);
         });
-      }
+      });
     }
 
     // Entry lock toggle (for enabling edit/delete)

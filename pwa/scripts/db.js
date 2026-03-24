@@ -93,23 +93,28 @@ function openDB() {
 
 // --- Entries ---
 
-async function addEntry(entry, photoBlob) {
+async function addEntry(entry, photoBlobs) {
   const db = await openDB();
   const tx = db.transaction(['entries', 'photos'], 'readwrite');
 
   tx.objectStore('entries').put(entry);
 
-  if (photoBlob) {
-    const photoRecord = {
-      id: `photo_${entry.id}`,
-      entryId: entry.id,
-      date: entry.date,
-      category: entry.type === 'bodyPhoto' ? 'body' : 'meal',
-      syncStatus: 'unsynced',
-      blob: photoBlob,
-      timestamp: entry.timestamp,
-    };
-    tx.objectStore('photos').put(photoRecord);
+  if (photoBlobs) {
+    // Support both single blob (legacy) and array of blobs
+    const blobs = Array.isArray(photoBlobs) ? photoBlobs : [photoBlobs];
+    const category = entry.type === 'bodyPhoto' ? 'body' : 'meal';
+    for (let i = 0; i < blobs.length; i++) {
+      const photoRecord = {
+        id: i === 0 ? `photo_${entry.id}` : `photo_${entry.id}_${i + 1}`,
+        entryId: entry.id,
+        date: entry.date,
+        category,
+        syncStatus: 'unsynced',
+        blob: blobs[i],
+        timestamp: entry.timestamp,
+      };
+      tx.objectStore('photos').put(photoRecord);
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -552,11 +557,12 @@ async function exportDay(dateStr) {
   for (const entry of entries) {
     if (entry.type === 'bodyPhoto') continue;
     const photos = await getPhotos(entry.id);
-    for (const photo of photos) {
-      if (photo.blob) {
+    for (let i = 0; i < photos.length; i++) {
+      if (photos[i].blob) {
+        const suffix = photos.length > 1 ? `_${i + 1}` : '';
         photoFiles.push({
-          name: `photos/${entry.id}.jpg`,
-          blob: photo.blob,
+          name: `photos/${entry.id}${suffix}.jpg`,
+          blob: photos[i].blob,
         });
       }
     }

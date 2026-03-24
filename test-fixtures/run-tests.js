@@ -566,8 +566,8 @@ async function testPhotos(page, fixtures) {
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
   await page.waitForTimeout(800);
 
-  // Meal photo thumbnails should render as <img> elements
-  const mealThumbs = await page.$$('img.entry-photo-thumb');
+  // Meal photo thumbnails should render as <img> elements (inside .entry-photo-thumbs wrapper)
+  const mealThumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   assert(mealThumbs.length >= 2, `Meal photo thumbnails render (got ${mealThumbs.length}, expected ≥2)`);
 
   // Check that thumbnails have blob URL srcs
@@ -575,6 +575,19 @@ async function testPhotos(page, fixtures) {
     const src = await mealThumbs[0].getAttribute('src');
     assert(src && src.startsWith('blob:'), 'Meal photo has blob URL src');
   }
+
+  // Multi-photo entry (Day 1 lunch) should show count badge
+  const countBadges = await page.$$('.photo-count-badge');
+  assert(countBadges.length >= 1, `Multi-photo entry shows count badge (got ${countBadges.length})`);
+  if (countBadges.length > 0) {
+    const badgeText = await countBadges[0].textContent();
+    assert(badgeText === '2', `Count badge shows "2" for 2-photo entry (got "${badgeText}")`);
+  }
+
+  // Single-photo entry should NOT show count badge
+  const singlePhotoEntries = await page.$$('.entry-photo-thumbs:not(:has(.photo-count-badge))');
+  assert(singlePhotoEntries.length >= 1, `Single-photo entries have no count badge (got ${singlePhotoEntries.length})`);
+
 
   // Body photo should show locked (lock icon, not revealed)
   const lockedPhoto = await page.$('.entry-photo-locked');
@@ -601,7 +614,7 @@ async function testPhotos(page, fixtures) {
 
   await screenshot(page, 'photos-day1-meals');
 
-  // Verify photo in edit modal (tap a meal entry with photo)
+  // Verify single-photo edit modal (tap first meal entry — breakfast, 1 photo)
   const mealEntryWithPhoto = await page.$('.entry-item[data-type="meal"]');
   if (mealEntryWithPhoto) {
     await mealEntryWithPhoto.click();
@@ -614,7 +627,34 @@ async function testPhotos(page, fixtures) {
         const modalSrc = await modalPhoto.getAttribute('src');
         assert(modalSrc && modalSrc.startsWith('blob:'), 'Edit modal photo has blob URL');
       }
+      // Single-photo entry should NOT show a grid
+      const photoGrid = await page.$('.modal-overlay .edit-photo-grid');
+      assert(!photoGrid, 'Single-photo edit modal has no grid layout');
       await screenshot(page, 'photo-edit-modal');
+      const closeBtn = await page.$('.modal-close');
+      if (closeBtn) await closeBtn.click();
+      await page.waitForTimeout(200);
+    }
+  }
+
+  // Verify multi-photo edit modal (tap lunch entry — 2 photos)
+  // Lunch is the second meal entry on Day 1
+  const mealEntries = await page.$$('.entry-item[data-type="meal"]');
+  if (mealEntries.length >= 2) {
+    await mealEntries[1].click();
+    await page.waitForTimeout(500);
+    const editModal2 = await page.$('.modal-overlay');
+    if (editModal2) {
+      const gridPhotos = await page.$$('.modal-overlay .edit-photo-grid .ql-photo-preview img');
+      assert(gridPhotos.length === 2, `Multi-photo edit modal shows grid with 2 photos (got ${gridPhotos.length})`);
+      if (gridPhotos.length >= 2) {
+        const src1 = await gridPhotos[0].getAttribute('src');
+        const src2 = await gridPhotos[1].getAttribute('src');
+        assert(src1 && src1.startsWith('blob:'), 'Multi-photo grid photo 1 has blob URL');
+        assert(src2 && src2.startsWith('blob:'), 'Multi-photo grid photo 2 has blob URL');
+        assert(src1 !== src2, 'Multi-photo grid shows two different photos');
+      }
+      await screenshot(page, 'photo-edit-modal-multi');
       const closeBtn = await page.$('.modal-close');
       if (closeBtn) await closeBtn.click();
       await page.waitForTimeout(200);
@@ -624,27 +664,27 @@ async function testPhotos(page, fixtures) {
   // Day 2 has 1 meal photo (synced status, not processed)
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[1]);
   await page.waitForTimeout(800);
-  const day2Thumbs = await page.$$('img.entry-photo-thumb');
+  const day2Thumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   assert(day2Thumbs.length >= 1, `Day 2 synced photo renders (got ${day2Thumbs.length})`);
   await screenshot(page, 'photos-day2');
 
   // Day 3 has 1 meal photo (dinner — dark/moody steak)
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[2]);
   await page.waitForTimeout(800);
-  const day3Thumbs = await page.$$('img.entry-photo-thumb');
+  const day3Thumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   assert(day3Thumbs.length >= 1, `Day 3 dinner photo renders (got ${day3Thumbs.length})`);
 
   // Day 5 has 2 meal photos (pizza + burger, both unsynced)
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]);
   await page.waitForTimeout(800);
-  const day5Thumbs = await page.$$('img.entry-photo-thumb');
+  const day5Thumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   assert(day5Thumbs.length >= 2, `Day 5 meal photos render (got ${day5Thumbs.length})`);
   await screenshot(page, 'photos-day5-vices');
 
   // Day 4 has no photos at all
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[3]);
   await page.waitForTimeout(800);
-  const day4Thumbs = await page.$$('img.entry-photo-thumb');
+  const day4Thumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   const day4Locked = await page.$$('.entry-photo-locked');
   assert(day4Thumbs.length === 0 && day4Locked.length === 0, 'Day with no photos has no thumbnails');
 
@@ -664,6 +704,91 @@ async function testPhotos(page, fixtures) {
   assert(storageText.includes('photo') || storageText.includes('Photo') || storageText.includes('Clear'), 'Storage card references photos');
 
   await screenshot(page, 'profile-storage-with-photos');
+
+  // --- Multi-Photo DB Tests ---
+  console.log('\n--- Multi-Photo DB ---');
+
+  // Test addEntry with array of blobs (the new multi-photo path)
+  const multiPhotoResult = await page.evaluate(async () => {
+    // Create 3 small test blobs
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const ctx = canvas.getContext('2d');
+    const blobs = [];
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = ['red', 'green', 'blue'][i];
+      ctx.fillRect(0, 0, 10, 10);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+      blobs.push(blob);
+    }
+
+    const entry = {
+      id: 'multi_photo_test_entry',
+      type: 'meal',
+      date: '2026-01-01',
+      timestamp: new Date().toISOString(),
+      notes: 'Test multi-photo',
+      photo: true,
+    };
+    await DB.addEntry(entry, blobs);
+
+    // Retrieve and verify
+    const photos = await DB.getPhotos('multi_photo_test_entry');
+    return {
+      count: photos.length,
+      ids: photos.map(p => p.id),
+      allHaveBlobs: photos.every(p => p.blob instanceof Blob),
+      allSameEntry: photos.every(p => p.entryId === 'multi_photo_test_entry'),
+    };
+  });
+  assert(multiPhotoResult.count === 3, `addEntry with 3 blobs stores 3 photos (got ${multiPhotoResult.count})`);
+  assert(multiPhotoResult.ids[0] === 'photo_multi_photo_test_entry', `First photo ID follows legacy pattern (got ${multiPhotoResult.ids[0]})`);
+  assert(multiPhotoResult.ids[1] === 'photo_multi_photo_test_entry_2', `Second photo ID is numbered _2 (got ${multiPhotoResult.ids[1]})`);
+  assert(multiPhotoResult.ids[2] === 'photo_multi_photo_test_entry_3', `Third photo ID is numbered _3 (got ${multiPhotoResult.ids[2]})`);
+  assert(multiPhotoResult.allHaveBlobs, 'All multi-photo records have blobs');
+  assert(multiPhotoResult.allSameEntry, 'All multi-photo records share same entryId');
+
+  // Test addEntry with single blob (backward compatibility)
+  const singleBlobResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+    const entry = {
+      id: 'single_blob_compat_test',
+      type: 'meal',
+      date: '2026-01-01',
+      timestamp: new Date().toISOString(),
+      notes: 'Single blob compat',
+      photo: true,
+    };
+    await DB.addEntry(entry, blob);
+    const photos = await DB.getPhotos('single_blob_compat_test');
+    return { count: photos.length, id: photos[0]?.id };
+  });
+  assert(singleBlobResult.count === 1, `addEntry with single blob still works (got ${singleBlobResult.count})`);
+  assert(singleBlobResult.id === 'photo_single_blob_compat_test', `Single blob uses legacy ID pattern (got ${singleBlobResult.id})`);
+
+  // Test exportDay numbers multi-photo entries in ZIP
+  const exportResult = await page.evaluate(async () => {
+    const data = await DB.exportDay('2026-01-01');
+    const names = data.photoFiles.map(f => f.name);
+    // multi_photo_test_entry has 3 photos — should be numbered
+    const multiNames = names.filter(n => n.includes('multi_photo_test_entry'));
+    // single_blob_compat_test has 1 photo — no suffix
+    const singleNames = names.filter(n => n.includes('single_blob_compat_test'));
+    return { multiNames, singleNames };
+  });
+  assert(exportResult.multiNames.length === 3, `Export includes all 3 photos for multi-photo entry (got ${exportResult.multiNames.length})`);
+  assert(exportResult.multiNames.some(n => n.includes('_1.jpg')), `Export numbers first photo _1 (got ${exportResult.multiNames})`);
+  assert(exportResult.multiNames.some(n => n.includes('_3.jpg')), `Export numbers third photo _3 (got ${exportResult.multiNames})`);
+  assert(exportResult.singleNames.length === 1, `Export has 1 photo for single-photo entry (got ${exportResult.singleNames.length})`);
+  assert(!exportResult.singleNames[0].includes('_1'), `Single-photo export has no number suffix (got ${exportResult.singleNames[0]})`);
+
+  // Clean up test entries
+  await page.evaluate(async () => {
+    await DB.deleteEntry('multi_photo_test_entry');
+    await DB.deleteEntry('single_blob_compat_test');
+  });
 }
 
 async function testUserFlows(page, fixtures) {
@@ -1084,7 +1209,7 @@ async function testUserFlows(page, fixtures) {
 
         // Check that the new entry has a photo thumbnail
         await page.waitForTimeout(500); // wait for async photo load
-        const mealThumbs7 = await page.$$('img.entry-photo-thumb');
+        const mealThumbs7 = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
         assert(mealThumbs7.length >= 1, `Flow 7: Entry has photo thumbnail (got ${mealThumbs7.length})`);
 
         // Verify photo blob exists in IndexedDB

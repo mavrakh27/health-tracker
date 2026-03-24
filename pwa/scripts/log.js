@@ -3,7 +3,7 @@
 const Log = {
   selectedType: null,
   selectedSubtype: null,
-  pendingPhoto: null, // { blob, url } from Camera
+  pendingPhotos: [], // [{ blob, url, takenAt }] from Camera
 
   // Container IDs (can be overridden for inline mode)
   _gridId: 'log-type-grid',
@@ -13,7 +13,7 @@ const Log = {
   init(gridId, formContentId) {
     Log.selectedType = null;
     Log.selectedSubtype = null;
-    Log.clearPendingPhoto();
+    Log.clearPendingPhotos();
     if (gridId) {
       Log._gridId = gridId;
       Log._formId = null; // inline mode has no wrapper
@@ -27,11 +27,11 @@ const Log = {
     Log.hideForm();
   },
 
-  clearPendingPhoto() {
-    if (Log.pendingPhoto) {
-      Camera.revokeURL(Log.pendingPhoto.url);
-      Log.pendingPhoto = null;
+  clearPendingPhotos() {
+    for (const p of Log.pendingPhotos) {
+      Camera.revokeURL(p.url);
     }
+    Log.pendingPhotos = [];
   },
 
   // --- Type Selection ---
@@ -66,7 +66,7 @@ const Log = {
   selectType(type) {
     Log.selectedType = type;
     Log.selectedSubtype = null;
-    Log.clearPendingPhoto();
+    Log.clearPendingPhotos();
     // Also clear body photo previews
     if (Log._pendingBodyPhotos && typeof Log._pendingBodyPhotos === 'object') {
       for (const photos of Object.values(Log._pendingBodyPhotos)) {
@@ -158,7 +158,7 @@ const Log = {
         <button class="btn btn-secondary" id="log-photo-capture"><span class="btn-icon">${UI.svg.camera}</span> Take Photo</button>
         <button class="btn btn-ghost" id="log-photo-pick"><span class="btn-icon">${UI.svg.gallery}</span> Choose from Library</button>
       </div>
-      <div id="log-photo-preview-area"></div>
+      <div id="log-photo-preview-area" class="multi-photo-grid"></div>
     `;
 
     requestAnimationFrame(() => {
@@ -178,26 +178,17 @@ const Log = {
 
   async handlePhotoCapture(preset) {
     const result = await Camera.capture(preset);
-    if (result) Log.setPhotoPreview(result);
+    if (result) Log.addPendingPhoto(result);
   },
 
   async handlePhotoPick(preset) {
     const result = await Camera.pick(preset);
-    if (result) Log.setPhotoPreview(result);
+    if (result) Log.addPendingPhoto(result);
   },
 
-  setPhotoPreview(photo) {
-    Log.clearPendingPhoto();
-    Log.pendingPhoto = photo;
-
-    const area = document.getElementById('log-photo-preview-area');
-    if (!area) return;
-    UI.clearChildren(area);
-
-    const preview = Camera.createPreview(photo.url, () => {
-      Log.clearPendingPhoto();
-    });
-    area.appendChild(preview);
+  addPendingPhoto(photo) {
+    Log.pendingPhotos.push(photo);
+    Log._renderPendingPhotos();
 
     // Inform user which date the entry will land on
     const targetDate = Log._getEntryDate();
@@ -206,6 +197,26 @@ const Log = {
     } else if (!photo.takenAt && App.selectedDate !== UI.today()) {
       UI.toast(`Will log to ${UI.formatRelativeDate(App.selectedDate)}`, 'info', 3000);
     }
+  },
+
+  _renderPendingPhotos() {
+    const area = document.getElementById('log-photo-preview-area');
+    if (!area) return;
+    UI.clearChildren(area);
+
+    for (const photo of Log.pendingPhotos) {
+      const preview = Camera.createPreview(photo.url, () => {
+        const i = Log.pendingPhotos.indexOf(photo);
+        if (i >= 0) {
+          Camera.revokeURL(photo.url);
+          Log.pendingPhotos.splice(i, 1);
+        }
+        Log._renderPendingPhotos();
+      });
+      area.appendChild(preview);
+    }
+
+    if (typeof App !== 'undefined' && App._updatePanelHeight) App._updatePanelHeight();
   },
 
   // --- Food Form (no subtype needed) ---
@@ -640,21 +651,20 @@ const Log = {
     return group;
   },
 
-  // For camera captures: use photo's actual timestamp (real time the pic was taken)
+  // For camera captures: use first photo's actual timestamp (real time the pic was taken)
   // For gallery picks / no photo: use current time
   _getEntryTimestamp() {
-    const takenAt = Log.pendingPhoto?.takenAt;
-    if (takenAt) return takenAt;
+    const firstPhoto = Log.pendingPhotos[0];
+    if (firstPhoto?.takenAt) return firstPhoto.takenAt;
     return new Date().toISOString();
   },
 
   // Camera captures always log to today (the day you took the photo).
   // Gallery picks and non-photo entries log to the selected date.
   _getEntryDate() {
-    const isCameraCapture = Log.pendingPhoto?.takenAt;
-    if (isCameraCapture) {
-      // Derive date from the photo's timestamp
-      return Log.pendingPhoto.takenAt.slice(0, 10);
+    const firstPhoto = Log.pendingPhotos[0];
+    if (firstPhoto?.takenAt) {
+      return firstPhoto.takenAt.slice(0, 10);
     }
     return App.selectedDate;
   },
@@ -674,7 +684,7 @@ const Log = {
       date: entryDate,
       timestamp: Log._getEntryTimestamp(),
       notes,
-      photo: Log.pendingPhoto ? true : null,
+      photo: Log.pendingPhotos.length > 0 ? true : null,
       duration_minutes: null,
     };
 
@@ -689,13 +699,13 @@ const Log = {
 
     Log._saveBusy = true;
     try {
-      const photoBlob = Log.pendingPhoto ? Log.pendingPhoto.blob : null;
-      await DB.addEntry(entry, photoBlob);
+      const photoBlobs = Log.pendingPhotos.map(p => p.blob);
+      await DB.addEntry(entry, photoBlobs.length > 0 ? photoBlobs : null);
       // Show which date the entry was logged to (helpful when it differs from selected)
       const dateNote = entryDate !== App.selectedDate ? ` on ${UI.formatRelativeDate(entryDate)}` : '';
       UI.toast(`${UI.entryLabel(entry.type, entry.subtype)} logged${dateNote}`);
       CloudRelay.queueUpload(entry.date);
-      Log.pendingPhoto = null; // Don't revoke — blob is now in DB
+      Log.pendingPhotos = []; // Don't revoke — blobs are now in DB
 
       if (stayOnLog) {
         // Reset form but stay on log screen with same type selected
