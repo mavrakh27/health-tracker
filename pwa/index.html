@@ -276,12 +276,16 @@
   <!-- Register Service Worker -->
   <script>
     if ('serviceWorker' in navigator) {
-      let refreshing = false;
+      let reloaded = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        UI.toast('App updated — reloading...');
-        setTimeout(() => window.location.reload(), 1000);
+        if (reloaded) return;
+        reloaded = true;
+        // New SW took over — prompt user instead of auto-reloading
+        UI.toast('Update available', 'info', {
+          action: 'Refresh',
+          onAction: () => window.location.reload(),
+          duration: 15000,
+        });
       });
       navigator.serviceWorker.register('./sw.js', { scope: './' })
         .then(reg => console.log('SW registered:', reg.scope))
