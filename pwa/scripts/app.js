@@ -1,18 +1,5 @@
 // app.js — Routing, init, navigation
 
-// Dynamic manifest: if URL has ?key= param, point the manifest link to
-// manifest.json?key=...&relay=... so the SW can intercept and return a
-// manifest with start_url including the sync key. This is same-origin
-// (served by our SW), so start_url passes the browser's origin check
-// and the key survives iOS "Add to Home Screen" storage isolation.
-(function() {
-  const params = new URLSearchParams(location.search);
-  const link = document.querySelector('link[rel="manifest"]');
-  if (link) {
-    link.href = params.has('key') ? 'manifest.json' + location.search : 'manifest.json';
-  }
-})();
-
 // --- Quick Log (zero-friction logging from Today screen) ---
 const QuickLog = {
   init() {
@@ -997,7 +984,13 @@ const App = {
         entryList.innerHTML = App.renderWelcomeCard();
         // Hide all chrome until Coach is set up — just show the welcome card
         App.setSetupMode(true);
+        // Init pairing code inputs if sync not configured
+        if (!localStorage.getItem('cloudRelay_backup')) {
+          App.initPairingInputs();
+        }
       } else {
+        // Existing user — make sure chrome is visible
+        App.setSetupMode(false);
         // Try to show entries from analysis data (recovery after reinstall)
         if (analysis && analysis.entries && analysis.entries.length > 0) {
           analysis.entries.forEach(ae => {
@@ -1338,11 +1331,111 @@ const App = {
         <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-md); line-height: 1.6;">
           AI-powered health tracking. Snap food photos, log workouts, and get personalized coaching.
         </p>
-        <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
-          <button class="btn btn-primary btn-block btn-lg" onclick="App.showCoachSetup()">Set Up Coach</button>
+        <label style="display: block; font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-sm);">Enter your pairing code</label>
+        <div id="pairing-inputs" style="display: flex; justify-content: center; gap: var(--space-sm); margin-bottom: var(--space-sm);">
+          <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" class="pair-digit" data-idx="0" style="width: 48px; height: 56px; text-align: center; font-size: 24px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;" />
+          <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" class="pair-digit" data-idx="1" style="width: 48px; height: 56px; text-align: center; font-size: 24px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;" />
+          <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" class="pair-digit" data-idx="2" style="width: 48px; height: 56px; text-align: center; font-size: 24px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;" />
+          <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" class="pair-digit" data-idx="3" style="width: 48px; height: 56px; text-align: center; font-size: 24px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;" />
         </div>
+        <p id="pair-status" style="font-size: var(--text-sm); color: var(--text-secondary); min-height: 1.4em; margin-bottom: var(--space-md); display: none;"></p>
+        <a href="#" onclick="event.preventDefault(); App.showCoachSetup();" style="font-size: var(--text-xs); color: var(--text-secondary); text-decoration: underline;">Set up manually</a>
       </div>
     `;
+  },
+
+  initPairingInputs() {
+    const inputs = document.querySelectorAll('#pairing-inputs .pair-digit');
+    if (!inputs.length) return;
+
+    // Auto-focus first input
+    inputs[0].focus();
+
+    const checkComplete = () => {
+      const code = Array.from(inputs).map(i => i.value).join('');
+      if (code.length === 4 && /^\d{4}$/.test(code)) {
+        App.redeemPairingCode(code);
+      }
+    };
+
+    inputs.forEach((input, idx) => {
+      input.addEventListener('input', (e) => {
+        // Keep only last digit if somehow multiple chars
+        const val = e.target.value.replace(/\D/g, '');
+        e.target.value = val.slice(-1);
+        if (e.target.value && idx < inputs.length - 1) {
+          inputs[idx + 1].focus();
+        }
+        checkComplete();
+      });
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !e.target.value && idx > 0) {
+          inputs[idx - 1].focus();
+          inputs[idx - 1].value = '';
+        }
+      });
+
+      input.addEventListener('paste', (e) => {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '');
+        for (let i = 0; i < inputs.length; i++) {
+          inputs[i].value = pasted[i] || '';
+        }
+        // Focus last filled or the one after
+        const focusIdx = Math.min(pasted.length, inputs.length - 1);
+        inputs[focusIdx].focus();
+        checkComplete();
+      });
+
+      // Highlight on focus
+      input.addEventListener('focus', () => {
+        input.style.borderColor = 'var(--accent-primary)';
+      });
+      input.addEventListener('blur', () => {
+        input.style.borderColor = 'var(--border)';
+      });
+    });
+  },
+
+  async redeemPairingCode(code) {
+    const statusEl = document.getElementById('pair-status');
+    const inputs = document.querySelectorAll('#pairing-inputs .pair-digit');
+
+    if (statusEl) {
+      statusEl.textContent = 'Connecting...';
+      statusEl.style.display = '';
+    }
+
+    // Disable inputs while redeeming
+    inputs.forEach(i => { i.disabled = true; });
+
+    try {
+      const resp = await fetch(`https://health-sync.emilyn-90a.workers.dev/pair/${code}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        await CloudRelay.saveConfig({ workerUrl: data.relay, syncKey: data.syncKey });
+        UI.toast('Sync connected');
+        App.loadDayView();
+      } else if (resp.status === 404) {
+        if (statusEl) {
+          statusEl.textContent = 'Invalid or expired code';
+          statusEl.style.color = 'var(--accent-danger, #e53e3e)';
+          statusEl.style.display = '';
+        }
+        inputs.forEach(i => { i.disabled = false; i.value = ''; });
+        inputs[0].focus();
+      } else {
+        throw new Error(`HTTP ${resp.status}`);
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = 'Connection failed';
+        statusEl.style.color = 'var(--accent-danger, #e53e3e)';
+        statusEl.style.display = '';
+      }
+      inputs.forEach(i => { i.disabled = false; });
+    }
   },
 
   showCoachSetup() {

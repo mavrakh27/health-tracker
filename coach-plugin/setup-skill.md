@@ -61,8 +61,15 @@ Steps:
    setx HEALTH_DATA_DIR "<this folder path>"
    ```
    On Mac/Linux, write exports to both `.bashrc` and `.zshrc` (dedup first).
-4. Give them the sync key and say: **"Go to Step 2 on the setup page and paste this key, then click Generate QR Code."** They already have the welcome page open. Also give them the shortcut link: `https://nemily.github.io/health-tracker/welcome.html?sync=SYNC_KEY`
-5. They scan the QR with their phone camera — the app opens, syncs, and they install it to their home screen.
+4. Generate a random 4-digit pairing code and push it to the relay:
+   ```bash
+   curl -X PUT https://health-sync.emilyn-90a.workers.dev/pair \
+     -H 'Content-Type: application/json' \
+     -d '{"code":"XXXX","syncKey":"<uuid>","relay":"https://health-sync.emilyn-90a.workers.dev","expires":<now_ms + 600000>}'
+   ```
+   If the relay returns 409 (code in use), retry with a different code.
+5. Tell the user: **"Open the app on your phone and type this code: XXXX"**
+   The app has 4 digit boxes on the welcome screen — they type the code, the app auto-connects.
 
 Don't explain what a "cloud relay" is. Don't mention infrastructure. Just "let's connect your phone."
 

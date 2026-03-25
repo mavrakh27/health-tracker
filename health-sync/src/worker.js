@@ -3,7 +3,9 @@
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const PAIR_CODE_RE = /^\d{4}$/;
 const MAX_ZIP_SIZE = 50 * 1024 * 1024; // 50MB
+const MAX_PAIR_TTL = 15 * 60 * 1000; // 15 minutes
 
 export default {
   async fetch(request, env) {
@@ -16,6 +18,51 @@ export default {
     // GET /health — connection check (no auth required)
     if (parts[0] === 'health' && request.method === 'GET') {
       return cors(json(200, { ok: true, version: '1.0' }));
+    }
+
+    // PUT /pair — create a pairing code
+    if (parts[0] === 'pair' && parts.length === 1 && request.method === 'PUT') {
+      try {
+        const { code, syncKey, relay, expires } = await request.json();
+        if (!PAIR_CODE_RE.test(code)) return cors(json(400, { error: 'code must be exactly 4 digits' }));
+        if (!syncKey) return cors(json(400, { error: 'syncKey required' }));
+        if (!expires || expires <= Date.now()) return cors(json(400, { error: 'expires must be in the future' }));
+        if (expires - Date.now() > MAX_PAIR_TTL) return cors(json(400, { error: 'expires must be within 15 minutes' }));
+
+        // Check if code already exists and is not expired
+        const existing = await env.BUCKET.get(`pairing/${code}.json`);
+        if (existing) {
+          const data = JSON.parse(await existing.text());
+          if (data.expires > Date.now()) {
+            return cors(json(409, { error: 'code in use' }));
+          }
+        }
+
+        await env.BUCKET.put(`pairing/${code}.json`, JSON.stringify({ syncKey, relay, expires }));
+        return cors(json(200, { ok: true }));
+      } catch (err) {
+        if (err instanceof SyntaxError) return cors(json(400, { error: 'invalid JSON' }));
+        throw err;
+      }
+    }
+
+    // GET /pair/{code} — redeem a pairing code
+    if (parts[0] === 'pair' && parts.length === 2 && request.method === 'GET') {
+      const code = parts[1];
+      if (!PAIR_CODE_RE.test(code)) return cors(json(400, { error: 'code must be exactly 4 digits' }));
+
+      const obj = await env.BUCKET.get(`pairing/${code}.json`);
+      if (!obj) return cors(json(404, { error: 'invalid or expired code' }));
+
+      const data = JSON.parse(await obj.text());
+      if (data.expires <= Date.now()) {
+        await env.BUCKET.delete(`pairing/${code}.json`);
+        return cors(json(404, { error: 'invalid or expired code' }));
+      }
+
+      // Single-use: delete after redeeming
+      await env.BUCKET.delete(`pairing/${code}.json`);
+      return cors(json(200, { syncKey: data.syncKey, relay: data.relay }));
     }
 
     // Route: /sync/{key}/...
