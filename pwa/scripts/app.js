@@ -1229,7 +1229,9 @@ const App = {
   },
 
   _getGreeting() {
-    const h = new Date().getHours();
+    // Use boundary-adjusted time so greeting matches the user's "day"
+    const adjusted = new Date(Date.now() - UI._dayBoundaryHours * 3600000);
+    const h = adjusted.getHours();
     if (h < 6) return { text: 'Burning the midnight oil', sub: 'Log a late snack or get some rest.' };
     if (h < 12) return { text: 'Good morning', sub: 'Start your day right — snap your breakfast.' };
     if (h < 14) return { text: 'Afternoon check-in', sub: 'How\'s the day going? Log your lunch.' };
