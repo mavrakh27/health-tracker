@@ -566,8 +566,8 @@ async function testPhotos(page, fixtures) {
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
   await page.waitForTimeout(800);
 
-  // Meal photo thumbnails should render as <img> elements
-  const mealThumbs = await page.$$('img.entry-photo-thumb');
+  // Meal photo thumbnails should render as <img> elements (inside .entry-photo-thumbs wrapper)
+  const mealThumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   assert(mealThumbs.length >= 2, `Meal photo thumbnails render (got ${mealThumbs.length}, expected ≥2)`);
 
   // Check that thumbnails have blob URL srcs
@@ -575,6 +575,19 @@ async function testPhotos(page, fixtures) {
     const src = await mealThumbs[0].getAttribute('src');
     assert(src && src.startsWith('blob:'), 'Meal photo has blob URL src');
   }
+
+  // Multi-photo entry (Day 1 lunch) should show count badge
+  const countBadges = await page.$$('.photo-count-badge');
+  assert(countBadges.length >= 1, `Multi-photo entry shows count badge (got ${countBadges.length})`);
+  if (countBadges.length > 0) {
+    const badgeText = await countBadges[0].textContent();
+    assert(badgeText === '2', `Count badge shows "2" for 2-photo entry (got "${badgeText}")`);
+  }
+
+  // Single-photo entry should NOT show count badge
+  const singlePhotoEntries = await page.$$('.entry-photo-thumbs:not(:has(.photo-count-badge))');
+  assert(singlePhotoEntries.length >= 1, `Single-photo entries have no count badge (got ${singlePhotoEntries.length})`);
+
 
   // Body photo should show locked (lock icon, not revealed)
   const lockedPhoto = await page.$('.entry-photo-locked');
@@ -601,7 +614,7 @@ async function testPhotos(page, fixtures) {
 
   await screenshot(page, 'photos-day1-meals');
 
-  // Verify photo in edit modal (tap a meal entry with photo)
+  // Verify single-photo edit modal (tap first meal entry — breakfast, 1 photo)
   const mealEntryWithPhoto = await page.$('.entry-item[data-type="meal"]');
   if (mealEntryWithPhoto) {
     await mealEntryWithPhoto.click();
@@ -614,7 +627,34 @@ async function testPhotos(page, fixtures) {
         const modalSrc = await modalPhoto.getAttribute('src');
         assert(modalSrc && modalSrc.startsWith('blob:'), 'Edit modal photo has blob URL');
       }
+      // Single-photo entry should NOT show a grid
+      const photoGrid = await page.$('.modal-overlay .edit-photo-grid');
+      assert(!photoGrid, 'Single-photo edit modal has no grid layout');
       await screenshot(page, 'photo-edit-modal');
+      const closeBtn = await page.$('.modal-close');
+      if (closeBtn) await closeBtn.click();
+      await page.waitForTimeout(200);
+    }
+  }
+
+  // Verify multi-photo edit modal (tap lunch entry — 2 photos)
+  // Lunch is the second meal entry on Day 1
+  const mealEntries = await page.$$('.entry-item[data-type="meal"]');
+  if (mealEntries.length >= 2) {
+    await mealEntries[1].click();
+    await page.waitForTimeout(500);
+    const editModal2 = await page.$('.modal-overlay');
+    if (editModal2) {
+      const gridPhotos = await page.$$('.modal-overlay .edit-photo-grid .ql-photo-preview img');
+      assert(gridPhotos.length === 2, `Multi-photo edit modal shows grid with 2 photos (got ${gridPhotos.length})`);
+      if (gridPhotos.length >= 2) {
+        const src1 = await gridPhotos[0].getAttribute('src');
+        const src2 = await gridPhotos[1].getAttribute('src');
+        assert(src1 && src1.startsWith('blob:'), 'Multi-photo grid photo 1 has blob URL');
+        assert(src2 && src2.startsWith('blob:'), 'Multi-photo grid photo 2 has blob URL');
+        assert(src1 !== src2, 'Multi-photo grid shows two different photos');
+      }
+      await screenshot(page, 'photo-edit-modal-multi');
       const closeBtn = await page.$('.modal-close');
       if (closeBtn) await closeBtn.click();
       await page.waitForTimeout(200);
@@ -624,27 +664,27 @@ async function testPhotos(page, fixtures) {
   // Day 2 has 1 meal photo (synced status, not processed)
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[1]);
   await page.waitForTimeout(800);
-  const day2Thumbs = await page.$$('img.entry-photo-thumb');
+  const day2Thumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   assert(day2Thumbs.length >= 1, `Day 2 synced photo renders (got ${day2Thumbs.length})`);
   await screenshot(page, 'photos-day2');
 
   // Day 3 has 1 meal photo (dinner — dark/moody steak)
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[2]);
   await page.waitForTimeout(800);
-  const day3Thumbs = await page.$$('img.entry-photo-thumb');
+  const day3Thumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   assert(day3Thumbs.length >= 1, `Day 3 dinner photo renders (got ${day3Thumbs.length})`);
 
   // Day 5 has 2 meal photos (pizza + burger, both unsynced)
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]);
   await page.waitForTimeout(800);
-  const day5Thumbs = await page.$$('img.entry-photo-thumb');
+  const day5Thumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   assert(day5Thumbs.length >= 2, `Day 5 meal photos render (got ${day5Thumbs.length})`);
   await screenshot(page, 'photos-day5-vices');
 
   // Day 4 has no photos at all
   await page.evaluate((d) => App.goToDate(d), fixtures.dates[3]);
   await page.waitForTimeout(800);
-  const day4Thumbs = await page.$$('img.entry-photo-thumb');
+  const day4Thumbs = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
   const day4Locked = await page.$$('.entry-photo-locked');
   assert(day4Thumbs.length === 0 && day4Locked.length === 0, 'Day with no photos has no thumbnails');
 
@@ -664,6 +704,685 @@ async function testPhotos(page, fixtures) {
   assert(storageText.includes('photo') || storageText.includes('Photo') || storageText.includes('Clear'), 'Storage card references photos');
 
   await screenshot(page, 'profile-storage-with-photos');
+
+  // --- Multi-Photo DB Tests ---
+  console.log('\n--- Multi-Photo DB ---');
+
+  // Test addEntry with array of blobs (the new multi-photo path)
+  const multiPhotoResult = await page.evaluate(async () => {
+    // Create 3 small test blobs
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const ctx = canvas.getContext('2d');
+    const blobs = [];
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = ['red', 'green', 'blue'][i];
+      ctx.fillRect(0, 0, 10, 10);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+      blobs.push(blob);
+    }
+
+    const entry = {
+      id: 'multi_photo_test_entry',
+      type: 'meal',
+      date: '2026-01-01',
+      timestamp: new Date().toISOString(),
+      notes: 'Test multi-photo',
+      photo: true,
+    };
+    await DB.addEntry(entry, blobs);
+
+    // Retrieve and verify
+    const photos = await DB.getPhotos('multi_photo_test_entry');
+    return {
+      count: photos.length,
+      ids: photos.map(p => p.id),
+      allHaveBlobs: photos.every(p => p.blob instanceof Blob),
+      allSameEntry: photos.every(p => p.entryId === 'multi_photo_test_entry'),
+    };
+  });
+  assert(multiPhotoResult.count === 3, `addEntry with 3 blobs stores 3 photos (got ${multiPhotoResult.count})`);
+  assert(multiPhotoResult.ids[0] === 'photo_multi_photo_test_entry', `First photo ID follows legacy pattern (got ${multiPhotoResult.ids[0]})`);
+  assert(multiPhotoResult.ids[1] === 'photo_multi_photo_test_entry_2', `Second photo ID is numbered _2 (got ${multiPhotoResult.ids[1]})`);
+  assert(multiPhotoResult.ids[2] === 'photo_multi_photo_test_entry_3', `Third photo ID is numbered _3 (got ${multiPhotoResult.ids[2]})`);
+  assert(multiPhotoResult.allHaveBlobs, 'All multi-photo records have blobs');
+  assert(multiPhotoResult.allSameEntry, 'All multi-photo records share same entryId');
+
+  // Test addEntry with single blob (backward compatibility)
+  const singleBlobResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+    const entry = {
+      id: 'single_blob_compat_test',
+      type: 'meal',
+      date: '2026-01-01',
+      timestamp: new Date().toISOString(),
+      notes: 'Single blob compat',
+      photo: true,
+    };
+    await DB.addEntry(entry, blob);
+    const photos = await DB.getPhotos('single_blob_compat_test');
+    return { count: photos.length, id: photos[0]?.id };
+  });
+  assert(singleBlobResult.count === 1, `addEntry with single blob still works (got ${singleBlobResult.count})`);
+  assert(singleBlobResult.id === 'photo_single_blob_compat_test', `Single blob uses legacy ID pattern (got ${singleBlobResult.id})`);
+
+  // Test exportDay numbers multi-photo entries in ZIP
+  const exportResult = await page.evaluate(async () => {
+    const data = await DB.exportDay('2026-01-01');
+    const names = data.photoFiles.map(f => f.name);
+    // multi_photo_test_entry has 3 photos — should be numbered
+    const multiNames = names.filter(n => n.includes('multi_photo_test_entry'));
+    // single_blob_compat_test has 1 photo — no suffix
+    const singleNames = names.filter(n => n.includes('single_blob_compat_test'));
+    return { multiNames, singleNames };
+  });
+  assert(exportResult.multiNames.length === 3, `Export includes all 3 photos for multi-photo entry (got ${exportResult.multiNames.length})`);
+  assert(exportResult.multiNames.some(n => n.includes('_1.jpg')), `Export numbers first photo _1 (got ${exportResult.multiNames})`);
+  assert(exportResult.multiNames.some(n => n.includes('_3.jpg')), `Export numbers third photo _3 (got ${exportResult.multiNames})`);
+  assert(exportResult.singleNames.length === 1, `Export has 1 photo for single-photo entry (got ${exportResult.singleNames.length})`);
+  assert(!exportResult.singleNames[0].includes('_1'), `Single-photo export has no number suffix (got ${exportResult.singleNames[0]})`);
+
+  // Clean up test entries
+  await page.evaluate(async () => {
+    await DB.deleteEntry('multi_photo_test_entry');
+    await DB.deleteEntry('single_blob_compat_test');
+  });
+}
+
+async function testPhotoComprehensive(page, fixtures) {
+  console.log('\n--- Photo Comprehensive ---');
+
+  // Helper: create a temp image file for file chooser injection
+  const fs = require('fs');
+  const path = require('path');
+  const os = require('os');
+  function makeTempImage(label, color, w = 200, h = 200) {
+    // Returns a buffer we can write to a temp file
+    return page.evaluate(async (opts) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = opts.w; canvas.height = opts.h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = opts.color;
+      ctx.fillRect(0, 0, opts.w, opts.h);
+      ctx.fillStyle = '#fff';
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(opts.label, opts.w / 2, opts.h / 2);
+      const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+      return Array.from(new Uint8Array(await blob.arrayBuffer()));
+    }, { label, color, w, h });
+  }
+
+  // ---- DB: deleteEntry cascades to photos ----
+  const deleteResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    const entry = {
+      id: 'delete_cascade_test',
+      type: 'meal', date: '2026-02-01',
+      timestamp: new Date().toISOString(),
+      notes: 'Delete test', photo: true,
+    };
+    await DB.addEntry(entry, [blob, blob]);
+    const before = await DB.getPhotos('delete_cascade_test');
+    await DB.deleteEntry('delete_cascade_test');
+    const after = await DB.getPhotos('delete_cascade_test');
+    return { before: before.length, after: after.length };
+  });
+  assert(deleteResult.before === 2, `deleteEntry: had 2 photos before (got ${deleteResult.before})`);
+  assert(deleteResult.after === 0, `deleteEntry: 0 photos after cascade delete (got ${deleteResult.after})`);
+
+  // ---- DB: clearProcessedPhotos skips body photos ----
+  const clearResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    // Create a processed meal photo and a processed body photo
+    const db = await DB.openDB();
+    const tx = db.transaction('photos', 'readwrite');
+    tx.objectStore('photos').put({
+      id: 'clear_test_meal', entryId: 'clear_entry_1', date: '2026-02-02',
+      category: 'meal', syncStatus: 'processed', blob, timestamp: new Date().toISOString(),
+    });
+    tx.objectStore('photos').put({
+      id: 'clear_test_body', entryId: 'clear_entry_2', date: '2026-02-02',
+      category: 'body', syncStatus: 'processed', blob, timestamp: new Date().toISOString(),
+    });
+    await new Promise((r, e) => { tx.oncomplete = r; tx.onerror = e; });
+
+    const cleared = await DB.clearProcessedPhotos();
+
+    // Check what remains
+    const tx2 = db.transaction('photos', 'readonly');
+    const mealCheck = await new Promise(r => {
+      const req = tx2.objectStore('photos').get('clear_test_meal');
+      req.onsuccess = () => r(req.result);
+    });
+    const bodyCheck = await new Promise(r => {
+      const req = tx2.objectStore('photos').get('clear_test_body');
+      req.onsuccess = () => r(req.result);
+    });
+
+    // Clean up body photo
+    const tx3 = db.transaction('photos', 'readwrite');
+    tx3.objectStore('photos').delete('clear_test_body');
+    await new Promise(r => { tx3.oncomplete = r; });
+
+    return { cleared, mealGone: !mealCheck, bodyKept: !!bodyCheck };
+  });
+  assert(clearResult.mealGone, 'clearProcessedPhotos: meal photo deleted');
+  assert(clearResult.bodyKept, 'clearProcessedPhotos: body photo preserved');
+  assert(clearResult.cleared >= 1, `clearProcessedPhotos: returned count >= 1 (got ${clearResult.cleared})`);
+
+  // ---- DB: body photo category set correctly ----
+  const bodyCatResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    const entry = {
+      id: 'body_cat_test', type: 'bodyPhoto', subtype: 'front',
+      date: '2026-02-03', timestamp: new Date().toISOString(),
+      notes: '', photo: true,
+    };
+    await DB.addEntry(entry, blob);
+    const photos = await DB.getPhotos('body_cat_test');
+    const cat = photos[0]?.category;
+    await DB.deleteEntry('body_cat_test');
+    return { cat };
+  });
+  assert(bodyCatResult.cat === 'body', `Body photo entry gets category "body" (got "${bodyCatResult.cat}")`);
+
+  // ---- DB: getBodyPhotos filters by category ----
+  const bodyFilterResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    // Create one meal and one body photo on same date
+    const db = await DB.openDB();
+    const tx = db.transaction(['entries', 'photos'], 'readwrite');
+    tx.objectStore('entries').put({
+      id: 'meal_filter_test', type: 'meal', date: '2026-02-04',
+      timestamp: new Date().toISOString(), notes: '', photo: true,
+    });
+    tx.objectStore('photos').put({
+      id: 'photo_meal_filter', entryId: 'meal_filter_test', date: '2026-02-04',
+      category: 'meal', syncStatus: 'unsynced', blob, timestamp: new Date().toISOString(),
+    });
+    tx.objectStore('entries').put({
+      id: 'body_filter_test', type: 'bodyPhoto', date: '2026-02-04',
+      timestamp: new Date().toISOString(), notes: '', photo: true,
+    });
+    tx.objectStore('photos').put({
+      id: 'photo_body_filter', entryId: 'body_filter_test', date: '2026-02-04',
+      category: 'body', syncStatus: 'unsynced', blob, timestamp: new Date().toISOString(),
+    });
+    await new Promise((r, e) => { tx.oncomplete = r; tx.onerror = e; });
+
+    const bodyOnly = await DB.getBodyPhotos('2026-02-04');
+    const allPhotosForMeal = await DB.getPhotos('meal_filter_test');
+    const allPhotosForBody = await DB.getPhotos('body_filter_test');
+
+    // Clean up
+    await DB.deleteEntry('meal_filter_test');
+    await DB.deleteEntry('body_filter_test');
+
+    return {
+      bodyCount: bodyOnly.length,
+      bodyCategory: bodyOnly[0]?.category,
+      mealCount: allPhotosForMeal.length,
+      bodyEntryCount: allPhotosForBody.length,
+    };
+  });
+  assert(bodyFilterResult.bodyCount === 1, `getBodyPhotos returns only body photos (got ${bodyFilterResult.bodyCount})`);
+  assert(bodyFilterResult.bodyCategory === 'body', `getBodyPhotos: photo has body category`);
+  assert(bodyFilterResult.mealCount === 1, `getPhotos(meal) returns meal photo (got ${bodyFilterResult.mealCount})`);
+  assert(bodyFilterResult.bodyEntryCount === 1, `getPhotos(body) returns body photo (got ${bodyFilterResult.bodyEntryCount})`);
+
+  // ---- DB: exportDay body photos use progress/ path with subtype numbering ----
+  const bodyExportResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    // Create 2 body photos of same subtype + 1 different subtype
+    const db = await DB.openDB();
+    const tx = db.transaction(['entries', 'photos'], 'readwrite');
+    const date = '2026-02-05';
+    tx.objectStore('entries').put({ id: 'bodyPhoto_front_exp1', type: 'bodyPhoto', subtype: 'front', date, timestamp: new Date().toISOString(), photo: true });
+    tx.objectStore('entries').put({ id: 'bodyPhoto_front_exp2', type: 'bodyPhoto', subtype: 'front', date, timestamp: new Date().toISOString(), photo: true });
+    tx.objectStore('entries').put({ id: 'bodyPhoto_side_exp1', type: 'bodyPhoto', subtype: 'side', date, timestamp: new Date().toISOString(), photo: true });
+    tx.objectStore('photos').put({ id: 'p_front1', entryId: 'bodyPhoto_front_exp1', date, category: 'body', syncStatus: 'unsynced', blob, timestamp: new Date().toISOString() });
+    tx.objectStore('photos').put({ id: 'p_front2', entryId: 'bodyPhoto_front_exp2', date, category: 'body', syncStatus: 'unsynced', blob, timestamp: new Date().toISOString() });
+    tx.objectStore('photos').put({ id: 'p_side1', entryId: 'bodyPhoto_side_exp1', date, category: 'body', syncStatus: 'unsynced', blob, timestamp: new Date().toISOString() });
+    await new Promise((r, e) => { tx.oncomplete = r; tx.onerror = e; });
+
+    const data = await DB.exportDay(date);
+    const names = data.photoFiles.map(f => f.name);
+
+    // Clean up
+    await DB.deleteEntry('bodyPhoto_front_exp1');
+    await DB.deleteEntry('bodyPhoto_front_exp2');
+    await DB.deleteEntry('bodyPhoto_side_exp1');
+
+    return { names };
+  });
+  assert(bodyExportResult.names.some(n => n === 'body/front.jpg'), `Body export has front.jpg (got ${bodyExportResult.names})`);
+  assert(bodyExportResult.names.some(n => n === 'body/front_2.jpg'), `Body export has front_2.jpg for second (got ${bodyExportResult.names})`);
+  assert(bodyExportResult.names.some(n => n === 'body/side.jpg'), `Body export has side.jpg (got ${bodyExportResult.names})`);
+  assert(bodyExportResult.names.length === 3, `Body export has 3 total photos (got ${bodyExportResult.names.length})`);
+
+  // ---- DB: addEntry with null/undefined photoBlobs ----
+  const nullPhotoResult = await page.evaluate(async () => {
+    const entry = {
+      id: 'null_photo_test', type: 'meal', date: '2026-02-06',
+      timestamp: new Date().toISOString(), notes: 'No photo', photo: false,
+    };
+    await DB.addEntry(entry, null);
+    await DB.addEntry({ ...entry, id: 'undef_photo_test' }, undefined);
+    const photos1 = await DB.getPhotos('null_photo_test');
+    const photos2 = await DB.getPhotos('undef_photo_test');
+    await DB.deleteEntry('null_photo_test');
+    await DB.deleteEntry('undef_photo_test');
+    return { null: photos1.length, undef: photos2.length };
+  });
+  assert(nullPhotoResult.null === 0, `addEntry with null photoBlobs stores no photos (got ${nullPhotoResult.null})`);
+  assert(nullPhotoResult.undef === 0, `addEntry with undefined photoBlobs stores no photos (got ${nullPhotoResult.undef})`);
+
+  // ---- DB: addEntry with empty array ----
+  const emptyArrayResult = await page.evaluate(async () => {
+    const entry = {
+      id: 'empty_arr_test', type: 'meal', date: '2026-02-06',
+      timestamp: new Date().toISOString(), notes: 'Empty array', photo: false,
+    };
+    await DB.addEntry(entry, []);
+    const photos = await DB.getPhotos('empty_arr_test');
+    await DB.deleteEntry('empty_arr_test');
+    return { count: photos.length };
+  });
+  assert(emptyArrayResult.count === 0, `addEntry with empty array stores no photos (got ${emptyArrayResult.count})`);
+
+  // ---- Camera: compression produces smaller blob ----
+  const compressResult = await page.evaluate(async () => {
+    // Create a large-ish canvas image
+    const canvas = document.createElement('canvas');
+    canvas.width = 1600; canvas.height = 1200;
+    const ctx = canvas.getContext('2d');
+    // Fill with random noise to make compression meaningful
+    for (let i = 0; i < 100; i++) {
+      ctx.fillStyle = `rgb(${Math.random()*255|0},${Math.random()*255|0},${Math.random()*255|0})`;
+      ctx.fillRect(Math.random()*1600, Math.random()*1200, 100, 100);
+    }
+    const originalBlob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+    const result = await Camera.compress(originalBlob, 'meal');
+    return {
+      originalSize: originalBlob.size,
+      compressedSize: result.blob.size,
+      hasUrl: typeof result.url === 'string' && result.url.startsWith('blob:'),
+      isJpeg: result.blob.type === 'image/jpeg',
+    };
+  });
+  assert(compressResult.compressedSize < compressResult.originalSize, `Camera.compress reduces size (${compressResult.originalSize} → ${compressResult.compressedSize})`);
+  assert(compressResult.hasUrl, 'Camera.compress returns blob URL');
+  assert(compressResult.isJpeg, 'Camera.compress output is JPEG');
+
+  // ---- Camera: compress respects preset max dimension ----
+  const presetResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2000; canvas.height = 1500;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#888';
+    ctx.fillRect(0, 0, 2000, 1500);
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    const mealResult = await Camera.compress(blob, 'meal');
+    const bodyResult = await Camera.compress(blob, 'body');
+
+    // Check dimensions by loading the compressed images
+    const loadDim = (b) => new Promise(r => {
+      const img = new Image();
+      img.onload = () => { r({ w: img.naturalWidth, h: img.naturalHeight }); URL.revokeObjectURL(img.src); };
+      img.src = URL.createObjectURL(b);
+    });
+    const mealDim = await loadDim(mealResult.blob);
+    const bodyDim = await loadDim(bodyResult.blob);
+
+    Camera.revokeURL(mealResult.url);
+    Camera.revokeURL(bodyResult.url);
+
+    return { mealDim, bodyDim };
+  });
+  assert(presetResult.mealDim.w <= 800 && presetResult.mealDim.h <= 800, `Meal preset max 800px (got ${presetResult.mealDim.w}x${presetResult.mealDim.h})`);
+  assert(presetResult.bodyDim.w <= 1200 && presetResult.bodyDim.h <= 1200, `Body preset max 1200px (got ${presetResult.bodyDim.w}x${presetResult.bodyDim.h})`);
+  // Aspect ratio preserved
+  const mealRatio = presetResult.mealDim.w / presetResult.mealDim.h;
+  assert(Math.abs(mealRatio - (2000/1500)) < 0.05, `Meal compression preserves aspect ratio (got ${mealRatio.toFixed(2)}, expected ~1.33)`);
+
+  // ---- Camera: createPreview returns correct DOM structure ----
+  const previewStructure = await page.evaluate(() => {
+    const url = URL.createObjectURL(new Blob(['test'], { type: 'image/jpeg' }));
+    let removeCalled = false;
+    const preview = Camera.createPreview(url, () => { removeCalled = true; });
+    const hasPreviewClass = preview.classList.contains('photo-preview');
+    const img = preview.querySelector('.photo-preview-img');
+    const removeBtn = preview.querySelector('.photo-preview-remove');
+    const removeLabel = removeBtn?.getAttribute('aria-label');
+
+    // Trigger remove
+    if (removeBtn) removeBtn.click();
+
+    URL.revokeObjectURL(url);
+    return {
+      hasPreviewClass,
+      hasImg: !!img,
+      imgSrc: img?.src?.startsWith('blob:') || false,
+      hasRemoveBtn: !!removeBtn,
+      removeLabel,
+      removeCalled,
+    };
+  });
+  assert(previewStructure.hasPreviewClass, 'createPreview: has .photo-preview class');
+  assert(previewStructure.hasImg, 'createPreview: contains img.photo-preview-img');
+  assert(previewStructure.hasRemoveBtn, 'createPreview: contains remove button');
+  assert(previewStructure.removeLabel === 'Remove photo', 'createPreview: remove button has aria-label');
+  assert(previewStructure.removeCalled, 'createPreview: remove callback fires on click');
+
+  // ---- Log form: multi-photo add and remove via inline form ----
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]);
+  await page.waitForTimeout(500);
+
+  // Open the inline Log form directly via Log.selectType('meal')
+  // The More sheet → Food opens a different single-photo modal (showFoodNote)
+  // Multi-photo is in the Log form, reachable via the + Add Entry grid or directly
+  await page.evaluate(() => {
+    // Show the inline log form for Food type
+    const logGrid = document.getElementById('log-type-grid-inline');
+    if (logGrid) logGrid.style.display = 'none';
+    Log._gridId = 'log-type-grid-inline';
+    Log._formId = null;
+    Log._formContentId = 'log-form-content-inline';
+    Log.selectType('meal');
+    const inlineForm = document.getElementById('log-form-inline');
+    if (inlineForm) inlineForm.style.display = 'block';
+  });
+  await page.waitForTimeout(500);
+
+  {
+    // The form should have photo buttons
+    const captureBtn = await page.$('#log-photo-capture');
+    const pickBtn = await page.$('#log-photo-pick');
+    assert(!!captureBtn, 'Food form: Take Photo button exists');
+    assert(!!pickBtn, 'Food form: Choose from Library button exists');
+
+      // Preview area starts empty
+      const previewArea = await page.$('#log-photo-preview-area');
+      const initialPreviews = await page.$$('#log-photo-preview-area .photo-preview');
+      assert(initialPreviews.length === 0, 'Food form: preview area starts empty');
+
+      // Use file chooser to add first photo
+      const buf1 = Buffer.from(await makeTempImage('PHOTO 1', '#e74c3c'));
+      const tmp1 = path.join(os.tmpdir(), 'test-multi-1.jpg');
+      fs.writeFileSync(tmp1, buf1);
+
+      const [fc1] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        pickBtn.click(),
+      ]);
+      await fc1.setFiles(tmp1);
+      await page.waitForTimeout(400);
+      try { fs.unlinkSync(tmp1); } catch (_) {}
+
+      const after1 = await page.$$('#log-photo-preview-area .photo-preview');
+      assert(after1.length === 1, `Food form: 1 preview after first photo (got ${after1.length})`);
+
+      // Add second photo
+      const buf2 = Buffer.from(await makeTempImage('PHOTO 2', '#3498db'));
+      const tmp2 = path.join(os.tmpdir(), 'test-multi-2.jpg');
+      fs.writeFileSync(tmp2, buf2);
+
+      const [fc2] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        pickBtn.click(),
+      ]);
+      await fc2.setFiles(tmp2);
+      await page.waitForTimeout(400);
+      try { fs.unlinkSync(tmp2); } catch (_) {}
+
+      const after2 = await page.$$('#log-photo-preview-area .photo-preview');
+      assert(after2.length === 2, `Food form: 2 previews after second photo (got ${after2.length})`);
+
+      // Each preview has an image and remove button
+      const previewImgs = await page.$$('#log-photo-preview-area .photo-preview-img');
+      const removeBtns = await page.$$('#log-photo-preview-area .photo-preview-remove');
+      assert(previewImgs.length === 2, `Food form: 2 preview images (got ${previewImgs.length})`);
+      assert(removeBtns.length === 2, `Food form: 2 remove buttons (got ${removeBtns.length})`);
+
+      // Remove first photo — should leave 1
+      if (removeBtns.length >= 1) {
+        await removeBtns[0].click();
+        await page.waitForTimeout(300);
+        const afterRemove = await page.$$('#log-photo-preview-area .photo-preview');
+        assert(afterRemove.length === 1, `Food form: 1 preview after removing first (got ${afterRemove.length})`);
+      }
+
+      // Verify pendingPhotos array in JS
+      const pendingCount = await page.evaluate(() => Log.pendingPhotos.length);
+      assert(pendingCount === 1, `Log.pendingPhotos has 1 item after removal (got ${pendingCount})`);
+
+      await screenshot(page, 'photo-multi-form-preview');
+
+      // Add a third photo then save — verify 2 photos stored (1 remaining + 1 new)
+      const buf3 = Buffer.from(await makeTempImage('PHOTO 3', '#9b59b6'));
+      const tmp3 = path.join(os.tmpdir(), 'test-multi-3.jpg');
+      fs.writeFileSync(tmp3, buf3);
+
+      const [fc3] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        pickBtn.click(),
+      ]);
+      await fc3.setFiles(tmp3);
+      await page.waitForTimeout(400);
+      try { fs.unlinkSync(tmp3); } catch (_) {}
+
+      const before3 = await page.$$('#log-photo-preview-area .photo-preview');
+      assert(before3.length === 2, `Food form: 2 previews before save (got ${before3.length})`);
+
+      // Fill notes and save
+      const notesField = await page.$('#log-notes');
+      if (notesField) await notesField.fill('Multi-photo test entry');
+
+      const saveBtn = await page.$('.btn-primary.btn-block.btn-lg');
+      if (saveBtn) {
+        await saveBtn.click();
+        await page.waitForTimeout(800);
+      }
+
+      // Verify entry saved with 2 photos in DB
+      const savedCheck = await page.evaluate(async () => {
+        const entries = await DB.getEntriesByDate(App.selectedDate);
+        const multi = entries.find(e => e.notes === 'Multi-photo test entry');
+        if (!multi) return null;
+        const photos = await DB.getPhotos(multi.id);
+        return {
+          entryId: multi.id,
+          photoFlag: multi.photo,
+          count: photos.length,
+          ids: photos.map(p => p.id),
+          allMeal: photos.every(p => p.category === 'meal'),
+          allUnsynced: photos.every(p => p.syncStatus === 'unsynced'),
+          allHaveBlobs: photos.every(p => p.blob instanceof Blob),
+        };
+      });
+      assert(savedCheck, 'Multi-photo entry found in DB after save');
+      if (savedCheck) {
+        assert(savedCheck.photoFlag === true, 'Multi-photo entry has photo: true');
+        assert(savedCheck.count === 2, `Multi-photo entry has 2 photos in DB (got ${savedCheck.count})`);
+        assert(savedCheck.allMeal, 'All photos have category "meal"');
+        assert(savedCheck.allUnsynced, 'All photos have syncStatus "unsynced"');
+        assert(savedCheck.allHaveBlobs, 'All photos have blob data');
+      }
+
+      // Verify pendingPhotos cleared after save
+      const pendingAfterSave = await page.evaluate(() => Log.pendingPhotos.length);
+      assert(pendingAfterSave === 0, `pendingPhotos empty after save (got ${pendingAfterSave})`);
+
+      // Verify entry renders with count badge
+      await page.waitForTimeout(500);
+      const newBadges = await page.$$('.photo-count-badge');
+      const hasBadge2 = await page.evaluate(() => {
+        const badges = document.querySelectorAll('.photo-count-badge');
+        return Array.from(badges).some(b => b.textContent === '2');
+      });
+      assert(hasBadge2, 'New multi-photo entry shows count badge "2"');
+
+      // Tap the new entry to verify edit modal shows photo grid
+      const newEntry = await page.evaluate(async () => {
+        const entries = await DB.getEntriesByDate(App.selectedDate);
+        return entries.find(e => e.notes === 'Multi-photo test entry')?.id || null;
+      });
+      if (newEntry) {
+        // Find and click the entry
+        const entryItems = await page.$$('.entry-item');
+        for (const item of entryItems) {
+          const notes = await item.$('.entry-notes');
+          if (notes) {
+            const text = await notes.textContent();
+            if (text.includes('Multi-photo test')) {
+              await item.click();
+              break;
+            }
+          }
+        }
+        await page.waitForTimeout(500);
+
+        const gridPhotos = await page.$$('.edit-photo-grid .ql-photo-preview');
+        assert(gridPhotos.length === 2, `Edit modal: photo grid shows 2 photos (got ${gridPhotos.length})`);
+
+        // Click a grid photo to open viewer
+        if (gridPhotos.length >= 1) {
+          await gridPhotos[0].click();
+          await page.waitForTimeout(400);
+          const viewer = await page.$('.photo-viewer-overlay');
+          assert(!!viewer, 'Edit modal: clicking grid photo opens viewer');
+          if (viewer) {
+            const viewerImg = await page.$('.photo-viewer-overlay img');
+            assert(!!viewerImg, 'Photo viewer has image element');
+            const viewerClose = await page.$('.photo-viewer-close');
+            if (viewerClose) await viewerClose.click();
+            await page.waitForTimeout(200);
+          }
+        }
+
+        await screenshot(page, 'photo-edit-modal-multi-new');
+
+        const closeBtn = await page.$('#edit-close');
+        if (closeBtn) await closeBtn.click();
+        await page.waitForTimeout(200);
+
+        // Clean up the test entry
+        await page.evaluate(async (id) => { await DB.deleteEntry(id); }, newEntry);
+      }
+  }
+
+  // ---- Inline form: clearPendingPhotos on type switch ----
+  const clearOnSwitch = await page.evaluate(() => {
+    // Simulate: add fake pending photos then switch type
+    Log.pendingPhotos = [
+      { blob: new Blob(['a']), url: 'blob:fake1', takenAt: null },
+      { blob: new Blob(['b']), url: 'blob:fake2', takenAt: null },
+    ];
+    const before = Log.pendingPhotos.length;
+    Log.selectType('workout');
+    const after = Log.pendingPhotos.length;
+    return { before, after };
+  });
+  assert(clearOnSwitch.before === 2, `clearPendingPhotos: had 2 before switch`);
+  assert(clearOnSwitch.after === 0, `clearPendingPhotos: 0 after type switch (got ${clearOnSwitch.after})`);
+
+  // ---- _getEntryDate: camera capture uses photo date ----
+  const entryDateResult = await page.evaluate(() => {
+    // Simulate camera capture with specific date
+    Log.pendingPhotos = [{ blob: new Blob(['x']), url: 'blob:test', takenAt: '2026-01-15T14:30:00.000Z' }];
+    const date = Log._getEntryDate();
+    const ts = Log._getEntryTimestamp();
+    Log.pendingPhotos = [];
+    return { date, ts };
+  });
+  assert(entryDateResult.date === '2026-01-15', `_getEntryDate uses photo date for captures (got ${entryDateResult.date})`);
+  assert(entryDateResult.ts === '2026-01-15T14:30:00.000Z', `_getEntryTimestamp uses photo takenAt (got ${entryDateResult.ts})`);
+
+  // ---- _getEntryDate: gallery pick uses selectedDate ----
+  const galleryDateResult = await page.evaluate(() => {
+    Log.pendingPhotos = [{ blob: new Blob(['x']), url: 'blob:test', takenAt: null }];
+    const date = Log._getEntryDate();
+    Log.pendingPhotos = [];
+    return { date, selectedDate: App.selectedDate };
+  });
+  assert(galleryDateResult.date === galleryDateResult.selectedDate, `_getEntryDate uses App.selectedDate for gallery picks`);
+
+  // ---- _getEntryDate: no photos uses selectedDate ----
+  const noPhotoDateResult = await page.evaluate(() => {
+    Log.pendingPhotos = [];
+    return { date: Log._getEntryDate(), selectedDate: App.selectedDate };
+  });
+  assert(noPhotoDateResult.date === noPhotoDateResult.selectedDate, `_getEntryDate uses App.selectedDate when no photos`);
+
+  // ---- Photo sync status counts are accurate ----
+  const syncStatusResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 5; canvas.height = 5;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    const db = await DB.openDB();
+    const tx = db.transaction('photos', 'readwrite');
+    tx.objectStore('photos').put({ id: 'sync_test_1', entryId: 'st1', date: '2026-02-10', category: 'meal', syncStatus: 'unsynced', blob, timestamp: '' });
+    tx.objectStore('photos').put({ id: 'sync_test_2', entryId: 'st2', date: '2026-02-10', category: 'meal', syncStatus: 'synced', blob, timestamp: '' });
+    tx.objectStore('photos').put({ id: 'sync_test_3', entryId: 'st3', date: '2026-02-10', category: 'meal', syncStatus: 'processed', blob, timestamp: '' });
+    await new Promise((r, e) => { tx.oncomplete = r; tx.onerror = e; });
+
+    const status = await DB.getPhotoSyncStatus();
+
+    // Clean up
+    const tx2 = db.transaction('photos', 'readwrite');
+    tx2.objectStore('photos').delete('sync_test_1');
+    tx2.objectStore('photos').delete('sync_test_2');
+    tx2.objectStore('photos').delete('sync_test_3');
+    await new Promise(r => { tx2.oncomplete = r; });
+
+    return { unsynced: status.unsynced, synced: status.synced, processed: status.processed };
+  });
+  // These include fixture photos too, so just check the test ones were counted
+  assert(syncStatusResult.unsynced >= 1, `Sync status: unsynced >= 1 (got ${syncStatusResult.unsynced})`);
+  assert(syncStatusResult.synced >= 1, `Sync status: synced >= 1 (got ${syncStatusResult.synced})`);
+  assert(syncStatusResult.processed >= 1, `Sync status: processed >= 1 (got ${syncStatusResult.processed})`);
+
+  // ---- Export: entry with no photos produces no photoFiles ----
+  const noPhotoExport = await page.evaluate(async () => {
+    const entry = {
+      id: 'no_photo_export_test', type: 'meal', date: '2026-02-11',
+      timestamp: new Date().toISOString(), notes: 'No photo entry', photo: false,
+    };
+    await DB.addEntry(entry, null);
+    const data = await DB.exportDay('2026-02-11');
+    await DB.deleteEntry('no_photo_export_test');
+    return { photoCount: data.photoFiles.length, entryCount: data.log.entries.length };
+  });
+  assert(noPhotoExport.photoCount === 0, `Export: no photoFiles for entry without photo (got ${noPhotoExport.photoCount})`);
+  assert(noPhotoExport.entryCount === 1, `Export: entry still in log (got ${noPhotoExport.entryCount})`);
+
+  await screenshot(page, 'photo-comprehensive-done');
+
+  // Reload day view to restore state
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]);
+  await page.waitForTimeout(500);
 }
 
 async function testUserFlows(page, fixtures) {
@@ -1084,7 +1803,7 @@ async function testUserFlows(page, fixtures) {
 
         // Check that the new entry has a photo thumbnail
         await page.waitForTimeout(500); // wait for async photo load
-        const mealThumbs7 = await page.$$('img.entry-photo-thumb');
+        const mealThumbs7 = await page.$$('.entry-photo-thumbs img.entry-photo-thumb');
         assert(mealThumbs7.length >= 1, `Flow 7: Entry has photo thumbnail (got ${mealThumbs7.length})`);
 
         // Verify photo blob exists in IndexedDB
@@ -1148,6 +1867,102 @@ async function testProfileRoundTrip(page, fixtures) {
   assert(supplements && supplements.length >= 3, `Supplements restored from pwaProfile (got ${supplements?.length})`);
 
   await screenshot(page, 'profile-round-trip');
+
+  // --- Supplement Update Merge Tests ---
+  console.log('\n--- Supplement Merge ---');
+
+  // Test 1: supplementUpdates with matching key works
+  const matchKeyResult = await page.evaluate(async () => {
+    await DB.setProfile('supplements', [
+      { key: 'creatine', name: 'Creatine', calories: 0, protein: 0, pending: false },
+      { key: 'new_item', name: 'New item', calories: 0, protein: 0, pending: true, photo: 'data:image/jpeg;base64,abc123' },
+    ]);
+    await DB.importAnalysis('2099-02-01', {
+      date: '2099-02-01',
+      entries: [],
+      supplementUpdates: [
+        { key: 'new_item', name: 'Protein Powder', calories: 120, protein: 24, carbs: 3, fat: 1 },
+      ],
+    });
+    const result = await DB.getProfile('supplements');
+    return result;
+  });
+  const updatedItem = matchKeyResult.find(s => s.name === 'Protein Powder');
+  assert(!!updatedItem, 'Supplement merge: matching key updates name to "Protein Powder"');
+  assert(updatedItem && updatedItem.pending === false, 'Supplement merge: pending set to false');
+  assert(updatedItem && updatedItem.calories === 120, `Supplement merge: calories updated (got ${updatedItem?.calories})`);
+  assert(updatedItem && updatedItem.protein === 24, `Supplement merge: protein updated (got ${updatedItem?.protein})`);
+  assert(updatedItem && !updatedItem.photo, 'Supplement merge: photo field deleted after processing');
+  // Creatine should be untouched
+  const creatine = matchKeyResult.find(s => s.key === 'creatine');
+  assert(creatine && creatine.name === 'Creatine', 'Supplement merge: non-pending items untouched');
+
+  // Test 2: supplementUpdates with WRONG key falls back to pending match
+  const fallbackResult = await page.evaluate(async () => {
+    await DB.setProfile('supplements', [
+      { key: 'vitamin_d', name: 'Vitamin D', calories: 0, protein: 0, pending: false },
+      { key: 'new_item', name: 'New item', calories: 0, protein: 0, pending: true, photo: 'data:image/jpeg;base64,xyz' },
+    ]);
+    await DB.importAnalysis('2099-02-02', {
+      date: '2099-02-02',
+      entries: [],
+      supplementUpdates: [
+        { key: 'whey_protein', name: 'Whey Protein', calories: 130, protein: 26, carbs: 4, fat: 2 },
+      ],
+    });
+    return await DB.getProfile('supplements');
+  });
+  const fallbackItem = fallbackResult.find(s => s.name === 'Whey Protein');
+  assert(!!fallbackItem, 'Supplement merge: wrong key falls back to pending item match');
+  assert(fallbackItem && fallbackItem.pending === false, 'Supplement merge: fallback sets pending=false');
+  assert(fallbackItem && fallbackItem.calories === 130, `Supplement merge: fallback updates calories (got ${fallbackItem?.calories})`);
+  assert(fallbackItem && !fallbackItem.photo, 'Supplement merge: fallback deletes photo');
+  // Key should be updated to match new name
+  assert(fallbackItem && fallbackItem.key === 'whey_protein', `Supplement merge: key updated to match name (got ${fallbackItem?.key})`);
+
+  // Test 3: pwaProfile.supplements NOT overwritten when supplementUpdates present
+  const noOverwriteResult = await page.evaluate(async () => {
+    // Set current state: already-processed supplement
+    await DB.setProfile('supplements', [
+      { key: 'processed_item', name: 'Already Processed', calories: 100, protein: 10, pending: false },
+    ]);
+    // Import with BOTH pwaProfile (stale pending data) AND supplementUpdates
+    await DB.importAnalysis('2099-02-03', {
+      date: '2099-02-03',
+      entries: [],
+      pwaProfile: {
+        supplements: [
+          { key: 'new_item', name: 'New item', calories: 0, protein: 0, pending: true, photo: 'data:stale' },
+        ],
+      },
+      supplementUpdates: [
+        { key: 'processed_item', name: 'Updated Name', calories: 200, protein: 20, carbs: 5, fat: 3 },
+      ],
+    });
+    return await DB.getProfile('supplements');
+  });
+  // pwaProfile should NOT have overwritten — current state should be preserved and merged
+  assert(noOverwriteResult.length === 1, `No-overwrite: still 1 supplement (got ${noOverwriteResult.length})`);
+  const mergedItem = noOverwriteResult[0];
+  assert(mergedItem && mergedItem.name === 'Updated Name', `No-overwrite: name updated via merge (got ${mergedItem?.name})`);
+  assert(mergedItem && mergedItem.calories === 200, `No-overwrite: calories from merge (got ${mergedItem?.calories})`);
+
+  // Test 4: pwaProfile.supplements echoed back when NO supplementUpdates
+  const echoResult = await page.evaluate(async () => {
+    await DB.setProfile('supplements', []);
+    await DB.importAnalysis('2099-02-04', {
+      date: '2099-02-04',
+      entries: [],
+      pwaProfile: {
+        supplements: [
+          { key: 'echo_test', name: 'Echoed Item', calories: 50, protein: 5, pending: false },
+        ],
+      },
+    });
+    return await DB.getProfile('supplements');
+  });
+  assert(echoResult.length === 1, `Echo: pwaProfile supplements restored when no updates (got ${echoResult.length})`);
+  assert(echoResult[0]?.name === 'Echoed Item', `Echo: correct name restored (got ${echoResult[0]?.name})`);
 }
 
 async function testAnalysisStatusIndicators(page, fixtures) {
@@ -1726,6 +2541,104 @@ async function testFitnessPanel(page, fixtures) {
 }
 
 async function testVisualQA(page, fixtures) {
+  console.log('\n--- Accessibility & Polish ---');
+
+  // All modal close buttons should have aria-label="Close"
+  // Open a modal to test
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  const moreBtn = await page.$('#quick-more-btn');
+  if (moreBtn) {
+    await moreBtn.click();
+    await page.waitForTimeout(400);
+    const closeBtn = await page.$('.modal-close');
+    const ariaLabel = closeBtn ? await closeBtn.getAttribute('aria-label') : null;
+    assert(ariaLabel === 'Close', `Modal close button has aria-label="Close" (got "${ariaLabel}")`);
+    await closeBtn.click();
+    await page.waitForTimeout(200);
+  }
+
+  // Edit modal close button should also have aria-label
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(500);
+  const entryForA11y = await page.$('.entry-item[data-type="meal"]');
+  if (entryForA11y) {
+    await entryForA11y.click();
+    await page.waitForTimeout(400);
+    const editClose = await page.$('#edit-close');
+    const editAriaLabel = editClose ? await editClose.getAttribute('aria-label') : null;
+    assert(editAriaLabel === 'Close', `Edit modal close has aria-label="Close" (got "${editAriaLabel}")`);
+    await editClose.click();
+    await page.waitForTimeout(200);
+  }
+
+  // formatRelativeDate uses UI.yesterday() (boundary-aware), not raw Date
+  const relDateCheck = await page.evaluate(() => {
+    // UI.yesterday() is boundary-aware; verify formatRelativeDate matches
+    const yesterday = UI.yesterday();
+    const result = UI.formatRelativeDate(yesterday);
+    return { result, yesterday };
+  });
+  assert(relDateCheck.result === 'Yesterday', `formatRelativeDate(yesterday) returns "Yesterday" (got "${relDateCheck.result}")`);
+
+  // Stale copy check: sync setup text should say "Settings > Cloud Sync", not "Profile > Cloud Sync"
+  const staleCopyCheck = await page.evaluate(() => {
+    if (typeof App._showSyncSetupStep === 'function') {
+      const src = App._showSyncSetupStep.toString();
+      return {
+        hasStaleRef: src.includes('Profile &gt; Cloud Sync') || src.includes('Profile > Cloud Sync'),
+        hasCorrectRef: src.includes('Settings &gt; Cloud Sync') || src.includes('Settings > Cloud Sync'),
+      };
+    }
+    return null;
+  });
+  if (staleCopyCheck) {
+    assert(!staleCopyCheck.hasStaleRef, 'Sync setup does not say "Profile > Cloud Sync"');
+    assert(staleCopyCheck.hasCorrectRef, 'Sync setup says "Settings > Cloud Sync"');
+  }
+
+  // --color-danger should be defined in CSS (not just fallback)
+  const dangerVar = await page.evaluate(() => {
+    return getComputedStyle(document.documentElement).getPropertyValue('--color-danger').trim();
+  });
+  assert(dangerVar.length > 0, `--color-danger CSS variable is defined (got "${dangerVar}")`);
+
+  // Edit modal: updatedAt should not change when nothing is edited
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(300);
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(500);
+  const noChangeTest = await page.evaluate(async () => {
+    const entries = await DB.getEntriesByDate(App.selectedDate);
+    const meal = entries.find(e => e.type === 'meal');
+    if (!meal) return null;
+    const origUpdatedAt = meal.updatedAt || null;
+    return { id: meal.id, origUpdatedAt };
+  });
+  if (noChangeTest) {
+    // Open edit modal, save without changes
+    const editEntry = await page.$('.entry-item[data-type="meal"]');
+    if (editEntry) {
+      await editEntry.click();
+      await page.waitForTimeout(400);
+      await page.click('#edit-save');
+      await page.waitForTimeout(400);
+      const afterSave = await page.evaluate(async (id) => {
+        const entries = await DB.getEntriesByDate(App.selectedDate);
+        const e = entries.find(x => x.id === id);
+        return e ? (e.updatedAt || null) : null;
+      }, noChangeTest.id);
+      assert(afterSave === noChangeTest.origUpdatedAt, `Edit modal: updatedAt unchanged when nothing edited (before=${noChangeTest.origUpdatedAt}, after=${afterSave})`);
+    }
+  }
+
+  // batchPhotos: verify error feedback path exists (check source for error toast)
+  const batchErrorCheck = await page.evaluate(() => {
+    const src = QuickLog.batchPhotos.toString();
+    return src.includes("'error'") && src.includes('Failed');
+  });
+  assert(batchErrorCheck, 'batchPhotos has error toast for zero-save case');
+
   console.log('\n--- Visual QA ---');
 
   // Ensure we're on the Today screen, Diet panel
@@ -4593,6 +5506,7 @@ async function run() {
     await testScoring(page, fixtures);
     await testEntryTypes(page, fixtures);
     await testPhotos(page, fixtures);
+    await testPhotoComprehensive(page, fixtures);
     await testUserFlows(page, fixtures);
     await testFixtureSchema(fixtures);
     await testProfileRoundTrip(page, fixtures);

@@ -93,23 +93,28 @@ function openDB() {
 
 // --- Entries ---
 
-async function addEntry(entry, photoBlob) {
+async function addEntry(entry, photoBlobs) {
   const db = await openDB();
   const tx = db.transaction(['entries', 'photos'], 'readwrite');
 
   tx.objectStore('entries').put(entry);
 
-  if (photoBlob) {
-    const photoRecord = {
-      id: `photo_${entry.id}`,
-      entryId: entry.id,
-      date: entry.date,
-      category: entry.type === 'bodyPhoto' ? 'body' : 'meal',
-      syncStatus: 'unsynced',
-      blob: photoBlob,
-      timestamp: entry.timestamp,
-    };
-    tx.objectStore('photos').put(photoRecord);
+  if (photoBlobs) {
+    // Support both single blob (legacy) and array of blobs
+    const blobs = Array.isArray(photoBlobs) ? photoBlobs : [photoBlobs];
+    const category = entry.type === 'bodyPhoto' ? 'body' : 'meal';
+    for (let i = 0; i < blobs.length; i++) {
+      const photoRecord = {
+        id: i === 0 ? `photo_${entry.id}` : `photo_${entry.id}_${i + 1}`,
+        entryId: entry.id,
+        date: entry.date,
+        category,
+        syncStatus: 'unsynced',
+        blob: blobs[i],
+        timestamp: entry.timestamp,
+      };
+      tx.objectStore('photos').put(photoRecord);
+    }
   }
 
   return new Promise((resolve, reject) => {
@@ -361,7 +366,9 @@ async function importAnalysis(dateStr, data) {
     if (data.pwaProfile.goals) {
       profileStore.put({ key: 'goals', value: data.pwaProfile.goals });
     }
-    if (data.pwaProfile.supplements) {
+    if (data.pwaProfile.supplements && !data.supplementUpdates) {
+      // Only echo-back supplements if no supplementUpdates — otherwise the merge
+      // handles it and we'd overwrite current state with stale pending data + photo blobs
       profileStore.put({ key: 'supplements', value: data.pwaProfile.supplements });
     }
     if (data.pwaProfile.bodyPhotoTypes) {
@@ -386,9 +393,18 @@ async function importAnalysis(dateStr, data) {
       suppReq.onsuccess = () => {
         const existing = suppReq.result?.value || [];
         for (const update of data.supplementUpdates) {
-          const match = existing.find(s => s.key === update.key);
+          // Match by key first, fall back to matching any pending item
+          // (processing may output a product-name-based key instead of the original)
+          let match = existing.find(s => s.key === update.key);
+          if (!match) {
+            match = existing.find(s => s.pending);
+          }
           if (match) {
-            if (update.name) match.name = update.name;
+            if (update.name) {
+              match.name = update.name;
+              // Update key to match the new name so future updates align
+              match.key = update.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 50);
+            }
             if (update.calories != null) match.calories = update.calories;
             if (update.protein != null) match.protein = update.protein;
             if (update.carbs != null) match.carbs = update.carbs;
@@ -552,11 +568,12 @@ async function exportDay(dateStr) {
   for (const entry of entries) {
     if (entry.type === 'bodyPhoto') continue;
     const photos = await getPhotos(entry.id);
-    for (const photo of photos) {
-      if (photo.blob) {
+    for (let i = 0; i < photos.length; i++) {
+      if (photos[i].blob) {
+        const suffix = photos.length > 1 ? `_${i + 1}` : '';
         photoFiles.push({
-          name: `photos/${entry.id}.jpg`,
-          blob: photo.blob,
+          name: `photos/${entry.id}${suffix}.jpg`,
+          blob: photos[i].blob,
         });
       }
     }
@@ -624,13 +641,17 @@ async function getDatesNeedingSync() {
     req.onsuccess = () => resolve(req.result);
     req.onerror = (e) => reject(e.target.error);
   });
+  // Entry types that processing intentionally skips — don't flag these as "missing" from analysis
+  const skipTypes = new Set(['bodyPhoto', 'weight']);
   const entryDateInfo = {};
   for (const e of entries) {
     if (!e.date) continue;
     if (!entryDateInfo[e.date]) entryDateInfo[e.date] = { ids: new Set(), maxTs: 0 };
-    entryDateInfo[e.date].ids.add(e.id);
-    const ts = e.updatedAt ? new Date(e.updatedAt).getTime() : (e.timestamp ? new Date(e.timestamp).getTime() : 0);
-    entryDateInfo[e.date].maxTs = Math.max(entryDateInfo[e.date].maxTs, ts);
+    if (!skipTypes.has(e.type)) {
+      entryDateInfo[e.date].ids.add(e.id);
+      const ts = e.updatedAt ? new Date(e.updatedAt).getTime() : (e.timestamp ? new Date(e.timestamp).getTime() : 0);
+      entryDateInfo[e.date].maxTs = Math.max(entryDateInfo[e.date].maxTs, ts);
+    }
   }
 
   // Check which dates have no analysis, stale analysis, or missing entries

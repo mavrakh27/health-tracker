@@ -12,7 +12,7 @@ const QuickLog = {
   async showMoreSheet() {
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
-    sheet.style.maxHeight = '50dvh';
+    sheet.style.maxHeight = '70dvh';
 
     // Built-in options (universal)
     const builtIn = [
@@ -42,7 +42,7 @@ const QuickLog = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Log Entry</span>
-        <button class="modal-close" id="more-close">&times;</button>
+        <button class="modal-close" id="more-close" aria-label="Close">&times;</button>
       </div>
       <div class="more-sheet-options">
         ${options.map(o => `
@@ -123,6 +123,8 @@ const QuickLog = {
       UI.toast(`${saved} photo${saved !== 1 ? 's' : ''} saved`);
       CloudRelay.queueUpload(date);
       App.loadDayView();
+    } else {
+      UI.toast('Failed to save photos', 'error');
     }
   },
 
@@ -180,7 +182,7 @@ const QuickLog = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Add Water</span>
-        <button class="modal-close" id="wp-close">&times;</button>
+        <button class="modal-close" id="wp-close" aria-label="Close">&times;</button>
       </div>
       <div style="text-align: center; margin-bottom: var(--space-md); color: var(--text-secondary); font-size: var(--text-sm);">
         Today: <strong style="color: var(--color-water)">${currentOz} oz</strong> of ${waterGoal} oz goal
@@ -222,6 +224,8 @@ const QuickLog = {
         } catch (err) {
           console.error('Quick water failed:', err);
           UI.toast('Failed to save water', 'error');
+          waterSaving = false;
+          btn.classList.remove('water-pick-saved');
         }
       });
     });
@@ -239,7 +243,7 @@ const QuickLog = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Log Weight</span>
-        <button class="modal-close" id="qw-close">&times;</button>
+        <button class="modal-close" id="qw-close" aria-label="Close">&times;</button>
       </div>
       <div class="form-group">
         <div class="number-input" style="justify-content:center;">
@@ -322,7 +326,7 @@ const QuickLog = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Log Food</span>
-        <button class="modal-close" id="fn-close">&times;</button>
+        <button class="modal-close" id="fn-close" aria-label="Close">&times;</button>
       </div>
       <div class="form-group">
         <div style="display:flex; gap:var(--space-sm); margin-bottom:var(--space-sm);">
@@ -454,7 +458,7 @@ const QuickLog = {
       sheet.innerHTML = `
         <div class="modal-header">
           <span class="modal-title">Dailies</span>
-          <button class="modal-close" id="sp-close">&times;</button>
+          <button class="modal-close" id="sp-close" aria-label="Close">&times;</button>
         </div>
         ${renderList()}
       `;
@@ -556,7 +560,7 @@ const QuickLog = {
       sheet.innerHTML = `
         <div class="modal-header">
           <span class="modal-title">Manage Dailies</span>
-          <button class="modal-close" id="dm-close">&times;</button>
+          <button class="modal-close" id="dm-close" aria-label="Close">&times;</button>
         </div>
         <div id="dm-list">${renderItems()}</div>
         <div class="dailies-add-form" id="dm-add-form">
@@ -1262,7 +1266,7 @@ const App = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Set Up with Coach</span>
-        <button class="modal-close" id="cs-coach-close">&times;</button>
+        <button class="modal-close" id="cs-coach-close" aria-label="Close">&times;</button>
       </div>
       <div style="text-align:center; margin-bottom:var(--space-lg);">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" width="40" height="40" style="margin-bottom:var(--space-sm);">
@@ -1464,7 +1468,7 @@ const App = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Set Your Goals</span>
-        <button class="modal-close" id="gs-close">&times;</button>
+        <button class="modal-close" id="gs-close" aria-label="Close">&times;</button>
       </div>
       <div style="font-size:var(--text-xs); color:var(--text-muted); margin-bottom:var(--space-md);">Great = active plan. Crush It = stretch target shown for reference.</div>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm);">
@@ -1534,7 +1538,7 @@ const App = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title">Cloud Sync</span>
-        <button class="modal-close" id="gs-sync-close">&times;</button>
+        <button class="modal-close" id="gs-sync-close" aria-label="Close">&times;</button>
       </div>
       <div style="text-align:center; margin-bottom:var(--space-md);">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" width="40" height="40" style="margin-bottom:var(--space-sm);">
@@ -1542,7 +1546,7 @@ const App = {
         </svg>
         <p style="font-size:var(--text-sm); color:var(--text-secondary); line-height:1.6;">
           Cloud Sync enables AI-powered photo analysis, meal plans, and coach responses.<br>
-          You can set this up later in Profile &gt; Cloud Sync.
+          You can set this up later in Settings &gt; Cloud Sync.
         </p>
       </div>
       <div class="form-group">
@@ -1859,7 +1863,7 @@ const Settings = {
     sheet.innerHTML = `
       <div class="modal-header">
         <span class="modal-title" style="color:var(--color-danger,#f85149);">Delete All Data</span>
-        <button class="modal-close" id="dad-close">&times;</button>
+        <button class="modal-close" id="dad-close" aria-label="Close">&times;</button>
       </div>
       <p style="font-size:var(--text-sm);color:var(--text-primary);margin-bottom:var(--space-sm);">
         This will permanently delete <strong>everything</strong> stored on this device:

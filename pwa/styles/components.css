@@ -2526,6 +2526,72 @@ input[type="range"]::-webkit-slider-thumb {
   justify-content: center;
 }
 
+/* Multi-Photo Grid (food form pending photos) */
+.multi-photo-grid {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-top: var(--space-xs);
+}
+
+.multi-photo-grid .photo-preview {
+  width: 80px;
+  height: 80px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.multi-photo-grid .photo-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  max-width: none;
+}
+
+/* Entry thumbnail wrapper (supports count badge) */
+.entry-photo-thumbs {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.photo-count-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
+  font-size: 10px;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Edit modal multi-photo grid */
+.edit-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.edit-photo-grid .ql-photo-preview {
+  margin: 0;
+}
+
+.edit-photo-grid .ql-photo-preview img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
 /* Body Photo Grid */
 .body-photo-grid {
   display: flex;
