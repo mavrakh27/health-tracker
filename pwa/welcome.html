@@ -418,18 +418,49 @@
       <details>
         <summary>Optional: Apple Health step tracking (iOS)</summary>
         <div class="card" style="margin-top: 8px;">
-          <p style="font-size: 13px; color: var(--text-dim);">
-            An iOS Shortcut can send your daily step count to Coach. See <a href="https://github.com/nEmily/health-tracker/blob/main/docs/apple-health-steps.md" style="color: var(--accent);">setup instructions</a>.
-          </p>
+          <p style="font-size: 14px; margin-bottom: 12px;">Send your daily steps, distance, and active calories to Coach automatically using an iOS Shortcut.</p>
+
+          <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-body">
+              <h3>Create the Shortcut</h3>
+              <p>Open <strong>Shortcuts</strong> on your iPhone. Tap <strong>+</strong> to create a new shortcut and add these actions in order:</p>
+              <div style="font-size: 13px; color: var(--text-dim); line-height: 1.8;">
+                <strong>Date</strong> > Format Date (Custom: <code>yyyy-MM-dd</code>) > save as <code>today</code><br>
+                <strong>Find Health Samples</strong>: Step Count, today, group by Day > save as <code>steps</code><br>
+                <strong>Find Health Samples</strong>: Walking + Running Distance, today, group by Day > save as <code>distance</code><br>
+                <strong>Find Health Samples</strong>: Active Energy, today, group by Day > save as <code>activeCalories</code><br>
+              </div>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-body">
+              <h3>Send to Coach</h3>
+              <p>Add a <strong>Get Contents of URL</strong> action:</p>
+              <div class="code-block" id="cmd-health-url" style="font-size: 11px; margin-bottom: 8px;">
+                <span id="health-url-display">Paste your sync key above first</span>
+              </div>
+              <div style="font-size: 13px; color: var(--text-dim); line-height: 1.8;">
+                Method: <strong>PUT</strong><br>
+                Headers: <code>Content-Type</code> = <code>application/json</code><br>
+                Body (JSON): <code>steps</code>, <code>distance_mi</code>, <code>activeCalories</code>, <code>date</code> = today, <code>source</code> = <code>apple_health</code>
+              </div>
+            </div>
+          </div>
+
+          <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-body">
+              <h3>Automate it</h3>
+              <p>Go to <strong>Automations</strong> tab > <strong>Time of Day</strong> > 9 PM > Run Shortcut. Turn off "Ask Before Running." Steps sync every night automatically.</p>
+            </div>
+          </div>
         </div>
       </details>
     </div>
 
-    <!-- Already set up -->
-    <div class="section">
-      <div class="section-label">Already set up?</div>
-      <a href="./" class="btn btn-primary" style="text-decoration:none;">Open Coach App</a>
-    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
@@ -543,6 +574,11 @@
       document.getElementById('pair-url-display').textContent = pairUrl;
       document.getElementById('pair-result').style.display = 'block';
 
+      // Auto-fill Apple Health URL with this sync key
+      const healthUrl = `${SHARED_RELAY}/sync/${encodeURIComponent(key)}/health/`;
+      const healthDisplay = document.getElementById('health-url-display');
+      if (healthDisplay) healthDisplay.textContent = healthUrl + '{today}';
+
       // Scroll to result
       document.getElementById('pair-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
@@ -553,11 +589,18 @@
       copyText(url, btn);
     });
 
-    // If accessed on phone with ?key= param, redirect to the app
     const params = new URLSearchParams(location.search);
+
+    // If accessed on phone with ?key= param, redirect to the app
     if (params.has('key')) {
-      // Redirect to the app with the key param — the app handles auto-config
       location.href = `${APP_BASE}?key=${params.get('key')}${params.has('relay') ? '&relay=' + params.get('relay') : ''}`;
+    }
+
+    // If accessed on computer with ?sync= param, auto-generate QR code
+    if (params.has('sync')) {
+      const input = document.getElementById('pair-key');
+      input.value = params.get('sync');
+      document.getElementById('pair-generate').click();
     }
   </script>
 </body>

@@ -19,7 +19,7 @@
     <!-- Header -->
     <header class="app-header">
       <h1>Coach</h1>
-      <div class="header-nav">
+      <div class="header-nav" style="display:none">
         <button class="header-nav-btn" id="header-prev" aria-label="Previous day">&lsaquo;</button>
         <span class="header-date">Today</span>
         <button class="header-nav-btn" id="header-next" aria-label="Next day">&rsaquo;</button>
@@ -29,10 +29,10 @@
 
     <!-- Screen: Today (Day View + Logging) -->
     <main id="screen-today" class="screen active">
-      <div id="today-score"></div>
-      <div class="stats-row" id="today-stats"></div>
+      <div id="today-score" style="display:none"></div>
+      <div class="stats-row" id="today-stats" style="display:none"></div>
 
-      <div class="today-segments">
+      <div class="today-segments" style="display:none">
         <button class="today-seg-btn active" data-panel="diet">Diet</button>
         <button class="today-seg-btn" data-panel="fitness">Fitness</button>
         <button class="today-seg-btn" data-panel="skin">Skin</button>
@@ -40,7 +40,7 @@
 
       <div class="today-panels" id="today-panels">
         <div class="today-panel" id="panel-diet">
-          <div class="quick-actions" id="quick-actions">
+          <div class="quick-actions" id="quick-actions" style="display:none">
             <button class="quick-action quick-action-primary" id="quick-photo-btn">
               <span class="qa-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="16" rx="2"/><circle cx="12" cy="13" r="4"/><path d="M8.5 5L9.5 3h5l1 2"/></svg></span>
               Food
@@ -236,7 +236,7 @@
     </main>
 
     <!-- Bottom Navigation (4 tabs) -->
-    <nav class="bottom-nav" role="tablist">
+    <nav class="bottom-nav" role="tablist" style="display:none">
       <button class="nav-item active" data-screen="today" role="tab" aria-selected="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="9"/>

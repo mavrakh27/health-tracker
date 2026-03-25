@@ -1,5 +1,18 @@
 // app.js — Routing, init, navigation
 
+// Dynamic manifest: if URL has ?key= param, point the manifest link to
+// manifest.json?key=...&relay=... so the SW can intercept and return a
+// manifest with start_url including the sync key. This is same-origin
+// (served by our SW), so start_url passes the browser's origin check
+// and the key survives iOS "Add to Home Screen" storage isolation.
+(function() {
+  const params = new URLSearchParams(location.search);
+  const link = document.querySelector('link[rel="manifest"]');
+  if (link) {
+    link.href = params.has('key') ? 'manifest.json' + location.search : 'manifest.json';
+  }
+})();
+
 // --- Quick Log (zero-friction logging from Today screen) ---
 const QuickLog = {
   init() {
@@ -719,14 +732,22 @@ const App = {
         const key = urlParams.get('key');
         const relay = urlParams.get('relay') || 'https://health-sync.emilyn-90a.workers.dev';
         if (key) {
-          const config = await CloudRelay.getConfig() || {};
-          config.syncKey = key;
-          config.workerUrl = relay;
-          await CloudRelay.saveConfig(config);
-          // Clean URL params so they don't persist on refresh
-          history.replaceState(null, '', location.pathname + location.hash);
-          UI.toast('Sync connected');
-          // Try to pull data from relay immediately
+          const existing = await CloudRelay.getConfig() || {};
+          if (existing.syncKey !== key) {
+            existing.syncKey = key;
+            existing.workerUrl = relay;
+            await CloudRelay.saveConfig(existing);
+            UI.toast('Sync connected');
+          }
+          // Only clean URL in standalone mode (PWA already installed).
+          // In browser mode, keep ?key= in the URL so it survives "Add to Home Screen"
+          // (iOS Safari uses the current URL as the PWA bookmark if manifest start_url fails).
+          const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+            || window.navigator.standalone === true;
+          if (isStandalone) {
+            history.replaceState(null, '', location.pathname + location.hash);
+          }
+          // Pull data from relay
           CloudRelay.checkForResults().catch(() => {});
         }
       }
@@ -974,6 +995,8 @@ const App = {
         // Pre-populate goals for new users
         await App.ensureDefaultGoals();
         entryList.innerHTML = App.renderWelcomeCard();
+        // Hide all chrome until Coach is set up — just show the welcome card
+        App.setSetupMode(true);
       } else {
         // Try to show entries from analysis data (recovery after reinstall)
         if (analysis && analysis.entries && analysis.entries.length > 0) {
@@ -994,6 +1017,8 @@ const App = {
         }
       }
     } else {
+      // Data exists — make sure setup mode is off
+      App.setSetupMode(false);
       // Merge AI results into entry cards using the already-loaded analysis
       let analysisMap = {};
       try {
@@ -1230,12 +1255,76 @@ const App = {
     `;
   },
 
+  setSetupMode(on) {
+    // Hide/show all chrome so new users only see the welcome card
+    const ids = ['today-score', 'today-stats', 'quick-actions', 'today-meal-suggestion'];
+    const classes = ['today-segments', 'header-nav'];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = on ? 'none' : '';
+    });
+    classes.forEach(cls => {
+      document.querySelectorAll('.' + cls).forEach(el => {
+        el.style.display = on ? 'none' : '';
+      });
+    });
+    // Hide bottom nav in setup mode — no reason to show other tabs
+    const nav = document.querySelector('.bottom-nav');
+    if (nav) nav.style.display = on ? 'none' : '';
+  },
+
   renderWelcomeCard() {
     // Check if sync is already configured (came via pairing link)
     const syncConfigured = localStorage.getItem('cloudRelay_backup');
-    const syncNote = syncConfigured
-      ? '<p style="color: var(--accent-primary); font-size: var(--text-sm); margin-bottom: var(--space-sm);">Sync connected -- your goals will arrive once your computer finishes setup.</p>'
-      : '';
+
+    if (syncConfigured) {
+      // Detect if running in a browser (not installed as PWA)
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+        || window.navigator.standalone === true; // iOS Safari
+
+      let installHint = '';
+      if (!isStandalone) {
+        const ua = navigator.userAgent;
+        const isIOS = /iPad|iPhone|iPod/.test(ua);
+        const isChromeOnIOS = isIOS && /CriOS/.test(ua);
+        const isAndroid = /Android/.test(ua);
+
+        let steps = '';
+        if (isChromeOnIOS) {
+          // Chrome on iOS can't install PWAs — need Safari
+          steps = 'Open this page in <strong>Safari</strong> to install as an app. Chrome on iOS doesn\'t support home screen apps.';
+        } else if (isIOS) {
+          steps = 'Tap the <strong>Share</strong> button (square with arrow at the bottom), then tap <strong>Add to Home Screen</strong>.';
+        } else if (isAndroid) {
+          steps = 'Tap the <strong>menu</strong> (three dots), then tap <strong>Install app</strong> or <strong>Add to Home Screen</strong>.';
+        } else {
+          steps = 'Install this as an app from your browser menu for the best experience.';
+        }
+
+        installHint = `
+          <div style="background: var(--bg-secondary); border-radius: var(--radius-md); padding: var(--space-md); margin-top: var(--space-md); text-align: left;">
+            <p style="font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-xs);">Install as an app</p>
+            <p style="font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5;">${steps}</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="card welcome-card" style="text-align:center; padding: var(--space-xl) var(--space-lg);">
+          <div style="margin-bottom: var(--space-md); display:flex; justify-content:center;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="48" height="48">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <h2 style="font-size: var(--text-lg); font-weight: 600; margin-bottom: var(--space-xs);">You're connected</h2>
+          <p style="color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.6;">
+            Your goals and meal plan will appear here once your computer finishes setup. This usually takes a few minutes.
+          </p>
+          ${installHint}
+        </div>
+      `;
+    }
 
     return `
       <div class="card welcome-card" style="text-align:center; padding: var(--space-xl) var(--space-lg);">
@@ -1249,12 +1338,8 @@ const App = {
         <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-md); line-height: 1.6;">
           AI-powered health tracking. Snap food photos, log workouts, and get personalized coaching.
         </p>
-        ${syncNote}
         <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
-          ${syncConfigured
-            ? '<button class="btn btn-primary btn-block btn-lg" onclick="App.loadDayView();">Continue</button>'
-            : '<button class="btn btn-primary btn-block btn-lg" onclick="App.showCoachSetup()">Set Up Coach</button>'
-          }
+          <button class="btn btn-primary btn-block btn-lg" onclick="App.showCoachSetup()">Set Up Coach</button>
         </div>
       </div>
     `;
