@@ -652,10 +652,16 @@ const QuickLog = {
     const saveAndRender = async () => {
       if (saving) return;
       saving = true;
-      QuickLog._supplements = items;
-      await DB.setProfile('supplements', items);
-      saving = false;
-      render();
+      try {
+        await DB.setProfile('supplements', items);
+        QuickLog._supplements = items;
+      } catch (err) {
+        console.error('Failed to save dailies:', err);
+        UI.toast('Failed to save changes', 'error');
+      } finally {
+        saving = false;
+        render();
+      }
     };
 
     const closeModal = () => {
