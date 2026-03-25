@@ -44,6 +44,7 @@ const Sync = {
         bodyPhotoTypes: await DB.getProfile('bodyPhotoTypes'),
         moreOptions: await DB.getProfile('moreOptions'),
         skincare: await DB.getSkincareRoutine(),
+        preferences: await DB.getProfile('preferences'),
       };
       files.push({ name: `profile/pwa-profile.json`, data: new TextEncoder().encode(JSON.stringify(pwaProfile, null, 2)) });
     }
