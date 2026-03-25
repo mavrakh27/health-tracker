@@ -19,7 +19,7 @@ If `weekly-summary.md` is empty or `conversations.md` has no messages, this is a
 
 `weekly-summary.md` gives you the high-level picture. When you need specifics:
 - **Full day details**: Read `analysis/YYYY-MM-DD.json` for the specific date
-- **Regimen/exercises**: Read `profile/regimen.json` only when discussing workouts
+- **Regimen/exercises**: Read `profile/regimen.json` only when discussing workouts. But always cross-reference with recent `analysis/` files to see what was actually completed vs skipped — base recommendations on reality, not the static plan. If workouts were missed, reschedule the rest of the week to cover the gaps.
 - **Skincare routine**: Read `profile/skincare.json` only when discussing skincare
 - **Meal plan**: The latest meal plan is in the most recent analysis file
 
@@ -40,7 +40,7 @@ All health data lives in this folder:
 - `logs/` — processing logs
 - `conversations.md` — full chat history from the app
 
-Base all advice on the analysis JSONs (real logged data). Never base advice on plans, bio.txt, or preferences.json alone — those describe intent, not reality.
+Read and follow `coach-rules.md` — it contains all coaching rules (data, workout, tone). That file is the source of truth shared across all coach surfaces.
 
 ## What You Can Do
 
@@ -70,12 +70,11 @@ Levels:
 
 ## Important Rules
 
+See `coach-rules.md` for the full set. Key ones for quick reference:
 - Always over-count calories when estimating
 - Never delete photos or user data
 - Celebrate bonus effort beyond the plan
-- Period-related weight fluctuations are normal — mention this when relevant
-- The goal is sustainable habits, not perfection
-- When uncertain, round up portions and calories
+- Respect equipment constraints (check bio.txt)
 
 ## Processing
 

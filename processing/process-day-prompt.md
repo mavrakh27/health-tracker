@@ -157,11 +157,13 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
 
 7. **Generate/update workout regimen:**
    - **Read `regimen.json` first** -- it has the full program (phases, equipment, weekly schedule). Preserve the structure.
+   - **Respect equipment constraints.** Read `bio.txt` and `regimen.json` for what equipment the user actually has available. Never prescribe exercises that require equipment they don't own. If equipment is listed as "arriving" or "on order," treat it as unavailable until the user confirms otherwise. Substitute bodyweight alternatives for any exercise that needs missing equipment.
+   - **Check recent analysis files** (`{DATA_DIR}/analysis/` for the past 3-7 days) to see what workouts were actually completed vs skipped. Base today's recommendation on reality, not the static weekly template. If the user skipped strength training yesterday, don't just move on to today's planned cardio -- reschedule the rest of the week so missed workout types get covered. The weekly template is a starting point, not gospel; adapt it to what actually happened.
    - Each day's `exercises` array must list every exercise as a **structured object** with `name`, `sets`, `reps`, `section` (main/core/warmup), and `formCue` (one-line reminder).
    - The `description` field is a brief summary (e.g. "Upper body push + core"). The `exercises` array is what the app renders as individual checkable cards.
    - For cardio days: single exercise entry like `{ "name": "30-min walk/jog", "sets": 1, "reps": "30 min", "section": "main", "formCue": "Conversational pace" }`.
    - For rest days: empty `exercises` array.
-   - Include a `weeklyReview` noting how this day's workout compared to the plan.
+   - Include a `weeklyReview` that covers: what was actually done this week so far, what was skipped, and how the remaining days were adjusted to compensate. This should reflect reality, not just compare today to the original template.
    - The regimen should cover all 7 days (including rest days).
 
 8. **Skip body/face photos** — note their existence but do NOT analyze, describe, or comment on them. They are private progress photos.
