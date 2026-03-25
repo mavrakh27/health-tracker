@@ -1280,7 +1280,7 @@ const App = {
         <p style="font-weight:600; margin-bottom:var(--space-sm);">How to set up:</p>
         <ol style="margin:0; padding-left:1.5em; line-height:1.8; list-style-position:outside;">
           <li style="padding-left:4px; margin-bottom:4px;">On your computer, open the <a href="welcome.html" style="color:var(--accent-primary);" target="_blank">setup page</a> and run the installer</li>
-          <li style="padding-left:4px; margin-bottom:4px;">In Claude Code, type <code style="font-size:var(--text-xs); background:var(--bg-input); padding:2px 6px; border-radius:var(--radius-sm);">/setup</code> to configure goals and profile</li>
+          <li style="padding-left:4px; margin-bottom:4px;">In your Coach folder, type <code style="font-size:var(--text-xs); background:var(--bg-input); padding:2px 6px; border-radius:var(--radius-sm);">claude</code> to start onboarding</li>
           <li style="padding-left:4px;">Scan the pairing QR code to connect this phone</li>
         </ol>
       </div>
