@@ -46,32 +46,6 @@ self.addEventListener('activate', (e) => {
 
 // Fetch — network-first for HTML (ensures updates arrive), cache-first for assets
 self.addEventListener('fetch', (e) => {
-  // Dynamic manifest: if manifest.json is requested with ?key= param,
-  // return a modified manifest with start_url including the key.
-  // This is same-origin (served from our SW), so start_url passes the spec check.
-  if (e.request.destination === 'manifest' || (e.request.url.includes('manifest.json') && e.request.url.includes('key='))) {
-    const url = new URL(e.request.url);
-    const key = url.searchParams.get('key');
-    if (key) {
-      e.respondWith(
-        caches.match('./manifest.json').then(cached => {
-          const source = cached || fetch('./manifest.json');
-          return Promise.resolve(source).then(r => r.json()).then(manifest => {
-            // Rebuild the query string from the manifest request params
-            const relay = url.searchParams.get('relay') || '';
-            let qs = '?key=' + encodeURIComponent(key);
-            if (relay) qs += '&relay=' + encodeURIComponent(relay);
-            manifest.start_url = './' + qs;
-            return new Response(JSON.stringify(manifest), {
-              headers: { 'Content-Type': 'application/manifest+json' }
-            });
-          });
-        }).catch(() => fetch(e.request))
-      );
-      return;
-    }
-  }
-
   const isHTML = e.request.destination === 'document' || e.request.url.endsWith('/');
 
   if (isHTML) {
