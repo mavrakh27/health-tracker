@@ -128,10 +128,25 @@ async function getEntriesByDate(dateStr) {
   const tx = db.transaction('entries', 'readonly');
   const index = tx.objectStore('entries').index('date');
   const request = index.getAll(dateStr);
-  return new Promise((resolve, reject) => {
+  const results = await new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result);
     request.onerror = (e) => reject(e.target.error);
   });
+
+  // Fallback: full scan if date index returns empty (iOS IDB index corruption workaround)
+  if (results.length === 0) {
+    const allReq = db.transaction('entries', 'readonly').objectStore('entries').getAll();
+    const all = await new Promise((resolve, reject) => {
+      allReq.onsuccess = () => resolve(allReq.result);
+      allReq.onerror = () => resolve([]);
+    });
+    const filtered = all.filter(e => e.date === dateStr);
+    if (filtered.length > 0) {
+      console.warn(`getEntriesByDate: index missed ${filtered.length} entries for ${dateStr}, using full scan`);
+    }
+    return filtered;
+  }
+  return results;
 }
 
 async function getEntriesByDateRange(startDate, endDate) {
