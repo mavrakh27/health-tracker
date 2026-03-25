@@ -98,4 +98,11 @@ The `coach` command should be set up so the user can type `coach` from any termi
 
 ## First-Time Setup
 
-If `USER.md` doesn't exist, run `/setup` to onboard a new user.
+If `USER.md` doesn't exist, this is a new user. Automatically start the onboarding conversation -- don't wait for them to type `/setup`. Greet them, then walk through setup one question at a time:
+
+1. Ask about their goals, stats, dietary preferences (conversational, not a form)
+2. Write profile files (USER.md, bio.txt, goals.json, preferences.json, regimen.json)
+3. Generate a sync key, show the pairing URL for their phone (link to welcome.html with key param)
+4. Set up automated processing (cron/scheduled task)
+
+The user just typed `claude` -- they shouldn't need to know any slash commands to get started.

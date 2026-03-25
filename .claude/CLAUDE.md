@@ -56,7 +56,7 @@ Users interact with the AI coach through three channels:
 
 - `/coach` — 1:1 real-time coaching session (loads profile + history, coach persona)
 - `/process-day [date]` — Process a day's health data (download, analyze, upload)
-- `/setup` — New user setup wizard (fork, relay, profile, processing)
+- `/setup` — New user setup wizard (auto-triggered on first run, no manual invocation needed)
 - `/validate` — End-to-end PWA verification
 
 ## Key Principles

@@ -52,7 +52,7 @@ try {
     assert(claude.includes('On Session Start'), 'CLAUDE.md has session start instructions');
     assert(claude.includes('analysis/'), 'CLAUDE.md references analysis dir');
     assert(claude.includes('profile/'), 'CLAUDE.md references profile dir');
-    assert(claude.includes('/setup'), 'CLAUDE.md references setup skill');
+    assert(claude.includes('USER.md') && claude.includes('Automatically start'), 'CLAUDE.md has auto-start onboarding when USER.md missing');
     assert(claude.includes('real logged data'), 'CLAUDE.md has data-over-plans rule');
   }
 
@@ -64,7 +64,7 @@ try {
   try { setupContent = fs.readFileSync(setupPath, 'utf8'); } catch (e) {}
 
   if (setupContent) {
-    assert(setupContent.includes('~/Coach'), 'Setup creates ~/Coach');
+    assert(setupContent.includes('CWD') || setupContent.includes('current') || setupContent.includes('~/Coach'), 'Setup references install directory');
     assert(setupContent.includes('coach alias') || setupContent.includes('function coach'), 'Setup installs alias');
     assert(setupContent.includes('HEALTH_SYNC_URL'), 'Setup configures sync URL');
     assert(setupContent.includes('HEALTH_SYNC_KEY'), 'Setup configures sync key');
@@ -395,11 +395,11 @@ try {
     // Must have download fallback for scripts
     assert(setupContent.includes('curl') && setupContent.includes('raw.githubusercontent'), 'Has download fallback for processing scripts');
 
-    // Env var values should point to ~/Coach, not ~/HealthTracker
+    // Env var values should point to CWD (current directory), not ~/HealthTracker
     // (the note may mention HealthTracker to explain it's NOT used — that's OK)
     const envCommands = setupContent.match(/SetEnvironmentVariable.*HEALTH_DATA_DIR.*"(.*?)"/);
     if (envCommands) {
-      assert(!envCommands[1].includes('HealthTracker'), 'Env var value points to ~/Coach, not ~/HealthTracker');
+      assert(!envCommands[1].includes('HealthTracker'), 'Env var value does not point to ~/HealthTracker');
     }
 
     // Dedup on re-run

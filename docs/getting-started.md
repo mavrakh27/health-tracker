@@ -55,9 +55,9 @@ curl -sL https://raw.githubusercontent.com/nEmily/health-tracker/main/install-co
 irm https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.ps1 | iex
 ```
 
-This installs Claude skills (`/coach`, `/process-day`) and sets up the data directory. No repo fork needed.
+This installs Coach and sets up the data directory. No repo fork needed.
 
-After installing, run `claude` and type `/coach` to set up your profile interactively.
+After installing, type `claude` in the Coach folder -- onboarding starts automatically.
 
 See [processing-setup.md](processing-setup.md) for manual setup or advanced configuration.
 
