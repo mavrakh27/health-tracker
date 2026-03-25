@@ -20,7 +20,7 @@ try { claude --version | Out-Null } catch {
 Write-Host "[1/3] Setting up project files..."
 
 # Download coach plugin files (CLAUDE.md, SOUL.md, coach-rules.md)
-foreach ($f in @("CLAUDE.md", "SOUL.md", "coach-rules.md")) {
+foreach ($f in @("CLAUDE.md", "SOUL.md", "coach-rules.md", "setup-skill.md")) {
   try {
     Invoke-WebRequest -Uri "$RepoRaw/coach-plugin/$f" -OutFile "$CoachDir\$f" -ErrorAction Stop
   } catch {

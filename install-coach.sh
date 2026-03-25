@@ -22,7 +22,7 @@ fi
 echo "[1/3] Setting up project files..."
 
 # Download coach plugin files (CLAUDE.md, SOUL.md, coach-rules.md)
-for f in CLAUDE.md SOUL.md coach-rules.md; do
+for f in CLAUDE.md SOUL.md coach-rules.md setup-skill.md; do
   curl -sf "$REPO_RAW/coach-plugin/$f" -o "$COACH_DIR/$f" || echo "  WARNING: Could not download $f"
 done
 echo "  Coach personality + config installed"
