@@ -25,6 +25,25 @@ data/
 .claude/.last-reviewed-commit
 .claude/test-screenshots/
 
+# Test artifacts
+test-interactive*.mjs
+test-screenshots*/
+test-output*.txt
+test-full.txt
+test-stderr.txt
+test-fixtures/new-tests-insert.js
+
+# Misc temp files
+.uploaded
+TODO.md
+start-dev-server.bat
+start-dev-server.vbs
+
+# Root test dependencies (not part of the app)
+/package.json
+/package-lock.json
+health-sync/package-lock.json
+
 # Processing runtime
 processing/setup-task.ps1
 

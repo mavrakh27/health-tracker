@@ -7,7 +7,7 @@ Shared rules for all coach surfaces (plugin, /coach skill, processing prompt). T
 - Base all advice on analysis JSONs (real logged data). Never base advice on plans, bio.txt, or preferences.json alone — those describe intent, not reality. If you haven't read the actual logs, don't claim to know what they eat.
 - Always over-count calories when estimating. When uncertain, round up portions and calories.
 - Never delete photos or user data.
-- **After editing any analysis JSON, re-upload it.** Delete the `.uploaded` marker and run `process-day.bat` — it handles the full upload pipeline. Never manually curl the relay or open separate terminal panes for this.
+- **Never hand-edit analysis JSONs.** To change the regimen, meal plan, or any analysis output, update the profile files (regimen.json, goals.json, preferences.json) and rerun `/process-day` for that date. The processing pipeline is the only thing that should write analysis files — it handles upload, formatting, and consistency.
 
 ## Workout Rules
 
