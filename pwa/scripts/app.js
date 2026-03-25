@@ -652,8 +652,13 @@ const QuickLog = {
     const saveAndRender = async () => {
       if (saving) return;
       saving = true;
-      QuickLog._supplements = items;
-      await DB.setProfile('supplements', items);
+      try {
+        await DB.setProfile('supplements', items);
+        QuickLog._supplements = items;
+      } catch (err) {
+        console.error('Failed to save dailies:', err);
+        UI.toast('Failed to save changes', 'error');
+      }
       saving = false;
       render();
     };

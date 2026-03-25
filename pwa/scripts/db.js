@@ -367,15 +367,45 @@ async function importAnalysis(dateStr, data) {
       profileStore.put({ key: 'goals', value: data.pwaProfile.goals });
     }
     if (data.pwaProfile.supplements && !data.supplementUpdates) {
-      // Only echo-back supplements if no supplementUpdates — otherwise the merge
-      // handles it and we'd overwrite current state with stale pending data + photo blobs
-      profileStore.put({ key: 'supplements', value: data.pwaProfile.supplements });
+      // Merge echo-back supplements with local — don't overwrite items added since last upload
+      const localSuppReq = profileStore.get('supplements');
+      localSuppReq.onsuccess = () => {
+        const local = localSuppReq.result?.value || [];
+        const remote = data.pwaProfile.supplements;
+        if (local.length === 0) {
+          // Fresh install / empty local — take the echo-back as-is
+          profileStore.put({ key: 'supplements', value: remote });
+        } else {
+          // Merge: keep all local items, add any remote items missing locally
+          const localKeys = new Set(local.map(s => s.key));
+          const merged = [...local];
+          for (const item of remote) {
+            if (!localKeys.has(item.key)) merged.push(item);
+          }
+          profileStore.put({ key: 'supplements', value: merged });
+        }
+      };
     }
     if (data.pwaProfile.bodyPhotoTypes) {
       profileStore.put({ key: 'bodyPhotoTypes', value: data.pwaProfile.bodyPhotoTypes });
     }
     if (data.pwaProfile.moreOptions) {
-      profileStore.put({ key: 'moreOptions', value: data.pwaProfile.moreOptions });
+      // Merge echo-back moreOptions with local — don't overwrite items added since last upload
+      const localMoreReq = profileStore.get('moreOptions');
+      localMoreReq.onsuccess = () => {
+        const local = localMoreReq.result?.value || [];
+        const remote = data.pwaProfile.moreOptions;
+        if (local.length === 0) {
+          profileStore.put({ key: 'moreOptions', value: remote });
+        } else {
+          const localKeys = new Set(local.map(o => o.type || o.key));
+          const merged = [...local];
+          for (const item of remote) {
+            if (!localKeys.has(item.type || item.key)) merged.push(item);
+          }
+          profileStore.put({ key: 'moreOptions', value: merged });
+        }
+      };
     }
     if (data.pwaProfile.skincare) {
       profileStore.put({ key: 'skincare', value: data.pwaProfile.skincare });
