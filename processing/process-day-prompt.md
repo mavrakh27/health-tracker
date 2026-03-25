@@ -43,16 +43,29 @@ Profile files (check BOTH locations — ZIP-bundled profile takes priority over 
 - `{DATA_DIR}/profile/preferences.json` — dietary preferences
 - `{DATA_DIR}/profile/bio.txt` — user's personal stats, goals, and context (optional but recommended)
 
-## Supplement Photo Processing
+## Supplement Photo Processing (NOT subject to No Re-Processing Rule)
+
+**Always process pending supplements, even on dates with existing analysis.** Supplement processing is a profile-level task, not an entry-level task -- the no-re-processing rule does not apply here.
 
 Check `pwa-profile.json` for supplements with `pending: true` and a `photo` field (base64 dataURL). These are new daily items where the user took a photo of the product (e.g. supplement jar, protein powder) instead of manually entering nutrition info. For each pending supplement:
 
-1. Analyze the photo — read the nutrition label, product name, serving size
-2. Update the supplement entry in the analysis output with: `name` (product name), `calories` (per serving), `protein` (grams per serving), `carbs`, `fat`
-3. Set `pending: false` to mark it as processed
-4. Include the updated supplements array in the analysis JSON under `supplementUpdates` so the PWA can merge the changes back
+1. Analyze the photo -- read the nutrition label, product name, serving size
+2. Output a `supplementUpdates` array in the analysis JSON
+3. **CRITICAL: Use the supplement's existing `key` field from the profile, not a new key derived from the product name.** The PWA matches updates by key. If the supplement has `key: "new_item"`, your update must also have `key: "new_item"`. Getting this wrong silently drops the update.
 
-The photo is for identification only — once processed, the PWA will clear the photo data to save space.
+Each entry in `supplementUpdates`:
+```json
+{
+  "key": "new_item",          // MUST match the existing key from pwa-profile.json
+  "name": "Protein Powder",   // Product name you identified from the photo
+  "calories": 120,            // Per serving
+  "protein": 24,              // Grams per serving
+  "carbs": 3,
+  "fat": 1
+}
+```
+
+The photo is for identification only -- once processed, the PWA will clear the photo data to save space.
 
 ## Corrections System (CRITICAL)
 

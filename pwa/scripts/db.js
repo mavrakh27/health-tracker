@@ -366,7 +366,9 @@ async function importAnalysis(dateStr, data) {
     if (data.pwaProfile.goals) {
       profileStore.put({ key: 'goals', value: data.pwaProfile.goals });
     }
-    if (data.pwaProfile.supplements) {
+    if (data.pwaProfile.supplements && !data.supplementUpdates) {
+      // Only echo-back supplements if no supplementUpdates — otherwise the merge
+      // handles it and we'd overwrite current state with stale pending data + photo blobs
       profileStore.put({ key: 'supplements', value: data.pwaProfile.supplements });
     }
     if (data.pwaProfile.bodyPhotoTypes) {
@@ -391,9 +393,18 @@ async function importAnalysis(dateStr, data) {
       suppReq.onsuccess = () => {
         const existing = suppReq.result?.value || [];
         for (const update of data.supplementUpdates) {
-          const match = existing.find(s => s.key === update.key);
+          // Match by key first, fall back to matching any pending item
+          // (processing may output a product-name-based key instead of the original)
+          let match = existing.find(s => s.key === update.key);
+          if (!match) {
+            match = existing.find(s => s.pending);
+          }
           if (match) {
-            if (update.name) match.name = update.name;
+            if (update.name) {
+              match.name = update.name;
+              // Update key to match the new name so future updates align
+              match.key = update.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 50);
+            }
             if (update.calories != null) match.calories = update.calories;
             if (update.protein != null) match.protein = update.protein;
             if (update.carbs != null) match.carbs = update.carbs;

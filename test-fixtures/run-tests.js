@@ -1867,6 +1867,102 @@ async function testProfileRoundTrip(page, fixtures) {
   assert(supplements && supplements.length >= 3, `Supplements restored from pwaProfile (got ${supplements?.length})`);
 
   await screenshot(page, 'profile-round-trip');
+
+  // --- Supplement Update Merge Tests ---
+  console.log('\n--- Supplement Merge ---');
+
+  // Test 1: supplementUpdates with matching key works
+  const matchKeyResult = await page.evaluate(async () => {
+    await DB.setProfile('supplements', [
+      { key: 'creatine', name: 'Creatine', calories: 0, protein: 0, pending: false },
+      { key: 'new_item', name: 'New item', calories: 0, protein: 0, pending: true, photo: 'data:image/jpeg;base64,abc123' },
+    ]);
+    await DB.importAnalysis('2099-02-01', {
+      date: '2099-02-01',
+      entries: [],
+      supplementUpdates: [
+        { key: 'new_item', name: 'Protein Powder', calories: 120, protein: 24, carbs: 3, fat: 1 },
+      ],
+    });
+    const result = await DB.getProfile('supplements');
+    return result;
+  });
+  const updatedItem = matchKeyResult.find(s => s.name === 'Protein Powder');
+  assert(!!updatedItem, 'Supplement merge: matching key updates name to "Protein Powder"');
+  assert(updatedItem && updatedItem.pending === false, 'Supplement merge: pending set to false');
+  assert(updatedItem && updatedItem.calories === 120, `Supplement merge: calories updated (got ${updatedItem?.calories})`);
+  assert(updatedItem && updatedItem.protein === 24, `Supplement merge: protein updated (got ${updatedItem?.protein})`);
+  assert(updatedItem && !updatedItem.photo, 'Supplement merge: photo field deleted after processing');
+  // Creatine should be untouched
+  const creatine = matchKeyResult.find(s => s.key === 'creatine');
+  assert(creatine && creatine.name === 'Creatine', 'Supplement merge: non-pending items untouched');
+
+  // Test 2: supplementUpdates with WRONG key falls back to pending match
+  const fallbackResult = await page.evaluate(async () => {
+    await DB.setProfile('supplements', [
+      { key: 'vitamin_d', name: 'Vitamin D', calories: 0, protein: 0, pending: false },
+      { key: 'new_item', name: 'New item', calories: 0, protein: 0, pending: true, photo: 'data:image/jpeg;base64,xyz' },
+    ]);
+    await DB.importAnalysis('2099-02-02', {
+      date: '2099-02-02',
+      entries: [],
+      supplementUpdates: [
+        { key: 'whey_protein', name: 'Whey Protein', calories: 130, protein: 26, carbs: 4, fat: 2 },
+      ],
+    });
+    return await DB.getProfile('supplements');
+  });
+  const fallbackItem = fallbackResult.find(s => s.name === 'Whey Protein');
+  assert(!!fallbackItem, 'Supplement merge: wrong key falls back to pending item match');
+  assert(fallbackItem && fallbackItem.pending === false, 'Supplement merge: fallback sets pending=false');
+  assert(fallbackItem && fallbackItem.calories === 130, `Supplement merge: fallback updates calories (got ${fallbackItem?.calories})`);
+  assert(fallbackItem && !fallbackItem.photo, 'Supplement merge: fallback deletes photo');
+  // Key should be updated to match new name
+  assert(fallbackItem && fallbackItem.key === 'whey_protein', `Supplement merge: key updated to match name (got ${fallbackItem?.key})`);
+
+  // Test 3: pwaProfile.supplements NOT overwritten when supplementUpdates present
+  const noOverwriteResult = await page.evaluate(async () => {
+    // Set current state: already-processed supplement
+    await DB.setProfile('supplements', [
+      { key: 'processed_item', name: 'Already Processed', calories: 100, protein: 10, pending: false },
+    ]);
+    // Import with BOTH pwaProfile (stale pending data) AND supplementUpdates
+    await DB.importAnalysis('2099-02-03', {
+      date: '2099-02-03',
+      entries: [],
+      pwaProfile: {
+        supplements: [
+          { key: 'new_item', name: 'New item', calories: 0, protein: 0, pending: true, photo: 'data:stale' },
+        ],
+      },
+      supplementUpdates: [
+        { key: 'processed_item', name: 'Updated Name', calories: 200, protein: 20, carbs: 5, fat: 3 },
+      ],
+    });
+    return await DB.getProfile('supplements');
+  });
+  // pwaProfile should NOT have overwritten — current state should be preserved and merged
+  assert(noOverwriteResult.length === 1, `No-overwrite: still 1 supplement (got ${noOverwriteResult.length})`);
+  const mergedItem = noOverwriteResult[0];
+  assert(mergedItem && mergedItem.name === 'Updated Name', `No-overwrite: name updated via merge (got ${mergedItem?.name})`);
+  assert(mergedItem && mergedItem.calories === 200, `No-overwrite: calories from merge (got ${mergedItem?.calories})`);
+
+  // Test 4: pwaProfile.supplements echoed back when NO supplementUpdates
+  const echoResult = await page.evaluate(async () => {
+    await DB.setProfile('supplements', []);
+    await DB.importAnalysis('2099-02-04', {
+      date: '2099-02-04',
+      entries: [],
+      pwaProfile: {
+        supplements: [
+          { key: 'echo_test', name: 'Echoed Item', calories: 50, protein: 5, pending: false },
+        ],
+      },
+    });
+    return await DB.getProfile('supplements');
+  });
+  assert(echoResult.length === 1, `Echo: pwaProfile supplements restored when no updates (got ${echoResult.length})`);
+  assert(echoResult[0]?.name === 'Echoed Item', `Echo: correct name restored (got ${echoResult[0]?.name})`);
 }
 
 async function testAnalysisStatusIndicators(page, fixtures) {
