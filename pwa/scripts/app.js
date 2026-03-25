@@ -658,9 +658,10 @@ const QuickLog = {
       } catch (err) {
         console.error('Failed to save dailies:', err);
         UI.toast('Failed to save changes', 'error');
+      } finally {
+        saving = false;
+        render();
       }
-      saving = false;
-      render();
     };
 
     const closeModal = () => {

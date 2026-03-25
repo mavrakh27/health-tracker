@@ -344,6 +344,22 @@ async function getAnalysis(dateStr) {
 
 async function importAnalysis(dateStr, data) {
   const db = await openDB();
+
+  // Pre-read local supplements and moreOptions before the write transaction
+  // to avoid IDB transaction auto-commit timing issues with async get→put chains
+  let localSupplements = [];
+  let localMoreOptions = [];
+  if (data.pwaProfile && (data.pwaProfile.supplements || data.pwaProfile.moreOptions)) {
+    const readTx = db.transaction('profile', 'readonly');
+    const readStore = readTx.objectStore('profile');
+    const [suppResult, moreResult] = await Promise.all([
+      new Promise(r => { const req = readStore.get('supplements'); req.onsuccess = () => r(req.result?.value || []); req.onerror = () => r([]); }),
+      new Promise(r => { const req = readStore.get('moreOptions'); req.onsuccess = () => r(req.result?.value || []); req.onerror = () => r([]); }),
+    ]);
+    localSupplements = suppResult;
+    localMoreOptions = moreResult;
+  }
+
   const stores = ['analysis', 'photos'];
   if (db.objectStoreNames.contains('analysisHistory')) stores.push('analysisHistory');
   if (data.mealPlan) stores.push('mealPlan');
@@ -368,44 +384,34 @@ async function importAnalysis(dateStr, data) {
     }
     if (data.pwaProfile.supplements && !data.supplementUpdates) {
       // Merge echo-back supplements with local — don't overwrite items added since last upload
-      const localSuppReq = profileStore.get('supplements');
-      localSuppReq.onsuccess = () => {
-        const local = localSuppReq.result?.value || [];
-        const remote = data.pwaProfile.supplements;
-        if (local.length === 0) {
-          // Fresh install / empty local — take the echo-back as-is
-          profileStore.put({ key: 'supplements', value: remote });
-        } else {
-          // Merge: keep all local items, add any remote items missing locally
-          const localKeys = new Set(local.map(s => s.key));
-          const merged = [...local];
-          for (const item of remote) {
-            if (!localKeys.has(item.key)) merged.push(item);
-          }
-          profileStore.put({ key: 'supplements', value: merged });
+      const remote = data.pwaProfile.supplements;
+      if (localSupplements.length === 0) {
+        profileStore.put({ key: 'supplements', value: remote });
+      } else {
+        const localKeys = new Set(localSupplements.map(s => s.key));
+        const merged = [...localSupplements];
+        for (const item of remote) {
+          if (!localKeys.has(item.key)) merged.push(item);
         }
-      };
+        profileStore.put({ key: 'supplements', value: merged });
+      }
     }
     if (data.pwaProfile.bodyPhotoTypes) {
       profileStore.put({ key: 'bodyPhotoTypes', value: data.pwaProfile.bodyPhotoTypes });
     }
     if (data.pwaProfile.moreOptions) {
       // Merge echo-back moreOptions with local — don't overwrite items added since last upload
-      const localMoreReq = profileStore.get('moreOptions');
-      localMoreReq.onsuccess = () => {
-        const local = localMoreReq.result?.value || [];
-        const remote = data.pwaProfile.moreOptions;
-        if (local.length === 0) {
-          profileStore.put({ key: 'moreOptions', value: remote });
-        } else {
-          const localKeys = new Set(local.map(o => o.type || o.key));
-          const merged = [...local];
-          for (const item of remote) {
-            if (!localKeys.has(item.type || item.key)) merged.push(item);
-          }
-          profileStore.put({ key: 'moreOptions', value: merged });
+      const remote = data.pwaProfile.moreOptions;
+      if (localMoreOptions.length === 0) {
+        profileStore.put({ key: 'moreOptions', value: remote });
+      } else {
+        const localKeys = new Set(localMoreOptions.map(o => o.type || o.key));
+        const merged = [...localMoreOptions];
+        for (const item of remote) {
+          if (!localKeys.has(item.type || item.key)) merged.push(item);
         }
-      };
+        profileStore.put({ key: 'moreOptions', value: merged });
+      }
     }
     if (data.pwaProfile.skincare) {
       profileStore.put({ key: 'skincare', value: data.pwaProfile.skincare });
