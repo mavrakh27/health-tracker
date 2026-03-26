@@ -147,30 +147,20 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
    - What to watch (macro deficits, missing nutrients, high sugar)
    - Frame as forward-looking tips, not warnings (see rule #10 below)
 
-6. **Generate a rolling 3-day meal plan:**
-   - **Read `preferences.json` first** — it defines meal structure (meals per day, office vs home day split, OMAD rules, snack policy). Follow it exactly.
-   - Today's remaining meal (if under budget)
-   - Next 2 full days
-   - Meal count and calorie distribution MUST match preferences (e.g. if 2 meals/day with no snacks, don't generate 3 meals + snacks)
-   - Be specific — real meal names, full ingredient lists with amounts, estimated macros per meal, prep times
-   - Prioritize hitting protein target within the calorie budget
+7. **Skip body/face photos** — note their existence but do NOT analyze, describe, or comment on them. They are private progress photos.
 
-7. **Generate/update workout regimen:**
-   - **Read `regimen.json` first** -- it has the full program (phases, equipment, weekly schedule). Preserve the structure.
-   - **Respect equipment constraints.** Read `bio.txt` and `regimen.json` for what equipment the user actually has available. Never prescribe exercises that require equipment they don't own. If equipment is listed as "arriving" or "on order," treat it as unavailable until the user confirms otherwise. Substitute bodyweight alternatives for any exercise that needs missing equipment.
-   - **Check recent analysis files** (`{DATA_DIR}/analysis/` for the past 3-7 days) to see what workouts were actually completed vs skipped. Base today's recommendation on reality, not the static weekly template. If the user skipped strength training yesterday, don't just move on to today's planned cardio -- reschedule the rest of the week so missed workout types get covered. The weekly template is a starting point, not gospel; adapt it to what actually happened.
-   - Each day's `exercises` array must list every exercise as a **structured object** with `name`, `sets`, `reps`, `section` (main/core/warmup), and `formCue` (one-line reminder).
-   - The `description` field is a brief summary (e.g. "Upper body push + core"). The `exercises` array is what the app renders as individual checkable cards.
-   - For cardio days: single exercise entry like `{ "name": "30-min walk/jog", "sets": 1, "reps": "30 min", "section": "main", "formCue": "Conversational pace" }`.
-   - For rest days: empty `exercises` array.
-   - Include a `weeklyReview` that covers: what was actually done this week so far, what was skipped, and how the remaining days were adjusted to compensate. This should reflect reality, not just compare today to the original template.
-   - The regimen should cover all 7 days (including rest days).
-
-8. **Skip body/face photos** — note their existence but do NOT analyze, describe, or comment on them. They are private progress photos.
+8. **Plan staleness detection:**
+   - Read the existing meal plan and workout regimen from `{DATA_DIR}/analysis/{DATE}.json` (if it exists from a prior run) or from `{DATA_DIR}/profile/regimen.json`.
+   - Compare today's logged data against the current plan:
+     - If calorie intake has shifted significantly (>200 cal difference from what the meal plan's remaining_meal assumed), the plan is stale.
+     - If the user did a different workout than the regimen prescribed for today (e.g., legs instead of cardio, or skipped entirely), the regimen is stale.
+     - If the user logged a workout on a rest day or skipped a programmed day, the regimen is stale.
+   - Set `_planStale: true` in the output JSON if any of the above apply. Omit the field otherwise.
+   - Set `_planRequested: true` if any user coach message explicitly asks for a new plan, meal plan update, or workout plan change. Omit the field otherwise.
 
 ## Output
 
-Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing everything — analysis, meal plan, and workout regimen. This file gets synced back to the phone automatically.
+Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing the entry analysis, totals, goals, and coach responses. This file gets synced back to the phone automatically. Meal plan and workout regimen are generated separately in Phase 2.
 
 **IMPORTANT:** Do NOT use em dashes (—), en dashes (–), or smart quotes ("") in the JSON output. Use plain hyphens (-), double hyphens (--), and straight quotes ("") instead. Unicode special characters get double-encoded through the processing pipeline and display as garbled text (â€") on the phone.
 
@@ -205,41 +195,6 @@ Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing eve
   "skincareAdherence": {
     "am": { "completed": 4, "total": 4, "skipped": [] },
     "pm": { "completed": 2, "total": 3, "skipped": ["retinol"] }
-  },
-
-  "mealPlan": {
-    "generatedDate": "YYYY-MM-DD",
-    "days": [
-      {
-        "date": "YYYY-MM-DD",
-        "remaining_meal": { "name": "...", "suggestion": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "prep_time": "..." },
-        "meals": [
-          { "meal": "breakfast|lunch|dinner|snack", "name": "...", "description": "...", "calories": 0, "protein": 0, "carbs": 0, "fat": 0, "prep_time": "..." }
-        ],
-        "day_totals": { "calories": 0, "protein": 0, "carbs": 0, "fat": 0 }
-      }
-    ]
-  },
-
-  "regimen": {
-    "description": "Brief description of the workout plan",
-    "weeklySchedule": [
-      {
-        "day": "monday",
-        "type": "strength|cardio|rest|active_recovery",
-        "description": "Brief summary of the day",
-        "exercises": [
-          {
-            "name": "Goblet Squats",
-            "sets": 3,
-            "reps": "12",
-            "section": "main|core|warmup",
-            "formCue": "One-line form reminder"
-          }
-        ]
-      }
-    ],
-    "weeklyReview": "Optional note on how this week's workouts went vs plan"
   },
 
   "coachResponses": [
@@ -279,7 +234,8 @@ Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing eve
 
 ## Important
 
-- **Read ALL profile files** (goals.json, preferences.json, regimen.json) before generating output. Goal targets, meal structure, and workout plans come from these files — never hardcode or assume defaults.
+- **Read ALL profile files** (goals.json, preferences.json) before generating output. Goal targets and meal structure come from these files — never hardcode or assume defaults.
+- **Do NOT generate `mealPlan` or `regimen` fields.** These are generated in a separate processing phase. Omit them from the output JSON entirely.
 - Be precise with calorie estimates — use known nutrition data when available (packaged items with visible labels are high confidence)
 - When a photo shows a packaged product, read the label for exact nutrition info
 - Meal photos without notes should still be fully described and estimated
