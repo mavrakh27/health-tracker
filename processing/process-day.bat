@@ -45,6 +45,11 @@ mkdir "%BACKUP_DIR%\corrections" 2>nul
 set EXTRACT_DIR=%DATA_DIR%\incoming\extracted
 mkdir "%EXTRACT_DIR%" 2>nul
 
+REM --- Detect first run of today (checked before Phase 1) ---
+set PHASE2_FIRST_RUN=0
+if not exist "%DATA_DIR%\analysis\%TODAY%.json" set PHASE2_FIRST_RUN=1
+
+REM PHASE2_FIRST_RUN is re-checked after relay downloads (relay may delete today's analysis)
 set ZIP_COUNT=0
 set NEW_DATES=
 
@@ -103,6 +108,9 @@ if not "!RELAY_DATES!"=="" (
     echo [%TODAY%] No pending data on cloud relay.
 )
 
+REM Re-check PHASE2_FIRST_RUN — relay may have deleted today's analysis
+if not exist "%DATA_DIR%\analysis\%TODAY%.json" set PHASE2_FIRST_RUN=1
+
 :check_local
 if !ZIP_COUNT! equ 0 (
     REM No new downloads, but check if extracted data exists with missing analysis
@@ -140,6 +148,78 @@ REM --- Backup analysis and corrections locally ---
 echo [%TODAY%] Backing up analysis and corrections... >>"%DATA_DIR%\logs\%TODAY%.log"
 xcopy "%DATA_DIR%\analysis\*.json" "%BACKUP_DIR%\analysis\" /Y /Q >nul 2>&1
 xcopy "%DATA_DIR%\corrections\*.json" "%BACKUP_DIR%\corrections\" /Y /Q >nul 2>&1
+
+REM --- Phase 2: Conditional plan generation ---
+set RUN_PHASE2=0
+
+REM Trigger 1: First processing run of the day
+if "!PHASE2_FIRST_RUN!"=="1" (
+    set RUN_PHASE2=1
+    echo [%TODAY%] Phase 2 trigger: first run of the day. >>"%DATA_DIR%\logs\%TODAY%.log"
+)
+
+REM Trigger 2: Goals or preferences changed (hash comparison)
+set GOALS_HASH_PATH=%DATA_DIR%\profile\goals.json
+set PREFS_HASH_PATH=%DATA_DIR%\profile\preferences.json
+if exist "%EXTRACT_DIR%\profile\goals.json" set GOALS_HASH_PATH=%EXTRACT_DIR%\profile\goals.json
+if exist "%EXTRACT_DIR%\profile\preferences.json" set PREFS_HASH_PATH=%EXTRACT_DIR%\profile\preferences.json
+
+for /f "usebackq delims=" %%h in (`powershell -NoProfile -Command "$c = ''; if (Test-Path '%GOALS_HASH_PATH%') { $c += Get-Content -Raw '%GOALS_HASH_PATH%' }; if (Test-Path '%PREFS_HASH_PATH%') { $c += Get-Content -Raw '%PREFS_HASH_PATH%' }; $b = [System.Text.Encoding]::UTF8.GetBytes($c); $h = [System.Security.Cryptography.SHA256]::Create().ComputeHash($b); ($h ^| ForEach-Object { $_.ToString('x2') }) -join ''"`) do set CURRENT_HASH=%%h
+
+set STORED_HASH=
+if exist "%DATA_DIR%\last-plan-hash.txt" (
+    for /f "usebackq delims=" %%s in ("%DATA_DIR%\last-plan-hash.txt") do set STORED_HASH=%%s
+)
+if not "!CURRENT_HASH!"=="!STORED_HASH!" (
+    if "!RUN_PHASE2!"=="0" echo [%TODAY%] Phase 2 trigger: goals/preferences changed. >>"%DATA_DIR%\logs\%TODAY%.log"
+    set RUN_PHASE2=1
+)
+
+REM Trigger 3: User requested plan update or plan is stale due to intake/workout deviation
+if exist "%DATA_DIR%\analysis\%TODAY%.json" (
+    for /f "usebackq delims=" %%r in (`powershell -NoProfile -Command "try { $j = Get-Content -Raw '%DATA_DIR%\analysis\%TODAY%.json' ^| ConvertFrom-Json; if ($j._planRequested -eq $true -or $j._planStale -eq $true) { 'yes' } else { 'no' } } catch { 'no' }"`) do set PLAN_TRIGGER=%%r
+    if "!PLAN_TRIGGER!"=="yes" (
+        if "!RUN_PHASE2!"=="0" echo [%TODAY%] Phase 2 trigger: plan requested or stale. >>"%DATA_DIR%\logs\%TODAY%.log"
+        set RUN_PHASE2=1
+    )
+)
+
+REM Trigger 4: Last plan generation was >12 hours ago or missing
+set PLAN_TOO_OLD=1
+if exist "%DATA_DIR%\last-plan-generation.txt" (
+    for /f "usebackq delims=" %%t in (`powershell -NoProfile -Command "try { $last = [datetime]::Parse((Get-Content '%DATA_DIR%\last-plan-generation.txt' -Raw).Trim()); if (((Get-Date) - $last).TotalHours -lt 12) { 'fresh' } else { 'stale' } } catch { 'stale' }"`) do set PLAN_AGE=%%t
+    if "!PLAN_AGE!"=="fresh" set PLAN_TOO_OLD=0
+)
+if "!PLAN_TOO_OLD!"=="1" (
+    if "!RUN_PHASE2!"=="0" echo [%TODAY%] Phase 2 trigger: plan older than 12 hours or missing. >>"%DATA_DIR%\logs\%TODAY%.log"
+    set RUN_PHASE2=1
+)
+
+if "!RUN_PHASE2!"=="0" (
+    echo [%TODAY%] Phase 2 skipped - plan is current. >>"%DATA_DIR%\logs\%TODAY%.log"
+    goto :upload_results
+)
+
+REM Guard: Phase 1 must have produced an analysis file
+if not exist "%DATA_DIR%\analysis\%TODAY%.json" (
+    echo [%TODAY%] Phase 2 skipped - no analysis file for today. >>"%DATA_DIR%\logs\%TODAY%.log"
+    goto :upload_results
+)
+
+REM --- Run Phase 2: Plan Generation ---
+echo [%TODAY%] Running Phase 2: plan generation... >>"%DATA_DIR%\logs\%TODAY%.log"
+claude -p "Generate the meal plan and workout regimen for %TODAY%. The data root is %DATA_DIR%. The extracted data is at %EXTRACT_DIR%. Follow the instructions in %REPO_DIR%\processing\plan-prompt.md." --allowedTools "Read,Write,Glob,Grep,Bash,WebSearch,WebFetch" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
+set PHASE2_EXIT=!ERRORLEVEL!
+echo MARKER:phase2-done >>"%DATA_DIR%\logs\%TODAY%.log"
+if !PHASE2_EXIT! neq 0 (
+    echo [%TODAY%] WARNING: Phase 2 exited with an error. Plan may be incomplete. >>"%DATA_DIR%\logs\%TODAY%.log"
+    goto :upload_results
+)
+
+REM Phase 2 succeeded - update tracking files
+powershell -NoProfile -Command "Get-Date -Format 'yyyy-MM-ddTHH:mm:ss'" >"%DATA_DIR%\last-plan-generation.txt"
+echo !CURRENT_HASH!>"%DATA_DIR%\last-plan-hash.txt"
+echo [%TODAY%] Phase 2 complete - plan generation done. >>"%DATA_DIR%\logs\%TODAY%.log"
 
 :upload_results
 echo MARKER:upload-start >>"%DATA_DIR%\logs\%TODAY%.log"

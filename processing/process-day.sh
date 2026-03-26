@@ -49,6 +49,12 @@ mkdir -p "$BACKUP_DIR/corrections"
 EXTRACT_DIR="$DATA_DIR/incoming/extracted"
 mkdir -p "$EXTRACT_DIR"
 
+# --- Detect first run of today (checked before Phase 1) ---
+PHASE2_FIRST_RUN=0
+if [ ! -f "$DATA_DIR/analysis/$TODAY.json" ]; then
+    PHASE2_FIRST_RUN=1
+fi
+
 ZIP_COUNT=0
 NEW_DATES=()
 
@@ -104,13 +110,20 @@ else
     echo "[$TODAY] No pending data on cloud relay."
 fi
 
-if [ "$ZIP_COUNT" -eq 0 ]; then
-    echo "[$TODAY] No new data to process."
-    rm -rf "$EXTRACT_DIR"
-    rm -f "$LOCK_FILE"
-    exit 0
+# Re-check PHASE2_FIRST_RUN — relay may have deleted today's analysis
+if [ ! -f "$DATA_DIR/analysis/$TODAY.json" ]; then
+    PHASE2_FIRST_RUN=1
 fi
 
+if [ "$ZIP_COUNT" -eq 0 ]; then
+    echo "[$TODAY] No new data to process. Skipping Phase 1, checking Phase 2 triggers..."
+    # Skip Phase 1 but continue to Phase 2 and upload
+    SKIP_PHASE1=1
+else
+    SKIP_PHASE1=0
+fi
+
+if [ "$SKIP_PHASE1" = "0" ]; then
 echo "[$TODAY] Processing $ZIP_COUNT new days of data..."
 
 # --- Run Claude Code to process extracted data ---
@@ -125,6 +138,76 @@ echo "[$TODAY] Claude Code analysis complete."
 echo "[$TODAY] Backing up analysis and corrections..."
 cp "$DATA_DIR/analysis/"*.json "$BACKUP_DIR/analysis/" 2>/dev/null || true
 cp "$DATA_DIR/corrections/"*.json "$BACKUP_DIR/corrections/" 2>/dev/null || true
+
+fi  # end SKIP_PHASE1
+
+# --- Phase 2: Conditional plan generation ---
+RUN_PHASE2=0
+
+# Trigger 1: First run of today
+if [ "$PHASE2_FIRST_RUN" = "1" ]; then
+    RUN_PHASE2=1
+    echo "[$TODAY] Phase 2 trigger: first run of the day."
+fi
+
+# Trigger 2: Goals/preferences hash changed
+GOALS_HASH_PATH="$DATA_DIR/profile/goals.json"
+PREFS_HASH_PATH="$DATA_DIR/profile/preferences.json"
+[ -f "$EXTRACT_DIR/profile/goals.json" ] && GOALS_HASH_PATH="$EXTRACT_DIR/profile/goals.json"
+[ -f "$EXTRACT_DIR/profile/preferences.json" ] && PREFS_HASH_PATH="$EXTRACT_DIR/profile/preferences.json"
+
+CURRENT_HASH=$(cat "$GOALS_HASH_PATH" "$PREFS_HASH_PATH" 2>/dev/null | (sha256sum 2>/dev/null || shasum -a 256 2>/dev/null) | cut -d' ' -f1)
+STORED_HASH=""
+[ -f "$DATA_DIR/last-plan-hash.txt" ] && STORED_HASH=$(tr -d '[:space:]' < "$DATA_DIR/last-plan-hash.txt")
+
+if [ "$CURRENT_HASH" != "$STORED_HASH" ]; then
+    [ "$RUN_PHASE2" = "0" ] && echo "[$TODAY] Phase 2 trigger: goals/preferences changed."
+    RUN_PHASE2=1
+fi
+
+# Trigger 3: User requested plan update or plan stale due to intake/workout deviation
+if [ -f "$DATA_DIR/analysis/$TODAY.json" ]; then
+    PLAN_TRIGGER=$(jq -r 'if (._planRequested == true or ._planStale == true) then "yes" else "no" end' "$DATA_DIR/analysis/$TODAY.json" 2>/dev/null || echo "no")
+    if [ "$PLAN_TRIGGER" = "yes" ]; then
+        [ "$RUN_PHASE2" = "0" ] && echo "[$TODAY] Phase 2 trigger: plan requested or stale."
+        RUN_PHASE2=1
+    fi
+fi
+
+# Trigger 4: Last plan generation was >12 hours ago or missing
+PLAN_TOO_OLD=1
+if [ -f "$DATA_DIR/last-plan-generation.txt" ]; then
+    LAST_PLAN=$(tr -d '[:space:]' < "$DATA_DIR/last-plan-generation.txt")
+    # Try GNU date first, then macOS date
+    LAST_EPOCH=$(date -d "$LAST_PLAN" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "$LAST_PLAN" +%s 2>/dev/null || echo 0)
+    NOW_EPOCH=$(date +%s)
+    AGE_HOURS=$(( (NOW_EPOCH - LAST_EPOCH) / 3600 ))
+    [ "$AGE_HOURS" -lt 12 ] && PLAN_TOO_OLD=0
+fi
+if [ "$PLAN_TOO_OLD" = "1" ]; then
+    [ "$RUN_PHASE2" = "0" ] && echo "[$TODAY] Phase 2 trigger: plan older than 12 hours or missing."
+    RUN_PHASE2=1
+fi
+
+if [ "$RUN_PHASE2" = "1" ]; then
+    # Guard: Phase 1 must have produced an analysis file
+    if [ -f "$DATA_DIR/analysis/$TODAY.json" ]; then
+        echo "[$TODAY] Running Phase 2: plan generation..."
+        CLAUDECODE="" claude -p "Generate the meal plan and workout regimen for $TODAY. The data root is $DATA_DIR. The extracted data is at $EXTRACT_DIR. Follow the instructions in $REPO_DIR/processing/plan-prompt.md." \
+            --allowedTools "Read,Write,Glob,Grep,Bash,WebSearch,WebFetch" \
+            >> "$DATA_DIR/logs/$TODAY.log" 2>&1 \
+            && {
+                date +"%Y-%m-%dT%H:%M:%S" > "$DATA_DIR/last-plan-generation.txt"
+                echo "$CURRENT_HASH" > "$DATA_DIR/last-plan-hash.txt"
+                echo "[$TODAY] Phase 2 complete - plan generation done."
+            } \
+            || echo "[$TODAY] WARNING: Phase 2 exited with an error. Plan may be incomplete."
+    else
+        echo "[$TODAY] Phase 2 skipped - no analysis file for today."
+    fi
+else
+    echo "[$TODAY] Phase 2 skipped - plan is current."
+fi
 
 # --- Upload results back to cloud relay ---
 echo "[$TODAY] Uploading analysis results to cloud relay..."
