@@ -264,10 +264,11 @@ const Challenges = {
 
     if (active.length === 0 && completed.length === 0 && abandoned.length === 0) {
       html += `
-        <div class="empty-state" style="margin-top:var(--space-xl);">
-          <div class="empty-icon">${UI.svg.target || UI.svg.clipboard}</div>
-          <p>No challenges yet.</p>
-          <button class="btn btn-primary" id="chal-start-first" style="margin-top:var(--space-md);">Start a Challenge</button>
+        <div class="challenge-empty">
+          <div class="challenge-empty-icon">${UI.svg.target || UI.svg.clipboard}</div>
+          <div class="challenge-empty-title">No challenges yet</div>
+          <div class="challenge-empty-desc">Pick a challenge to build streaks, track daily tasks, and stay accountable.</div>
+          <button class="btn btn-primary" id="chal-start-first">Start a Challenge</button>
         </div>
       `;
       return html;
@@ -285,22 +286,26 @@ const Challenges = {
       html += Challenges._renderChallengeCard(chal, progress, streak, dayNum, allProgress, true);
     }
 
-    html += `<button class="btn btn-ghost" id="chal-add-more" style="width:100%;margin-top:var(--space-md);">+ Start Another Challenge</button>`;
+    html += `<button class="challenge-add-btn" id="chal-add-more">+ Start Another Challenge</button>`;
 
     // Completed / abandoned history
     if (completed.length > 0 || abandoned.length > 0) {
-      html += '<h2 class="section-header" style="margin-top:var(--space-lg);">History</h2>';
+      html += '<div class="challenge-history-label">History</div>';
       for (const chal of [...completed, ...abandoned]) {
         const allProgress = await DB.getChallengeProgressRange(chal.id, chal.startDate, chal.endDate);
         const completedDays = allProgress.filter(p => p.allComplete).length;
+        const pct = Math.round((completedDays / chal.durationDays) * 100);
+        const statusClass = chal.status === 'completed' ? 'completed' : 'abandoned';
         html += `
-          <div class="challenge-card challenge-card--${chal.status}" style="margin-bottom:var(--space-sm);">
+          <div class="challenge-card challenge-card--${statusClass}">
             <div class="challenge-header">
               <div>
                 <div class="challenge-name">${UI.escapeHtml(chal.name)}</div>
-                <div class="challenge-meta">${chal.status === 'completed' ? 'Completed' : 'Abandoned'} -- ${completedDays}/${chal.durationDays} days</div>
+                <div class="challenge-meta">${completedDays}/${chal.durationDays} days completed</div>
               </div>
+              <span class="challenge-status-badge challenge-status-badge--${statusClass}">${chal.status === 'completed' ? 'Done' : 'Quit'}</span>
             </div>
+            <div class="challenge-progress-bar"><div class="challenge-progress-fill" style="width:${pct}%;${chal.status === 'abandoned' ? 'background:var(--text-muted);' : ''}"></div></div>
           </div>
         `;
       }
@@ -312,8 +317,17 @@ const Challenges = {
   _renderChallengeCard(chal, progress, streak, dayNum, allProgress, showActions) {
     const pct = Math.round((dayNum / chal.durationDays) * 100);
     const checked = progress?.checked || [];
+    const checkedCount = checked.length;
+    const totalTasks = chal.tasks.length;
+
+    // SVG ring constants
+    const ringR = 17;
+    const ringC = Math.round(2 * Math.PI * ringR);
+    const ringOffset = Math.round(ringC * (1 - Math.min(pct, 100) / 100));
 
     let html = `<div class="challenge-card" data-challenge-id="${UI.escapeHtml(chal.id)}">`;
+
+    // Header: name + ring
     html += `<div class="challenge-header">`;
     html += `<div>`;
     html += `<div class="challenge-name">${UI.escapeHtml(chal.name)}</div>`;
@@ -321,10 +335,21 @@ const Challenges = {
     if (chal.restartCount > 0) html += ` (restart #${chal.restartCount})`;
     html += `</div>`;
     html += `</div>`;
-    html += `<div class="challenge-streak"><span class="challenge-streak-icon">/</span>${streak}d</div>`;
+    html += `<div class="challenge-ring">`;
+    html += `<svg viewBox="0 0 40 40"><circle class="challenge-ring-bg" cx="20" cy="20" r="${ringR}"/><circle class="challenge-ring-fill" cx="20" cy="20" r="${ringR}" stroke-dasharray="${ringC}" stroke-dashoffset="${ringOffset}"/></svg>`;
+    html += `<div class="challenge-ring-label">${pct}%</div>`;
+    html += `</div>`;
     html += `</div>`;
 
-    // Progress bar
+    // Progress bar with labels
+    html += `<div class="challenge-progress-label">`;
+    html += `<span class="challenge-progress-pct">${checkedCount}/${totalTasks} today</span>`;
+    if (streak > 0) {
+      html += `<span class="challenge-streak"><span class="challenge-streak-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c-4 0-7-3-7-7 0-3 2-5 4-7 1-1 2-2 2-4 1 2 3 3 4 5 .5-1 1-2 1-3 2 2 3 4 3 6 0 4-3 10-7 10z"/></svg></span>${streak}d streak</span>`;
+    } else {
+      html += `<span class="challenge-progress-day">${Math.min(pct, 100)}% complete</span>`;
+    }
+    html += `</div>`;
     html += `<div class="challenge-progress-bar"><div class="challenge-progress-fill" style="width:${Math.min(pct, 100)}%;"></div></div>`;
 
     // Task checklist
@@ -437,12 +462,12 @@ const Challenges = {
         <span class="modal-title">Start a Challenge</span>
         <button class="modal-close" id="chal-picker-close" aria-label="Close">&times;</button>
       </div>
-      <div style="overflow-y:auto; padding:var(--space-md);">
+      <div>
         ${templates.map(t => `
           <div class="challenge-template-card" data-template-id="${UI.escapeHtml(t.id)}">
             <div class="challenge-template-name">${UI.escapeHtml(t.name)}</div>
             <div class="challenge-template-desc">${UI.escapeHtml(t.description)}</div>
-            <div class="challenge-template-meta">${t.durationDays} days -- ${t.tasks.length} tasks${t.restartOnMiss ? ' -- restarts on miss' : ''}</div>
+            <div class="challenge-template-meta">${t.durationDays} days -- ${t.tasks.length} daily tasks${t.restartOnMiss ? ' -- restarts on miss' : ''}</div>
           </div>
         `).join('')}
         <div class="challenge-template-card" data-template-id="custom">
