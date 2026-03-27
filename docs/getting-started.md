@@ -45,19 +45,43 @@ You need a relay URL and a sync key (a UUID you generate once).
 
 The coach plugin adds AI-powered processing to your computer. It analyzes food photos, estimates calories/macros, generates meal plans, and gives you a 1:1 coaching experience -- all powered by your own Claude Code subscription.
 
-**One-line install:**
+**Requirements:** [Claude Code](https://claude.ai/code) installed with a Pro or Max subscription.
+
+### Option A: Claude Code Plugin (recommended)
+
+```bash
+mkdir coach && cd coach
+```
+
+Then inside Claude Code:
+
+```
+/plugin marketplace add nEmily/health-tracker
+/plugin install coach@health-tracker --scope project
+/setup
+```
+
+The `/setup` command walks you through everything -- goals, phone pairing, and automated processing. The plugin is scoped to this folder, so `/coach` and `/process-day` only work when you're here.
+
+To start a coaching session anytime, just `cd` into the coach folder and type `coach` (or `claude`).
+
+**Updating:** Run `/plugin marketplace update` to get the latest version.
+
+### Option B: Script installer (fallback)
+
+If you prefer not to use the plugin system:
 
 ```bash
 # Mac/Linux
+mkdir coach && cd coach
 curl -sL https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.sh | bash
 
 # Windows (PowerShell)
+mkdir coach; cd coach
 irm https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.ps1 | iex
 ```
 
-This installs Coach and sets up the data directory. No repo fork needed.
-
-After installing, type `claude` in the Coach folder -- onboarding starts automatically.
+After installing, type `claude` in the coach folder -- onboarding starts automatically.
 
 See [processing-setup.md](processing-setup.md) for manual setup or advanced configuration.
 
