@@ -781,14 +781,31 @@ const Log = {
     try {
       const prefs = await DB.getProfile('preferences') || {};
       const weightUnit = prefs.weightUnit || 'lbs';
-      const fresh = await DB.getDailySummary(App.selectedDate);
       const ts = Date.now();
-      await DB.updateDailySummary(App.selectedDate, {
+      const isoTs = new Date(ts).toISOString();
+      const date = App.selectedDate;
+      // Create an entry so each weight recording appears in the timeline
+      const entry = {
+        id: UI.generateId('weight'),
+        type: 'weight',
+        subtype: null,
+        date,
+        timestamp: isoTs,
+        notes: `${value} ${weightUnit}`,
+        photo: false,
+        duration_minutes: null,
+        weight_value: value,
+        weight_unit: weightUnit,
+      };
+      await DB.addEntry(entry);
+      // Also update daily summary for stat card + progress charts
+      const fresh = await DB.getDailySummary(date);
+      await DB.updateDailySummary(date, {
         weight: { value, unit: weightUnit, timestamp: ts },
         weightLog: [...(fresh.weightLog || []), { value, unit: weightUnit, timestamp: ts }],
       });
       UI.toast(`Weight: ${value} ${weightUnit} saved`);
-      CloudRelay.queueUpload(App.selectedDate);
+      CloudRelay.queueUpload(date);
       Log._afterSave();
     } catch (err) {
       console.error('Save weight failed:', err);

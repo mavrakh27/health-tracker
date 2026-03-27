@@ -5457,6 +5457,129 @@ async function testAdaptiveCalorieTargets(page, fixtures) {
 
   await screenshot(page, 'adaptive-calorie-targets');
 }
+
+async function testWeightEntryIndependence(page, fixtures) {
+  console.log('\n--- Weight Entry Independence ---');
+
+  // Navigate to today
+  const today = fixtures.dates[fixtures.dates.length - 1];
+  await page.evaluate((d) => App.goToDate(d), today);
+  await page.waitForTimeout(500);
+
+  // Clear existing weight entries for this date
+  await page.evaluate(async (date) => {
+    const entries = await DB.getEntriesByDate(date);
+    for (const e of entries) {
+      if (e.type === 'weight') await DB.deleteEntry(e.id);
+    }
+    // Clear daily summary weight too
+    await DB.updateDailySummary(date, { weight: null, weightLog: [] });
+  }, today);
+
+  // Count entries before adding weight
+  const beforeCount = await page.evaluate(async (date) => {
+    return (await DB.getEntriesByDate(date)).filter(e => e.type === 'weight').length;
+  }, today);
+  assert(beforeCount === 0, `No weight entries before test (got ${beforeCount})`);
+
+  // Add first weight entry via QuickLog modal
+  await page.evaluate(async (date) => {
+    const prefs = await DB.getProfile('preferences') || {};
+    const unit = prefs.weightUnit || 'lbs';
+    const ts1 = Date.now();
+    const entry1 = {
+      id: UI.generateId('weight'),
+      type: 'weight',
+      subtype: null,
+      date,
+      timestamp: new Date(ts1).toISOString(),
+      notes: '145.2 ' + unit,
+      photo: false,
+      duration_minutes: null,
+      weight_value: 145.2,
+      weight_unit: unit,
+    };
+    await DB.addEntry(entry1);
+    const fresh1 = await DB.getDailySummary(date);
+    await DB.updateDailySummary(date, {
+      weight: { value: 145.2, unit, timestamp: ts1 },
+      weightLog: [...(fresh1.weightLog || []), { value: 145.2, unit, timestamp: ts1 }],
+    });
+  }, today);
+
+  // Add second weight entry (different value, simulating evening weigh-in)
+  await page.evaluate(async (date) => {
+    const prefs = await DB.getProfile('preferences') || {};
+    const unit = prefs.weightUnit || 'lbs';
+    const ts2 = Date.now() + 30000;
+    const entry2 = {
+      id: UI.generateId('weight'),
+      type: 'weight',
+      subtype: null,
+      date,
+      timestamp: new Date(ts2).toISOString(),
+      notes: '144.8 ' + unit,
+      photo: false,
+      duration_minutes: null,
+      weight_value: 144.8,
+      weight_unit: unit,
+    };
+    await DB.addEntry(entry2);
+    const fresh2 = await DB.getDailySummary(date);
+    await DB.updateDailySummary(date, {
+      weight: { value: 144.8, unit, timestamp: ts2 },
+      weightLog: [...(fresh2.weightLog || []), { value: 144.8, unit, timestamp: ts2 }],
+    });
+  }, today);
+
+  // Verify both entries exist in the entries store
+  const afterCount = await page.evaluate(async (date) => {
+    return (await DB.getEntriesByDate(date)).filter(e => e.type === 'weight').length;
+  }, today);
+  assert(afterCount === 2, `Two independent weight entries stored (got ${afterCount})`);
+
+  // Verify weightLog in daily summary also has 2
+  const wlCount = await page.evaluate(async (date) => {
+    const summary = await DB.getDailySummary(date);
+    return (summary.weightLog || []).length;
+  }, today);
+  assert(wlCount === 2, `WeightLog has 2 entries (got ${wlCount})`);
+
+  // Reload day view and verify both appear in timeline
+  await page.evaluate(() => App.loadDayView());
+  await page.waitForTimeout(500);
+
+  const weightInTimeline = await page.$$eval('.entry-item[data-type="weight"]', els => els.length);
+  assert(weightInTimeline === 2, `Both weight entries appear in timeline (got ${weightInTimeline})`);
+
+  // Verify they show different values
+  const weightTexts = await page.$$eval('.entry-item[data-type="weight"] .entry-notes', els => els.map(e => e.textContent));
+  const has1452 = weightTexts.some(t => t.includes('145.2'));
+  const has1448 = weightTexts.some(t => t.includes('144.8'));
+  assert(has1452 && has1448, `Both weight values visible: ${JSON.stringify(weightTexts)}`);
+
+  // Verify stat card shows latest weight (144.8)
+  const statWeight = await page.evaluate(() => {
+    const card = document.querySelector('.stat-card[data-stat-action="weight"]');
+    return card ? card.textContent.trim() : '';
+  });
+  assert(statWeight.includes('144.8'), `Stat card shows latest weight 144.8 (got "${statWeight}")`);
+
+  // Clean up: remove test weight entries
+  await page.evaluate(async (date) => {
+    const entries = await DB.getEntriesByDate(date);
+    for (const e of entries) {
+      if (e.type === 'weight') await DB.deleteEntry(e.id);
+    }
+    await DB.updateDailySummary(date, { weight: null, weightLog: [] });
+  }, today);
+
+  await page.evaluate(() => App.loadDayView());
+  await page.waitForTimeout(300);
+
+  await screenshot(page, 'weight-entry-independence');
+}
+
 async function run() {
   console.log('=== Health Tracker Validation ===\n');
 
@@ -5525,6 +5648,7 @@ async function run() {
     await testPhotoComparison(page, context, fixtures);
     await testWeightTrendSmoothing(page, fixtures);
     await testAdaptiveCalorieTargets(page, fixtures);
+    await testWeightEntryIndependence(page, fixtures);
     // voice logging removed — not a priority
     await testConsoleErrors(page);
 

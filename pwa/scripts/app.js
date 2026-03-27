@@ -298,8 +298,24 @@ const QuickLog = {
         return;
       }
       try {
-        const fresh = await DB.getDailySummary(date);
         const ts = Date.now();
+        const isoTs = new Date(ts).toISOString();
+        // Create an entry so each weight recording appears in the timeline
+        const entry = {
+          id: UI.generateId('weight'),
+          type: 'weight',
+          subtype: null,
+          date,
+          timestamp: isoTs,
+          notes: `${value} ${weightUnit}`,
+          photo: false,
+          duration_minutes: null,
+          weight_value: value,
+          weight_unit: weightUnit,
+        };
+        await DB.addEntry(entry);
+        // Also update daily summary for stat card + progress charts
+        const fresh = await DB.getDailySummary(date);
         await DB.updateDailySummary(date, {
           weight: { value, unit: weightUnit, timestamp: ts },
           weightLog: [...(fresh.weightLog || []), { value, unit: weightUnit, timestamp: ts }],
