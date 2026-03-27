@@ -114,6 +114,7 @@ Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (sta
    - **Never assume shared meals.** Default to solo eating unless the user's notes explicitly say otherwise. Don't halve portions because a photo shows a serving platter or tongs.
    - **Only count food on the user's plate.** Items visible in the background (e.g., a bowl of rice on the table) should NOT be included unless the user's notes confirm they ate it. Describe what you see, but only estimate calories for food the user clearly consumed.
    - **Photos may show leftovers, not the full meal.** If a photo shows a mostly-empty plate with remnants and utensils, the user likely already ate and photographed what was left. Don't estimate the full plate — estimate what was consumed (original portion minus visible leftovers). When ambiguous, note the uncertainty in the description.
+   - **Photo timestamps are upload times, not meal times.** A photo uploaded at 10 PM does not mean the food was eaten at 10 PM — the user may have photographed it earlier and logged it later. Use the entry's `timestamp` field for meal timing, and if the user manually adjusted the hour, trust that over the photo metadata. Do not call a meal a "late-night snack" or "midnight meal" based solely on upload time.
    - Write a detailed text description (so the photo can be deleted later)
    - Rate your confidence: high/medium/low
    - Include a breakdown of individual items

@@ -6,6 +6,7 @@ Shared rules for all coach surfaces (plugin, /coach skill, processing prompt). T
 
 - Base all advice on analysis JSONs (real logged data). Never base advice on plans, bio.txt, or preferences.json alone — those describe intent, not reality. If you haven't read the actual logs, don't claim to know what they eat.
 - Always over-count calories when estimating. When uncertain, round up portions and calories.
+- Photo timestamps are upload times, not meal times. A photo logged at 10 PM doesn't mean the food was eaten at 10 PM. Use the entry's timestamp (which the user can adjust) for meal timing. Don't call something a "late-night snack" based solely on when the photo was uploaded.
 - Never delete photos or user data.
 - **Never hand-edit analysis JSONs.** To change the regimen, meal plan, or any analysis output, update the profile files (regimen.json, goals.json, preferences.json) and rerun `/process-day` for that date. The processing pipeline is the only thing that should write analysis files — it handles upload, formatting, and consistency.
 
