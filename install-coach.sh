@@ -31,13 +31,15 @@ echo ""
 echo "[2/3] Creating data directories..."
 mkdir -p "$COACH_DIR/profile" "$COACH_DIR/analysis" "$COACH_DIR/logs" "$COACH_DIR/processing" "$COACH_DIR/.claude/skills" "$COACH_DIR/.claude/memory"
 
-# Download profile templates
+# Download profile templates (skip if already exist -- don't overwrite user data)
 for f in goals.json preferences.json regimen.json; do
-  curl -sf "$REPO_RAW/processing/templates/$f" -o "$COACH_DIR/profile/$f" 2>/dev/null || true
+  if [ ! -f "$COACH_DIR/profile/$f" ]; then
+    curl -sf "$REPO_RAW/processing/templates/$f" -o "$COACH_DIR/profile/$f" 2>/dev/null || true
+  fi
 done
 
 # Download processing scripts
-for f in process-day.bat process-day.sh watcher.ps1 watcher.sh process-day-prompt.md; do
+for f in process-day.bat process-day.sh watcher.ps1 watcher.sh process-day-prompt.md plan-prompt.md; do
   curl -sf "$REPO_RAW/processing/$f" -o "$COACH_DIR/processing/$f" 2>/dev/null || true
 done
 for f in build-conversations.js build-summary.js timeline.js; do

@@ -1,0 +1,11 @@
+{
+  "name": "health-tracker",
+  "owner": { "name": "nEmily" },
+  "plugins": [
+    {
+      "name": "coach",
+      "source": "./coach-plugin",
+      "description": "AI health coach -- food photo analysis, calorie tracking, workout plans, meal planning"
+    }
+  ]
+}

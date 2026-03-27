@@ -34,13 +34,15 @@ Write-Host "[2/3] Creating data directories..."
 $dirs = @("profile", "analysis", "logs", "processing", ".claude\skills", ".claude\memory")
 foreach ($d in $dirs) { New-Item -ItemType Directory -Force "$CoachDir\$d" | Out-Null }
 
-# Download profile templates
+# Download profile templates (skip if already exist -- don't overwrite user data)
 foreach ($f in @("goals.json", "preferences.json", "regimen.json")) {
-  try { Invoke-WebRequest -Uri "$RepoRaw/processing/templates/$f" -OutFile "$CoachDir\profile\$f" -ErrorAction SilentlyContinue } catch {}
+  if (-not (Test-Path "$CoachDir\profile\$f")) {
+    try { Invoke-WebRequest -Uri "$RepoRaw/processing/templates/$f" -OutFile "$CoachDir\profile\$f" -ErrorAction SilentlyContinue } catch {}
+  }
 }
 
 # Download processing scripts
-foreach ($f in @("process-day.bat", "process-day.sh", "watcher.ps1", "watcher.sh", "process-day-prompt.md")) {
+foreach ($f in @("process-day.bat", "process-day.sh", "watcher.ps1", "watcher.sh", "process-day-prompt.md", "plan-prompt.md")) {
   try { Invoke-WebRequest -Uri "$RepoRaw/processing/$f" -OutFile "$CoachDir\processing\$f" -ErrorAction SilentlyContinue } catch {}
 }
 foreach ($f in @("build-conversations.js", "build-summary.js", "timeline.js")) {
