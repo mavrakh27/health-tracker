@@ -2572,6 +2572,27 @@ input[type="range"]::-webkit-slider-thumb {
   line-height: 1;
 }
 
+/* Edit modal: Add Photo actions */
+.edit-add-photo-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  flex-wrap: wrap;
+}
+
+.edit-add-photo-actions .btn-sm {
+  min-height: 44px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
+}
+
+.edit-photo-count {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
 /* Edit modal multi-photo grid */
 .edit-photo-grid {
   display: grid;

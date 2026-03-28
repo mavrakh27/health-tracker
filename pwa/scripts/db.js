@@ -217,6 +217,48 @@ async function updateEntry(entry) {
   });
 }
 
+// Add photos to an existing entry (for "Add Photo" in edit modal)
+async function addPhotosToEntry(entryId, photoBlobs, entry) {
+  const db = await openDB();
+  const tx = db.transaction(['entries', 'photos'], 'readwrite');
+
+  // Get existing photo count to generate unique IDs
+  const photoIndex = tx.objectStore('photos').index('entryId');
+  const existingPhotos = await new Promise((resolve, reject) => {
+    const req = photoIndex.getAll(entryId);
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = (e) => reject(e.target.error);
+  });
+
+  const blobs = Array.isArray(photoBlobs) ? photoBlobs : [photoBlobs];
+  const category = entry && entry.type === 'bodyPhoto' ? 'body' : 'meal';
+  const startIdx = existingPhotos.length;
+
+  for (let i = 0; i < blobs.length; i++) {
+    const photoRecord = {
+      id: `photo_${entryId}_${startIdx + i + 1}`,
+      entryId,
+      date: entry ? entry.date : existingPhotos[0]?.date,
+      category,
+      syncStatus: 'unsynced',
+      blob: blobs[i],
+      timestamp: new Date().toISOString(),
+    };
+    tx.objectStore('photos').put(photoRecord);
+  }
+
+  // Update entry.photo = true if not already
+  if (entry && !entry.photo) {
+    const updated = { ...entry, photo: true, updatedAt: new Date().toISOString() };
+    tx.objectStore('entries').put(updated);
+  }
+
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve(startIdx + blobs.length);
+    tx.onerror = (e) => reject(e.target.error);
+  });
+}
+
 async function deleteEntry(id) {
   const db = await openDB();
   const tx = db.transaction(['entries', 'photos'], 'readwrite');
@@ -949,6 +991,7 @@ window.DB = {
   getEntriesByType,
   hasAnyEntries,
   updateEntry,
+  addPhotosToEntry,
   deleteEntry,
   getDailySummary,
   getDailySummaryRange,

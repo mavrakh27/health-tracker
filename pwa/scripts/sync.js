@@ -200,20 +200,35 @@ const Sync = {
 
       let imported = 0;
       for (const entry of log.entries) {
-        let photoBlob = null;
+        let photoBlobs = null;
         if (entry.photo) {
+          const blobs = [];
+          // Primary photo path
           const dailyPath = `daily/${log.date}/photos/${entry.id}.jpg`;
-          const progressFace = `progress/${log.date}/face.jpg`;
-          const progressBody = `progress/${log.date}/body.jpg`;
-          photoBlob = photoMap[dailyPath]
-            || (entry.subtype === 'face' ? photoMap[progressFace] : null)
-            || (entry.subtype === 'body' ? photoMap[progressBody] : null);
-          if (!photoBlob) {
-            const match = Object.keys(photoMap).find(k => k.includes(`/${entry.id}.`) || k.includes(`/${entry.id}/`));
-            if (match) photoBlob = photoMap[match];
+          if (photoMap[dailyPath]) blobs.push(photoMap[dailyPath]);
+
+          // Additional photos (e.g., photos/entry_id_2.jpg, photos/entry_id_3.jpg)
+          for (let n = 2; n <= 10; n++) {
+            const extraPath = `daily/${log.date}/photos/${entry.id}_${n}.jpg`;
+            if (photoMap[extraPath]) blobs.push(photoMap[extraPath]);
+            else break;
           }
+
+          // Fallback for body photos
+          if (blobs.length === 0 && entry.type === 'bodyPhoto') {
+            const progressPath = `progress/${log.date}/${entry.subtype || 'body'}.jpg`;
+            if (photoMap[progressPath]) blobs.push(photoMap[progressPath]);
+          }
+
+          // Generic fallback: match by entry ID
+          if (blobs.length === 0) {
+            const matches = Object.keys(photoMap).filter(k => k.includes(`/${entry.id}`));
+            for (const match of matches) blobs.push(photoMap[match]);
+          }
+
+          photoBlobs = blobs.length > 0 ? blobs : null;
         }
-        await DB.addEntry(entry, photoBlob);
+        await DB.addEntry(entry, photoBlobs);
         imported++;
       }
 

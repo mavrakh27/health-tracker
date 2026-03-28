@@ -1385,6 +1385,187 @@ async function testPhotoComprehensive(page, fixtures) {
   await page.waitForTimeout(500);
 }
 
+async function testMultiPhotoEntry(page, fixtures) {
+  console.log('\n--- Multi-Photo Entry ---');
+
+  // ---- DB.addPhotosToEntry: add photos to existing entry ----
+  const addResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ff0000';
+    ctx.fillRect(0, 0, 10, 10);
+    const blob1 = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+    ctx.fillStyle = '#00ff00';
+    ctx.fillRect(0, 0, 10, 10);
+    const blob2 = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+    ctx.fillStyle = '#0000ff';
+    ctx.fillRect(0, 0, 10, 10);
+    const blob3 = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    // Create entry with 1 photo
+    const entry = {
+      id: 'multi_add_test', type: 'meal', date: '2026-02-15',
+      timestamp: new Date().toISOString(), notes: 'Multi-photo test', photo: true,
+    };
+    await DB.addEntry(entry, blob1);
+    const before = await DB.getPhotos('multi_add_test');
+
+    // Add 2 more photos
+    const totalCount = await DB.addPhotosToEntry('multi_add_test', [blob2, blob3], entry);
+    const after = await DB.getPhotos('multi_add_test');
+
+    // Verify export includes all 3
+    const exportData = await DB.exportDay('2026-02-15');
+    const photoNames = exportData.photoFiles.map(f => f.name);
+
+    // Clean up
+    await DB.deleteEntry('multi_add_test');
+
+    return {
+      before: before.length,
+      after: after.length,
+      totalCount,
+      photoNames,
+      uniqueIds: new Set(after.map(p => p.id)).size,
+    };
+  });
+  assert(addResult.before === 1, `addPhotosToEntry: started with 1 photo (got ${addResult.before})`);
+  assert(addResult.after === 3, `addPhotosToEntry: now has 3 photos (got ${addResult.after})`);
+  assert(addResult.totalCount === 3, `addPhotosToEntry: returned total count 3 (got ${addResult.totalCount})`);
+  assert(addResult.uniqueIds === 3, `addPhotosToEntry: all photo IDs unique (got ${addResult.uniqueIds})`);
+  assert(addResult.photoNames.length === 3, `Export includes all 3 photos (got ${addResult.photoNames.length})`);
+
+  // ---- DB.addPhotosToEntry: entry with no existing photos ----
+  const addToEmptyResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    const entry = {
+      id: 'add_to_empty_test', type: 'meal', date: '2026-02-16',
+      timestamp: new Date().toISOString(), notes: 'No photo initially', photo: false,
+    };
+    await DB.addEntry(entry, null);
+    const before = await DB.getPhotos('add_to_empty_test');
+
+    // Add a photo to an entry that had none
+    await DB.addPhotosToEntry('add_to_empty_test', [blob], entry);
+    const after = await DB.getPhotos('add_to_empty_test');
+
+    // Clean up
+    await DB.deleteEntry('add_to_empty_test');
+
+    return { before: before.length, after: after.length };
+  });
+  assert(addToEmptyResult.before === 0, `addPhotosToEntry (empty): started with 0 photos (got ${addToEmptyResult.before})`);
+  assert(addToEmptyResult.after === 1, `addPhotosToEntry (empty): now has 1 photo (got ${addToEmptyResult.after})`);
+
+  // ---- Edit modal: Add Photo buttons visible for food entries ----
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(600);
+
+  const mealEntry = await page.$('.entry-item[data-type="meal"]');
+  if (mealEntry) {
+    await mealEntry.click();
+    await page.waitForTimeout(500);
+
+    const addPhotoCapture = await page.$('#edit-add-photo-capture');
+    const addPhotoPick = await page.$('#edit-add-photo-pick');
+    const photoCount = await page.$('#edit-photo-count');
+
+    assert(!!addPhotoCapture, 'Edit modal has "Add Photo" capture button');
+    assert(!!addPhotoPick, 'Edit modal has "From Library" pick button');
+    assert(!!photoCount, 'Edit modal has photo count display');
+
+    if (photoCount) {
+      const countText = await photoCount.textContent();
+      // Count is populated when entry has photos; may be empty if entry has no photo
+      const entryHasPhoto = await page.evaluate(async (entryType) => {
+        const entries = await DB.getEntriesByDate(App.selectedDate);
+        const meal = entries.find(e => e.type === entryType);
+        if (!meal) return false;
+        const photos = await DB.getPhotos(meal.id);
+        return photos.length > 0;
+      }, 'meal');
+      if (entryHasPhoto) {
+        assert(countText.includes('photo'), `Photo count shows count text (got "${countText}")`);
+      } else {
+        assert(countText === '', `Photo count is empty for entry without photos`);
+      }
+    }
+
+    // Verify touch target size (min 44px)
+    if (addPhotoCapture) {
+      const box = await addPhotoCapture.boundingBox();
+      assert(box && box.height >= 44, `Add Photo button meets 44px min touch target (got ${box?.height}px)`);
+    }
+
+    const closeBtn = await page.$('.modal-close');
+    if (closeBtn) await closeBtn.click();
+    await page.waitForTimeout(200);
+  }
+
+  // ---- Edit modal: No Add Photo for weight entries ----
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[0]);
+  await page.waitForTimeout(600);
+
+  const weightEntry = await page.$('.entry-item[data-type="weight"]');
+  if (weightEntry) {
+    await weightEntry.click();
+    await page.waitForTimeout(500);
+
+    const addPhotoBtnWeight = await page.$('#edit-add-photo-capture');
+    assert(!addPhotoBtnWeight, 'Edit modal has no Add Photo for weight entries');
+
+    const closeBtn = await page.$('.modal-close');
+    if (closeBtn) await closeBtn.click();
+    await page.waitForTimeout(200);
+  }
+
+  // ---- Edit modal: Add Photo buttons visible for workout entries ----
+  const workoutEntry = await page.$('.entry-item[data-type="workout"]');
+  if (workoutEntry) {
+    await workoutEntry.click();
+    await page.waitForTimeout(500);
+
+    const addPhotoBtnWorkout = await page.$('#edit-add-photo-capture');
+    assert(!!addPhotoBtnWorkout, 'Edit modal has Add Photo for workout entries');
+
+    const closeBtn = await page.$('.modal-close');
+    if (closeBtn) await closeBtn.click();
+    await page.waitForTimeout(200);
+  }
+
+  // ---- Export: multi-photo entries produce numbered file names ----
+  const exportMultiResult = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 10; canvas.height = 10;
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg'));
+
+    const entry = {
+      id: 'export_multi_test', type: 'meal', date: '2026-02-17',
+      timestamp: new Date().toISOString(), notes: 'Export multi', photo: true,
+    };
+    await DB.addEntry(entry, [blob, blob, blob]);
+
+    const data = await DB.exportDay('2026-02-17');
+    const names = data.photoFiles.map(f => f.name);
+
+    await DB.deleteEntry('export_multi_test');
+    return { names };
+  });
+  assert(exportMultiResult.names.length === 3, `Export multi: 3 photo files (got ${exportMultiResult.names.length})`);
+  // When multiple photos exist, all get numbered suffixes (_1, _2, _3)
+  assert(exportMultiResult.names.some(n => n.includes('export_multi_test_1.jpg')), `Export multi: first photo has _1 suffix`);
+  assert(exportMultiResult.names.some(n => n.includes('export_multi_test_2.jpg')), `Export multi: second photo has _2 suffix`);
+  assert(exportMultiResult.names.some(n => n.includes('export_multi_test_3.jpg')), `Export multi: third photo has _3 suffix`);
+
+  // Restore day view
+  await page.evaluate((d) => App.goToDate(d), fixtures.dates[4]);
+  await page.waitForTimeout(500);
+}
+
 async function testUserFlows(page, fixtures) {
   console.log('\n--- User Flows ---');
 
@@ -5630,6 +5811,7 @@ async function run() {
     await testEntryTypes(page, fixtures);
     await testPhotos(page, fixtures);
     await testPhotoComprehensive(page, fixtures);
+    await testMultiPhotoEntry(page, fixtures);
     await testUserFlows(page, fixtures);
     await testFixtureSchema(fixtures);
     await testProfileRoundTrip(page, fixtures);

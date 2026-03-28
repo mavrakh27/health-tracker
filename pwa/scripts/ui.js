@@ -411,6 +411,30 @@ const UI = {
     }
 
     const isBodyPhoto = entry.type === 'bodyPhoto';
+    const isFoodEntry = ['meal', 'snack', 'drink'].includes(entry.type);
+
+    // Build hour picker options for food entries
+    let hourPickerHtml = '';
+    if (isFoodEntry) {
+      const entryDate = new Date(entry.timestamp);
+      const currentHour = entryDate.getHours();
+      const hourOptions = [];
+      for (let h = 0; h < 24; h++) {
+        const ampm = h < 12 ? 'AM' : 'PM';
+        const display = h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
+        const selected = h === currentHour ? ' selected' : '';
+        hourOptions.push(`<option value="${h}"${selected}>${display}</option>`);
+      }
+      hourPickerHtml = `
+        <div class="form-group" style="margin-bottom: var(--space-md);">
+          <label class="form-label">Time eaten</label>
+          <select class="form-input" id="edit-hour" style="min-height:44px; font-size:var(--text-base);">
+            ${hourOptions.join('')}
+          </select>
+        </div>
+      `;
+    }
+
     let photoHtml = '';
     if (photoUrls.length > 0) {
       if (isBodyPhoto) {
@@ -421,11 +445,21 @@ const UI = {
       } else if (photoUrls.length === 1) {
         photoHtml = `<div class="ql-photo-preview"><img src="${photoUrls[0]}" alt=""></div>`;
       } else {
-        photoHtml = `<div class="edit-photo-grid">${photoUrls.map((url, i) =>
+        photoHtml = `<div class="edit-photo-grid" id="edit-photo-grid">${photoUrls.map((url, i) =>
           `<div class="ql-photo-preview edit-photo-grid-item" data-photo-idx="${i}"><img src="${url}" alt=""></div>`
         ).join('')}</div>`;
       }
     }
+
+    // "Add Photo" actions for non-body entries (meal, workout, custom, etc.)
+    const canAddPhotos = !isBodyPhoto && entry.type !== 'weight' && entry.type !== 'water';
+    const addPhotoHtml = canAddPhotos ? `
+      <div class="edit-add-photo-actions" id="edit-add-photo-section">
+        <button class="btn btn-secondary btn-sm" id="edit-add-photo-capture"><span class="btn-icon">${UI.svg.camera}</span> Add Photo</button>
+        <button class="btn btn-ghost btn-sm" id="edit-add-photo-pick"><span class="btn-icon">${UI.svg.gallery}</span> From Library</button>
+        <span class="edit-photo-count" id="edit-photo-count">${photoUrls.length > 0 ? photoUrls.length + ' photo' + (photoUrls.length > 1 ? 's' : '') : ''}</span>
+      </div>
+    ` : '';
 
     // Body photo entries are locked by default to prevent accidental edits/deletions
     const lockBarHtml = isBodyPhoto ? `
@@ -442,6 +476,7 @@ const UI = {
         <button class="modal-close" id="edit-close" aria-label="Close">&times;</button>
       </div>
       ${photoHtml}
+      ${addPhotoHtml}
       ${lockBarHtml}
       <div class="form-group" style="margin-bottom: var(--space-md);">
         <label class="form-label" style="font-size: var(--text-xs); color: var(--text-muted);">
@@ -451,6 +486,7 @@ const UI = {
           <input type="date" class="form-input" id="edit-date" value="${entry.date}" style="flex:1;"${isBodyPhoto ? ' disabled' : ''}>
         </div>
       </div>
+      ${hourPickerHtml}
       <div class="form-group">
         <label class="form-label">Notes</label>
         <textarea class="form-input" id="edit-notes" placeholder="Add notes" rows="1"${isBodyPhoto ? ' disabled' : ''}>${UI.escapeHtml(entry.notes || '')}</textarea>
@@ -502,6 +538,100 @@ const UI = {
           if (photoUrls[idx]) UI.showPhotoViewer(photoUrls[idx], entry);
         });
       });
+    }
+
+    // Add Photo buttons in edit modal
+    const addPhotoCaptureBtn = document.getElementById('edit-add-photo-capture');
+    const addPhotoPickBtn = document.getElementById('edit-add-photo-pick');
+
+    const handleAddPhotoToEntry = async (useCamera) => {
+      const result = useCamera ? await Camera.capture('meal') : await Camera.pick('meal');
+      if (!result) return;
+
+      try {
+        const totalPhotos = await DB.addPhotosToEntry(entry.id, [result.blob], entry);
+        // Update entry.photo flag in-memory for consistency
+        entry.photo = true;
+
+        // Add the new photo URL to tracking array
+        const newUrl = URL.createObjectURL(result.blob);
+        photoUrls.push(newUrl);
+
+        // Update photo count display
+        const countEl = document.getElementById('edit-photo-count');
+        if (countEl) {
+          countEl.textContent = photoUrls.length + ' photo' + (photoUrls.length > 1 ? 's' : '');
+        }
+
+        // Rebuild the photo display area
+        const existingGrid = sheet.querySelector('.edit-photo-grid');
+        const existingSingle = sheet.querySelector('.ql-photo-preview:not(.edit-photo-grid-item):not(.edit-photo-locked)');
+
+        if (existingGrid) {
+          // Already a grid — add new item
+          const newItem = document.createElement('div');
+          newItem.className = 'ql-photo-preview edit-photo-grid-item';
+          newItem.dataset.photoIdx = photoUrls.length - 1;
+          newItem.innerHTML = `<img src="${newUrl}" alt="">`;
+          newItem.style.cursor = 'pointer';
+          newItem.addEventListener('click', (e) => {
+            e.stopPropagation();
+            UI.showPhotoViewer(newUrl, entry);
+          });
+          existingGrid.appendChild(newItem);
+        } else if (existingSingle) {
+          // Was a single photo — convert to grid
+          const grid = document.createElement('div');
+          grid.className = 'edit-photo-grid';
+          grid.id = 'edit-photo-grid';
+
+          for (let i = 0; i < photoUrls.length; i++) {
+            const item = document.createElement('div');
+            item.className = 'ql-photo-preview edit-photo-grid-item';
+            item.dataset.photoIdx = i;
+            item.innerHTML = `<img src="${photoUrls[i]}" alt="">`;
+            item.style.cursor = 'pointer';
+            const url = photoUrls[i];
+            item.addEventListener('click', (e) => {
+              e.stopPropagation();
+              UI.showPhotoViewer(url, entry);
+            });
+            grid.appendChild(item);
+          }
+
+          existingSingle.replaceWith(grid);
+        } else {
+          // No existing photos — insert single preview before the add photo section
+          const addSection = document.getElementById('edit-add-photo-section');
+          if (addSection) {
+            const preview = document.createElement('div');
+            preview.className = 'ql-photo-preview';
+            preview.innerHTML = `<img src="${newUrl}" alt="">`;
+            preview.style.cursor = 'pointer';
+            preview.addEventListener('click', (e) => {
+              e.stopPropagation();
+              UI.showPhotoViewer(newUrl, entry);
+            });
+            addSection.insertAdjacentElement('beforebegin', preview);
+          }
+        }
+
+        // Mark for re-upload
+        entry.updatedAt = new Date().toISOString();
+        await DB.updateEntry(entry);
+        CloudRelay.queueUpload(entry.date);
+        UI.toast(`Photo added (${photoUrls.length} total)`);
+      } catch (err) {
+        console.error('Add photo failed:', err);
+        UI.toast('Failed to add photo', 'error');
+      }
+    };
+
+    if (addPhotoCaptureBtn) {
+      addPhotoCaptureBtn.addEventListener('click', () => handleAddPhotoToEntry(true));
+    }
+    if (addPhotoPickBtn) {
+      addPhotoPickBtn.addEventListener('click', () => handleAddPhotoToEntry(false));
     }
 
     // Entry lock toggle (for enabling edit/delete)
@@ -561,8 +691,20 @@ const UI = {
         const dur = document.getElementById('edit-duration')?.value;
         updated.duration_minutes = dur ? parseInt(dur) : null;
       }
+      // Hour picker for food entries — update the hour portion of the timestamp
+      let hourChanged = false;
+      const hourSelect = document.getElementById('edit-hour');
+      if (hourSelect) {
+        const newHour = parseInt(hourSelect.value);
+        const ts = new Date(entry.timestamp);
+        if (newHour !== ts.getHours()) {
+          ts.setHours(newHour);
+          updated.timestamp = ts.toISOString();
+          hourChanged = true;
+        }
+      }
       // Only set updatedAt if something actually changed
-      const changed = notes !== (entry.notes || '') || newDate !== oldDate
+      const changed = notes !== (entry.notes || '') || newDate !== oldDate || hourChanged
         || (entry.type === 'workout' && updated.duration_minutes !== entry.duration_minutes);
       if (changed) {
         updated.updatedAt = new Date().toISOString();
