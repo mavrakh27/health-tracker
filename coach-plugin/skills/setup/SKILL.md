@@ -127,6 +127,16 @@ ENVEOF
 
 **Save the sync key** — it's needed for the phone setup later in the conversation.
 
+**Write script version to relay config** (so the PWA can show update notifications):
+Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and push it to the relay. Also include it in the user's profile export so the PWA stores it locally.
+
+```bash
+# Extract version from plugin.json
+PLUGIN_VERSION=$(node -e "console.log(require('${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json').version)")
+```
+
+The PWA will compare this version against what the relay returns in `/results/new`. When they differ, it shows an "update available" banner telling the user to re-run `/setup`.
+
 ### 5. Copy processing scripts
 
 Copy from the plugin into `./processing/`:

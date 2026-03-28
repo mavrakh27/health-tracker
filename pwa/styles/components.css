@@ -1,3 +1,35 @@
+/* Update Banner */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--accent-primary);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  z-index: 100;
+}
+
+.update-banner code {
+  background: var(--bg-input);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+}
+
+.update-banner button {
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
 /* Today Segments + Panels */
 .today-segments {
   display: flex;

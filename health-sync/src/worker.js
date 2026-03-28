@@ -191,10 +191,13 @@ async function handle(request, env, key, route) {
     return json(200, { ok: true, resyncDates: dates });
   }
 
-  // GET /sync/{key}/results/new — check for new results
+  // GET /sync/{key}/results/new — check for new results + script version
   if (route === 'results/new' && method === 'GET') {
     const state = await getState(env, key);
-    return json(200, { newResults: state.newResults || [] });
+    const config = await getGlobalConfig(env);
+    const resp = { newResults: state.newResults || [] };
+    if (config.scriptVersion) resp.scriptVersion = config.scriptVersion;
+    return json(200, resp);
   }
 
   // GET /sync/{key}/results/{date} — download analysis JSON
@@ -248,10 +251,28 @@ async function handle(request, env, key, route) {
     return new Response(obj.body, { headers: { 'Content-Type': 'application/json' } });
   }
 
+  // PUT /admin/script-version — set the latest script version (requires admin key)
+  if (parts[0] === 'admin' && parts[1] === 'script-version' && method === 'PUT') {
+    const adminKey = request.headers.get('X-Admin-Key');
+    if (!adminKey || adminKey !== env.ADMIN_KEY) return cors(json(403, { error: 'forbidden' }));
+    const { version } = await request.json();
+    if (!version) return cors(json(400, { error: 'version required' }));
+    const config = await getGlobalConfig(env);
+    config.scriptVersion = version;
+    await env.BUCKET.put('metadata/global/config.json', JSON.stringify(config));
+    return cors(json(200, { ok: true, scriptVersion: version }));
+  }
+
   return json(404, { error: 'not found' });
 }
 
 // --- State helpers ---
+
+async function getGlobalConfig(env) {
+  const obj = await env.BUCKET.get('metadata/global/config.json');
+  if (!obj) return {};
+  return JSON.parse(await obj.text());
+}
 
 async function getState(env, key) {
   const obj = await env.BUCKET.get(`metadata/${key}/state.json`);

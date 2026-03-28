@@ -622,7 +622,14 @@ const CloudRelay = {
         return;
       }
 
-      const { newResults } = await resp.json();
+      const data = await resp.json();
+      const newResults = data.newResults;
+
+      // Check for script version update notification
+      if (data.scriptVersion) {
+        this._checkScriptVersion(data.scriptVersion);
+      }
+
       if (!newResults || newResults.length === 0) {
         this.log('No new results available');
         this._checkingResults = false;
@@ -1022,6 +1029,34 @@ const CloudRelay = {
         UI.toast('Connection failed', 'error');
       }
     });
+  },
+
+  // Script version update detection
+  _updateBannerShown: false,
+
+  async _checkScriptVersion(relayVersion) {
+    if (this._updateBannerShown) return;
+    try {
+      const profile = await DB.getProfile();
+      const localVersion = profile?.scriptVersion;
+      if (!localVersion) return; // not set yet (pre-plugin users)
+      if (localVersion === relayVersion) return;
+      this._updateBannerShown = true;
+      this.log(`Script update available: ${localVersion} -> ${relayVersion}`);
+      this._showUpdateBanner(relayVersion);
+    } catch (e) { /* silent */ }
+  },
+
+  _showUpdateBanner(version) {
+    if (document.getElementById('update-banner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'update-banner';
+    banner.className = 'update-banner';
+    banner.innerHTML = `
+      <span>Coach update available (v${version}). Run <code>/setup</code> to update processing scripts.</span>
+      <button onclick="this.parentElement.remove()">Dismiss</button>
+    `;
+    document.body.prepend(banner);
   },
 };
 
