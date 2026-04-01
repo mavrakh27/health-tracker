@@ -2295,7 +2295,7 @@ const ProgressView = {
 
     const cursor = new Date(mondayStart);
     for (let week = 0; week < 8; week++) {
-      const weekLabel = week === 7 ? 'This' : week === 6 ? 'Last' : `-${8 - week}`;
+      const weekLabel = week === 7 ? 'This' : week === 6 ? 'Last' : `-${7 - week}`;
       html += `<div style="display:grid; grid-template-columns:32px repeat(7, 1fr); gap:3px; margin-bottom:3px;">`;
       html += `<div style="font-size:9px; color:var(--text-muted); display:flex; align-items:center;">${weekLabel}</div>`;
       for (let d = 0; d < 7; d++) {
