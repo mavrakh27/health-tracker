@@ -1028,7 +1028,7 @@ const ProgressView = {
       const g = fitnessGoals[i];
       const isLast = i === fitnessGoals.length - 1;
       const targetDate = new Date(g.target + 'T12:00:00');
-      const now = new Date();
+      const now = new Date(UI.today() + 'T12:00:00');
       const daysLeft = Math.max(0, Math.round((targetDate - now) / 86400000));
       html += `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; ${!isLast ? 'border-bottom:1px solid var(--border-color);' : ''}">
         <div>
@@ -1950,7 +1950,7 @@ const ProgressView = {
         }
       }
       const totalDays = w === 0
-        ? Math.min(7, Math.floor((new Date(today + 'T12:00:00') - new Date(monday + 'T12:00:00')) / 86400000) + 1)
+        ? Math.max(1, Math.min(7, Math.floor((new Date(today + 'T12:00:00') - new Date(monday + 'T12:00:00')) / 86400000) + 1))
         : 7;
       weeks.push({ logged: daysWithMeals.size, total: totalDays });
     }

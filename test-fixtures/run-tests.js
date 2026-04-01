@@ -7155,6 +7155,78 @@ async function testInsightRenders(page, fixtures) {
   const insightsBtnRestore = await page.$('button:has-text("Insights")');
   if (insightsBtnRestore) await insightsBtnRestore.click();
   await page.waitForTimeout(500);
+
+  // ── 11. _computeSkincareStreak — today pct===null starts from yesterday ──
+  const skincareStreakNullToday = await page.evaluate(() => {
+    // If today has pct === null, streak should ignore it and count from yesterday
+    const adherenceWithNullToday = [
+      { date: '2026-03-28', pct: 100 },
+      { date: '2026-03-29', pct: 100 },
+      { date: '2026-03-30', pct: 100 },
+      { date: '2026-03-31', pct: null },  // today: no data yet
+    ];
+    const streak = ProgressView._computeSkincareStreak(adherenceWithNullToday);
+    // Should count 3 (the three 100% days before today's null)
+    return { streak };
+  });
+  assert(skincareStreakNullToday.streak === 3, `_computeSkincareStreak: today pct===null skips to yesterday (got streak=${skincareStreakNullToday.streak}, want 3)`);
+
+  // Confirm: if null is in the middle (not just today), it breaks the streak
+  const skincareStreakNullMiddle = await page.evaluate(() => {
+    const adherence = [
+      { date: '2026-03-28', pct: 100 },
+      { date: '2026-03-29', pct: null },  // gap in the middle
+      { date: '2026-03-30', pct: 100 },
+      { date: '2026-03-31', pct: 100 },
+    ];
+    const streak = ProgressView._computeSkincareStreak(adherence);
+    // Starts from last entry (100), goes back: 100 → null breaks → streak = 2
+    return { streak };
+  });
+  assert(skincareStreakNullMiddle.streak === 2, `_computeSkincareStreak: null in middle breaks streak (got ${skincareStreakNullMiddle.streak}, want 2)`);
+
+  // ── 12. renderTimeline — startDate === endDate does not divide by zero ────
+  const timelineEqualDates = await page.evaluate(() => {
+    let html = '', threw = false;
+    try {
+      html = ProgressView.renderTimeline(
+        '2026-03-15', // startDate
+        '2026-03-15', // endDate === startDate
+        '2026-03-15', // today
+        [],           // empty timeline
+        null          // no active plan
+      );
+    } catch (e) {
+      threw = true;
+    }
+    return { threw, hasHtml: typeof html === 'string' };
+  });
+  assert(!timelineEqualDates.threw, 'renderTimeline: startDate === endDate does not throw (no div-by-zero)');
+  assert(timelineEqualDates.hasHtml, 'renderTimeline: returns a string when startDate === endDate');
+
+  // ── 13. renderFitnessGoals — uses UI.today() not wall-clock new Date() ───
+  const fitnessGoals4am = await page.evaluate(() => {
+    // Mock UI.today to return a specific date (simulating 4am boundary)
+    const origToday = UI.today;
+    UI.today = () => '2026-03-20';
+
+    const goals = [{ name: 'Test goal', target: '2026-04-01' }];
+    let html = '', threw = false;
+    try {
+      html = ProgressView.renderFitnessGoals(goals);
+    } catch (e) {
+      threw = true;
+    }
+
+    UI.today = origToday;
+
+    // With today = 2026-03-20 and target = 2026-04-01, daysLeft should be 12
+    const expectedDays = 12;
+    const hasExpectedDays = html.includes(`${expectedDays} days left`);
+    return { threw, hasExpectedDays, html: html.substring(0, 200) };
+  });
+  assert(!fitnessGoals4am.threw, 'renderFitnessGoals: does not throw with UI.today() mock');
+  assert(fitnessGoals4am.hasExpectedDays, `renderFitnessGoals: uses UI.today() for daysLeft calculation (expected 12 days from 2026-03-20 to 2026-04-01)`);
 }
 
 async function run() {
