@@ -1793,6 +1793,7 @@ const ProgressView = {
   async _renderWeeklyDeficit(goals) {
     const today = UI.today();
     const monday = ProgressView._mondayOf(today);
+    if (monday > today) return '';
     const analyses = await DB.getAnalysisRange(monday, today);
     if (analyses.length === 0) return '';
 
@@ -1821,6 +1822,7 @@ const ProgressView = {
   async _renderWeightChangeRate(goals) {
     const today = UI.today();
     const start = ProgressView._daysAgo(30);
+    if (start > today) return '';
     const summaries = await DB.getDailySummaryRange(start, today);
     const analyses = await DB.getAnalysisRange(start, today);
 
@@ -1884,6 +1886,7 @@ const ProgressView = {
   async _renderViceImpact(goals) {
     const today = UI.today();
     const start = ProgressView._daysAgo(30);
+    if (start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     const regimen = await DB.getRegimen();
     if (analyses.length === 0) return '';
@@ -1975,6 +1978,7 @@ const ProgressView = {
   async _renderMacroSplit() {
     const today = UI.today();
     const start = ProgressView._daysAgo(7);
+    if (start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     if (analyses.length === 0) return '';
 
@@ -2024,6 +2028,7 @@ const ProgressView = {
   async _renderProteinByMeal() {
     const today = UI.today();
     const start = ProgressView._daysAgo(14);
+    if (start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     if (analyses.length === 0) return '';
 
@@ -2070,6 +2075,7 @@ const ProgressView = {
   async _renderBestWorstDay(goals) {
     const today = UI.today();
     const start = ProgressView._daysAgo(30);
+    if (start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     const regimen = await DB.getRegimen();
     if (analyses.length === 0) return '';
@@ -2123,6 +2129,7 @@ const ProgressView = {
   async _renderFoodTimingHeatmap() {
     const today = UI.today();
     const start = ProgressView._daysAgo(30);
+    if (start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     if (analyses.length === 0) return '';
 
@@ -2197,6 +2204,7 @@ const ProgressView = {
   async _renderWeekendVsWeekday() {
     const today = UI.today();
     const start = ProgressView._daysAgo(30);
+    if (start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     if (analyses.length === 0) return '';
 
@@ -2245,6 +2253,7 @@ const ProgressView = {
   async _renderWorkoutGrid() {
     const today = UI.today();
     const start = ProgressView._daysAgo(56); // 8 weeks
+    if (start > today) return '';
     const entries = await DB.getEntriesByDateRange(start, today);
     const regimen = await DB.getRegimen();
     const schedule = regimen?.weeklySchedule || [];
