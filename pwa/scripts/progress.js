@@ -386,7 +386,6 @@ const ProgressView = {
     // --- Weight Goal ---
     if (goals.weight) {
       const w = goals.weight;
-      const progress = w.current && w.goal ? Math.round((1 - (w.current - w.goal) / (w.current)) * 100) : null;
       html += '<h2 class="section-header">Weight</h2><div class="card">';
       html += `<div style="display:flex; justify-content:space-between; align-items:center;">
         <div>
@@ -561,13 +560,13 @@ const ProgressView = {
 
   async renderWeightTrend() {
     // Get weight data from daily summaries (batch lookup, 90 days)
-    const today = new Date();
-    const thirtyDaysAgo = new Date(today);
-    thirtyDaysAgo.setDate(today.getDate() - 90);
+    const today = UI.today();
+    const ninetyDaysAgo = new Date(today + 'T12:00:00');
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
     const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
-    const startDate = fmt(thirtyDaysAgo);
-    const endDate = fmt(today);
+    const startDate = fmt(ninetyDaysAgo);
+    const endDate = today;
 
     const summaries = await DB.getDailySummaryRange(startDate, endDate);
     const points = [];
@@ -1047,7 +1046,7 @@ const ProgressView = {
     const startMs = new Date(startDate + 'T12:00:00').getTime();
     const endMs = new Date(endDate + 'T12:00:00').getTime();
     const todayMs = new Date(today + 'T12:00:00').getTime();
-    const totalDays = Math.round((endMs - startMs) / 86400000);
+    const totalDays = Math.max(1, Math.round((endMs - startMs) / 86400000));
     const elapsedDays = Math.round((todayMs - startMs) / 86400000);
     const pct = Math.min(100, Math.round((elapsedDays / totalDays) * 100));
 
@@ -1195,8 +1194,9 @@ const ProgressView = {
     const proTarget = goals.protein || 100;
     const waterTarget = goals.water_oz || 64;
 
-    const avgCal = Math.round(analyses.reduce((s, a) => s + (a.totals?.calories || 0), 0) / analyses.length);
-    const avgPro = Math.round(analyses.reduce((s, a) => s + (a.totals?.protein || 0), 0) / analyses.length);
+    const count = analyses.length || 1;
+    const avgCal = Math.round(analyses.reduce((s, a) => s + (a.totals?.calories || 0), 0) / count);
+    const avgPro = Math.round(analyses.reduce((s, a) => s + (a.totals?.protein || 0), 0) / count);
     const workoutDays = analyses.filter(a => (a.entries || []).some(e => e.type === 'workout')).length;
     const waterHit = analyses.filter(a => (a.goals?.water?.actual_oz || 0) >= waterTarget).length;
 
@@ -1210,13 +1210,13 @@ const ProgressView = {
   },
 
   async renderCalendarHeatmap() {
-    const now = new Date();
+    const today = UI.today();
+    const now = new Date(today + 'T12:00:00');
     const year = now.getFullYear();
     const month = now.getMonth();
     const monthName = now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDay = new Date(year, month, 1).getDay();
-    const today = UI.today();
 
     let html = `<h2 class="section-header">${monthName}</h2>`;
     html += '<div class="card"><div class="cal-weekdays"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>';
@@ -1372,9 +1372,15 @@ const ProgressView = {
   },
 
   _computeSkincareStreak(adherence) {
-    // Walk backwards from most recent day, count consecutive 100% days
+    // Walk backwards from most recent day, count consecutive 100% days.
+    // If today (last entry) has no data yet (pct === null), skip it and
+    // start counting from yesterday — same pattern as score.js calculateStreak().
+    let startIdx = adherence.length - 1;
+    if (startIdx >= 0 && adherence[startIdx].pct === null) {
+      startIdx--;
+    }
     let streak = 0;
-    for (let i = adherence.length - 1; i >= 0; i--) {
+    for (let i = startIdx; i >= 0; i--) {
       const { pct } = adherence[i];
       if (pct === 100) {
         streak++;
@@ -2143,6 +2149,12 @@ const ProgressView = {
       const hour = new Date(e.timestamp).getHours();
       const ae = analysisEntryMap[e.id];
       const cal = ae?.calories || ae?.calories_est || e.calories_est || 0;
+      // Entries before 4am belong to the previous day's "Late" bucket (4am day boundary)
+      if (hour < 4) {
+        blocks['Late'].cal += cal;
+        blocks['Late'].count++;
+        continue;
+      }
       for (const [, block] of Object.entries(blocks)) {
         const [lo, hi] = block.range;
         if (lo < hi) {
@@ -2274,7 +2286,7 @@ const ProgressView = {
 
     const cursor = new Date(mondayStart);
     for (let week = 0; week < 8; week++) {
-      const weekLabel = week === 7 ? 'This' : week === 6 ? 'Last' : `-${7 - week}`;
+      const weekLabel = week === 7 ? 'This' : week === 6 ? 'Last' : `-${8 - week}`;
       html += `<div style="display:grid; grid-template-columns:32px repeat(7, 1fr); gap:3px; margin-bottom:3px;">`;
       html += `<div style="font-size:9px; color:var(--text-muted); display:flex; align-items:center;">${weekLabel}</div>`;
       for (let d = 0; d < 7; d++) {
