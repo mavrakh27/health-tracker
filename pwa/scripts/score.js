@@ -39,9 +39,18 @@ const DayScore = {
     // Meal logging
     const meals = entries.filter(e => e.type === 'meal');
 
+    // Bonus: cardio day + also did bonus strength exercises = +5
+    const isCardioDay = todayPlan && todayPlan.type === 'cardio';
+    const workoutSubtypes = workoutEntries.map(e => (e.subtype || '').toLowerCase());
+    const checkedLower = fitnessChecked.map(s => s.toLowerCase());
+    const didStrengthOnCardioDay = isCardioDay && didWorkout && (
+      workoutSubtypes.some(s => s === 'strength' || s === 'bands' || s === 'resistance') ||
+      checkedLower.some(s => s.includes('band') || s.includes('push-up') || s.includes('clam') || s.includes('bridge') || s.includes('woodchop') || s.includes('face pull') || s.includes('good morning'))
+    );
+
     // --- Score calculation ---
-    const scoreModerate = DayScore._calc(calActual, proteinActual, waterActual, moderate, hasAnalysis, meals, isWorkoutDay, didWorkout, drinkCount);
-    const scoreHardcore = DayScore._calc(calActual, proteinActual, waterActual, hardcore, hasAnalysis, meals, isWorkoutDay, didWorkout, drinkCount);
+    const scoreModerate = DayScore._calc(calActual, proteinActual, waterActual, moderate, hasAnalysis, meals, isWorkoutDay, didWorkout, drinkCount, didStrengthOnCardioDay);
+    const scoreHardcore = DayScore._calc(calActual, proteinActual, waterActual, hardcore, hasAnalysis, meals, isWorkoutDay, didWorkout, drinkCount, didStrengthOnCardioDay);
 
     return {
       moderate: scoreModerate,
@@ -51,7 +60,7 @@ const DayScore = {
     };
   },
 
-  _calc(calActual, proteinActual, waterActual, goals, hasAnalysis, meals, isWorkoutDay, didWorkout, drinkCount) {
+  _calc(calActual, proteinActual, waterActual, goals, hasAnalysis, meals, isWorkoutDay, didWorkout, drinkCount, didStrengthOnCardioDay) {
     let score = 0;
     const breakdown = {};
 
@@ -97,6 +106,12 @@ const DayScore = {
     if (meals.length >= 1) { score += 15; breakdown.logging = 15; }
     else { breakdown.logging = 0; }
 
+    // Bonus: cardio + strength on same day (+5, can exceed 100)
+    if (didStrengthOnCardioDay) {
+      score += 5;
+      breakdown.bonus = 5;
+    }
+
     // Vice penalty (-10 per drink, max -30)
     if (drinkCount > 0) {
       const penalty = Math.min(30, drinkCount * 10);
@@ -104,7 +119,7 @@ const DayScore = {
       breakdown.vices = -penalty;
     }
 
-    score = Math.max(0, Math.min(100, score));
+    score = Math.max(0, Math.min(105, score));
 
     return { score, breakdown };
   },
@@ -174,7 +189,7 @@ const DayScore = {
     // SVG circular gauge
     const radius = 40;
     const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (ms / 100) * circumference;
+    const offset = circumference - (Math.min(ms, 100) / 100) * circumference;
 
     // Breakdown chips
     const chips = [];
@@ -183,6 +198,7 @@ const DayScore = {
     chips.push({ label: bd._isRest ? 'Rest' : 'Workout', pts: bd.workout, max: 25 });
     chips.push({ label: 'Water', pts: bd.water, max: 10 });
     chips.push({ label: 'Logged', pts: bd.logging, max: 15 });
+    if (bd.bonus) chips.push({ label: 'Bonus', pts: bd.bonus, max: 5 });
     if (bd.vices != null) chips.push({ label: 'Vices', pts: bd.vices, max: 0 });
 
     let chipsHtml = '';
