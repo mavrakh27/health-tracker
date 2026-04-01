@@ -7229,6 +7229,565 @@ async function testInsightRenders(page, fixtures) {
   assert(fitnessGoals4am.hasExpectedDays, `renderFitnessGoals: uses UI.today() for daysLeft calculation (expected 12 days from 2026-03-20 to 2026-04-01)`);
 }
 
+async function testChaosInsights(page, context, fixtures) {
+  console.log('\n--- Chaos: Adversarial Insight Tests ---');
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 1. Garbage dates
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n  -- Chaos: Garbage Dates --');
+
+  const garbageDateResults = await page.evaluate(async () => {
+    const results = [];
+    const goals = await DB.getProfile('goals') || {};
+    const garbageDates = [null, undefined, 'not-a-date', '9999-12-31', ''];
+
+    // Test _mondayOf with garbage
+    for (const d of garbageDates) {
+      let threw = false;
+      try { ProgressView._mondayOf(d); } catch (e) { threw = true; }
+      results.push({ fn: '_mondayOf', input: String(d), threw });
+    }
+
+    // Test _daysAgo with garbage (it doesn't take a date, but test with NaN/null)
+    for (const n of [null, undefined, NaN, -1, Infinity]) {
+      let threw = false;
+      try { ProgressView._daysAgo(n); } catch (e) { threw = true; }
+      results.push({ fn: '_daysAgo', input: String(n), threw });
+    }
+
+    // Override UI.today() to return garbage and call insight functions
+    const origToday = UI.today;
+    const insightFns = [
+      () => ProgressView._renderWeeklyDeficit(goals),
+      () => ProgressView._renderLoggingConsistency(),
+      () => ProgressView._renderViceImpact(goals),
+      () => ProgressView._renderMacroSplit(),
+      () => ProgressView._renderBestWorstDay(goals),
+      () => ProgressView._renderWeekendVsWeekday(),
+      () => ProgressView._renderWeightChangeRate(goals),
+      () => ProgressView._renderProteinByMeal(),
+      () => ProgressView._renderFoodTimingHeatmap(),
+      () => ProgressView._renderWorkoutGrid(),
+    ];
+    const fnNames = [
+      '_renderWeeklyDeficit', '_renderLoggingConsistency', '_renderViceImpact',
+      '_renderMacroSplit', '_renderBestWorstDay', '_renderWeekendVsWeekday',
+      '_renderWeightChangeRate', '_renderProteinByMeal', '_renderFoodTimingHeatmap',
+      '_renderWorkoutGrid',
+    ];
+
+    for (const garbage of [null, undefined, 'not-a-date', '', '9999-12-31']) {
+      UI.today = () => garbage;
+      for (let i = 0; i < insightFns.length; i++) {
+        let threw = false;
+        try { await insightFns[i](); } catch (e) { threw = true; }
+        results.push({ fn: fnNames[i], input: `UI.today()=${String(garbage)}`, threw });
+      }
+    }
+    UI.today = origToday;
+
+    // Override _daysAgo to return null/invalid
+    const origDaysAgo = ProgressView._daysAgo;
+    for (const badReturn of [null, undefined, 'garbage', '']) {
+      ProgressView._daysAgo = () => badReturn;
+      for (const fn of [
+        () => ProgressView._renderViceImpact(goals),
+        () => ProgressView._renderMacroSplit(),
+        () => ProgressView._renderBestWorstDay(goals),
+        () => ProgressView._renderWeekendVsWeekday(),
+        () => ProgressView._renderFoodTimingHeatmap(),
+        () => ProgressView._renderWorkoutGrid(),
+      ]) {
+        let threw = false;
+        try { await fn(); } catch (e) { threw = true; }
+        results.push({ fn: '_daysAgo override', input: String(badReturn), threw });
+      }
+    }
+    ProgressView._daysAgo = origDaysAgo;
+
+    // Override _mondayOf to return null/invalid
+    const origMondayOf = ProgressView._mondayOf;
+    for (const badReturn of [null, undefined, '']) {
+      ProgressView._mondayOf = () => badReturn;
+      let threw = false;
+      try { await ProgressView._renderWeeklyDeficit(goals); } catch (e) { threw = true; }
+      results.push({ fn: '_mondayOf override → _renderWeeklyDeficit', input: String(badReturn), threw });
+
+      threw = false;
+      try { await ProgressView._renderLoggingConsistency(); } catch (e) { threw = true; }
+      results.push({ fn: '_mondayOf override → _renderLoggingConsistency', input: String(badReturn), threw });
+    }
+    ProgressView._mondayOf = origMondayOf;
+
+    return results;
+  });
+
+  for (const r of garbageDateResults) {
+    assert(!r.threw, `Chaos: ${r.fn} with ${r.input} does not throw`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 2. Corrupted analysis objects in IndexedDB
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n  -- Chaos: Corrupted Analysis Objects --');
+
+  const corruptedResults = await page.evaluate(async () => {
+    const results = [];
+    const goals = await DB.getProfile('goals') || {};
+    const today = UI.today();
+    const db = await DB.openDB();
+
+    // Save original analyses to restore later
+    const origAnalyses = await DB.getAnalysisRange('2020-01-01', '2099-12-31');
+
+    // Clear analyses
+    const clearTx = db.transaction('analysis', 'readwrite');
+    clearTx.objectStore('analysis').clear();
+    await new Promise(r => { clearTx.oncomplete = r; });
+
+    const corruptCases = [
+      { label: 'missing totals', obj: { date: today, entries: [{ id: 'x', type: 'meal' }], importedAt: Date.now() } },
+      { label: 'entries with no type', obj: { date: today, entries: [{ id: 'y' }, { id: 'z', foo: 'bar' }], totals: { calories: 500 }, importedAt: Date.now() } },
+      { label: 'negative calories', obj: { date: today, entries: [{ id: 'a', type: 'meal', calories: -500 }], totals: { calories: -500, protein: -10 }, importedAt: Date.now() } },
+      { label: 'totals: null', obj: { date: today, entries: [{ id: 'b', type: 'meal' }], totals: null, importedAt: Date.now() } },
+      { label: 'no entries at all', obj: { date: today, totals: { calories: 800, protein: 50 }, importedAt: Date.now() } },
+      { label: 'entries is null', obj: { date: today, entries: null, totals: { calories: 300 }, importedAt: Date.now() } },
+      { label: 'entries is string', obj: { date: today, entries: 'bad', totals: { calories: 100 }, importedAt: Date.now() } },
+      { label: 'totals with NaN', obj: { date: today, entries: [], totals: { calories: NaN, protein: NaN }, importedAt: Date.now() } },
+    ];
+
+    const fnNames = [
+      '_renderWeeklyDeficit', '_renderLoggingConsistency', '_renderViceImpact',
+      '_renderMacroSplit', '_renderBestWorstDay', '_renderWeekendVsWeekday',
+      '_renderWeightChangeRate', '_renderProteinByMeal', '_renderFoodTimingHeatmap',
+      '_renderWorkoutGrid',
+    ];
+
+    for (const { label, obj } of corruptCases) {
+      // Insert corrupt analysis
+      const tx = db.transaction('analysis', 'readwrite');
+      tx.objectStore('analysis').put(obj);
+      await new Promise(r => { tx.oncomplete = r; });
+
+      // Call each insight function
+      const insightFns = [
+        () => ProgressView._renderWeeklyDeficit(goals),
+        () => ProgressView._renderLoggingConsistency(),
+        () => ProgressView._renderViceImpact(goals),
+        () => ProgressView._renderMacroSplit(),
+        () => ProgressView._renderBestWorstDay(goals),
+        () => ProgressView._renderWeekendVsWeekday(),
+        () => ProgressView._renderWeightChangeRate(goals),
+        () => ProgressView._renderProteinByMeal(),
+        () => ProgressView._renderFoodTimingHeatmap(),
+        () => ProgressView._renderWorkoutGrid(),
+      ];
+
+      for (let i = 0; i < insightFns.length; i++) {
+        let threw = false;
+        try { await insightFns[i](); } catch (e) { threw = true; }
+        results.push({ label: `${fnNames[i]} with ${label}`, threw });
+      }
+
+      // Clear for next case
+      const clrTx = db.transaction('analysis', 'readwrite');
+      clrTx.objectStore('analysis').clear();
+      await new Promise(r => { clrTx.oncomplete = r; });
+    }
+
+    // Restore originals
+    for (const a of origAnalyses) {
+      const tx = db.transaction('analysis', 'readwrite');
+      tx.objectStore('analysis').put({ ...a, importedAt: Date.now() });
+      await new Promise(r => { tx.oncomplete = r; });
+    }
+
+    return results;
+  });
+
+  for (const r of corruptedResults) {
+    assert(!r.threw, `Chaos: ${r.label} does not throw`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 3. Extreme values
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n  -- Chaos: Extreme Values --');
+
+  const extremeResults = await page.evaluate(async () => {
+    const results = [];
+    const goals = await DB.getProfile('goals') || {};
+    const today = UI.today();
+    const db = await DB.openDB();
+
+    const origAnalyses = await DB.getAnalysisRange('2020-01-01', '2099-12-31');
+
+    const clearAndInsert = async (obj) => {
+      const tx1 = db.transaction('analysis', 'readwrite');
+      tx1.objectStore('analysis').clear();
+      await new Promise(r => { tx1.oncomplete = r; });
+      const tx2 = db.transaction('analysis', 'readwrite');
+      tx2.objectStore('analysis').put(obj);
+      await new Promise(r => { tx2.oncomplete = r; });
+    };
+
+    const insightFns = [
+      () => ProgressView._renderWeeklyDeficit(goals),
+      () => ProgressView._renderLoggingConsistency(),
+      () => ProgressView._renderViceImpact(goals),
+      () => ProgressView._renderMacroSplit(),
+      () => ProgressView._renderBestWorstDay(goals),
+      () => ProgressView._renderWeekendVsWeekday(),
+      () => ProgressView._renderProteinByMeal(),
+      () => ProgressView._renderFoodTimingHeatmap(),
+      () => ProgressView._renderWorkoutGrid(),
+    ];
+    const fnNames = [
+      '_renderWeeklyDeficit', '_renderLoggingConsistency', '_renderViceImpact',
+      '_renderMacroSplit', '_renderBestWorstDay', '_renderWeekendVsWeekday',
+      '_renderProteinByMeal', '_renderFoodTimingHeatmap', '_renderWorkoutGrid',
+    ];
+
+    // 99999 calorie day
+    await clearAndInsert({
+      date: today,
+      entries: [{ id: 'ex1', type: 'meal', subtype: 'lunch', calories: 99999, protein: 9999, carbs: 9999, fat: 9999 }],
+      totals: { calories: 99999, protein: 9999, carbs: 9999, fat: 9999 },
+      importedAt: Date.now(),
+    });
+    for (let i = 0; i < insightFns.length; i++) {
+      let threw = false;
+      try { await insightFns[i](); } catch (e) { threw = true; }
+      results.push({ label: `${fnNames[i]} with 99999 cal day`, threw });
+    }
+
+    // All zeros
+    await clearAndInsert({
+      date: today,
+      entries: [{ id: 'ex2', type: 'meal', subtype: 'lunch', calories: 0, protein: 0, carbs: 0, fat: 0 }],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      importedAt: Date.now(),
+    });
+    for (let i = 0; i < insightFns.length; i++) {
+      let threw = false;
+      try { await insightFns[i](); } catch (e) { threw = true; }
+      results.push({ label: `${fnNames[i]} with all-zero macros`, threw });
+    }
+
+    // 1000 entries in a single day
+    const manyEntries = [];
+    for (let j = 0; j < 1000; j++) {
+      manyEntries.push({ id: `mass_${j}`, type: 'meal', subtype: 'snack', calories: 10, protein: 1, carbs: 2, fat: 0.5 });
+    }
+    await clearAndInsert({
+      date: today,
+      entries: manyEntries,
+      totals: { calories: 10000, protein: 1000, carbs: 2000, fat: 500 },
+      importedAt: Date.now(),
+    });
+    for (let i = 0; i < insightFns.length; i++) {
+      let threw = false;
+      try { await insightFns[i](); } catch (e) { threw = true; }
+      results.push({ label: `${fnNames[i]} with 1000 entries`, threw });
+    }
+
+    // Weight of 0 and -1 in dailySummary
+    for (const badWeight of [0, -1]) {
+      await DB.updateDailySummary(today, {
+        date: today,
+        weightLog: [{ value: badWeight, timestamp: Date.now() }],
+      });
+      let threw = false;
+      try { await ProgressView._renderWeightChangeRate(goals); } catch (e) { threw = true; }
+      results.push({ label: `_renderWeightChangeRate with weight=${badWeight}`, threw });
+    }
+
+    // Restore original analyses and summary
+    const clrTx = db.transaction('analysis', 'readwrite');
+    clrTx.objectStore('analysis').clear();
+    await new Promise(r => { clrTx.oncomplete = r; });
+    for (const a of origAnalyses) {
+      const tx = db.transaction('analysis', 'readwrite');
+      tx.objectStore('analysis').put({ ...a, importedAt: Date.now() });
+      await new Promise(r => { tx.oncomplete = r; });
+    }
+
+    return results;
+  });
+
+  for (const r of extremeResults) {
+    assert(!r.threw, `Chaos: ${r.label} does not throw`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 4. Boundary dates
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n  -- Chaos: Boundary Dates --');
+
+  const boundaryResults = await page.evaluate(async () => {
+    const results = [];
+    const goals = await DB.getProfile('goals') || {};
+
+    // Test _mondayOf with boundary dates
+    const boundaryDates = [
+      '2024-02-29',  // leap year
+      '2024-12-31',  // year end
+      '2025-01-01',  // year start
+      '2024-01-01',  // Monday itself
+    ];
+
+    for (const d of boundaryDates) {
+      let threw = false, result;
+      try { result = ProgressView._mondayOf(d); } catch (e) { threw = true; }
+      results.push({ label: `_mondayOf(${d})`, threw, result });
+    }
+
+    // Entry at exactly 4:00:00 AM — should be current day
+    // Entry at 3:59:59 AM — belongs to previous day per 4am boundary
+    // These test the food timing heatmap logic
+    const origToday = UI.today;
+    UI.today = () => '2024-02-29'; // leap year boundary
+
+    const insightFns = [
+      () => ProgressView._renderWeeklyDeficit(goals),
+      () => ProgressView._renderLoggingConsistency(),
+      () => ProgressView._renderMacroSplit(),
+    ];
+    const fnNames = ['_renderWeeklyDeficit', '_renderLoggingConsistency', '_renderMacroSplit'];
+
+    for (let i = 0; i < insightFns.length; i++) {
+      let threw = false;
+      try { await insightFns[i](); } catch (e) { threw = true; }
+      results.push({ label: `${fnNames[i]} on leap day 2024-02-29`, threw });
+    }
+
+    // Dec 31 / Jan 1 boundary
+    UI.today = () => '2025-01-01';
+    for (let i = 0; i < insightFns.length; i++) {
+      let threw = false;
+      try { await insightFns[i](); } catch (e) { threw = true; }
+      results.push({ label: `${fnNames[i]} on Jan 1`, threw });
+    }
+
+    // Midnight exactly
+    UI.today = () => '2024-12-31';
+    for (let i = 0; i < insightFns.length; i++) {
+      let threw = false;
+      try { await insightFns[i](); } catch (e) { threw = true; }
+      results.push({ label: `${fnNames[i]} on Dec 31`, threw });
+    }
+
+    UI.today = origToday;
+    return results;
+  });
+
+  for (const r of boundaryResults) {
+    assert(!r.threw, `Chaos: ${r.label} does not throw`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 5. Partial/malformed data
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n  -- Chaos: Partial/Malformed Data --');
+
+  const partialResults = await page.evaluate(async () => {
+    const results = [];
+    const today = UI.today();
+    const db = await DB.openDB();
+
+    const origAnalyses = await DB.getAnalysisRange('2020-01-01', '2099-12-31');
+
+    const clearAndInsert = async (obj) => {
+      const tx1 = db.transaction('analysis', 'readwrite');
+      tx1.objectStore('analysis').clear();
+      await new Promise(r => { tx1.oncomplete = r; });
+      const tx2 = db.transaction('analysis', 'readwrite');
+      tx2.objectStore('analysis').put(obj);
+      await new Promise(r => { tx2.oncomplete = r; });
+    };
+
+    // Analysis with totals but no entries
+    await clearAndInsert({ date: today, totals: { calories: 1200, protein: 80 }, importedAt: Date.now() });
+    const goals = await DB.getProfile('goals') || {};
+    const fns = [
+      { name: '_renderWeeklyDeficit', fn: () => ProgressView._renderWeeklyDeficit(goals) },
+      { name: '_renderViceImpact', fn: () => ProgressView._renderViceImpact(goals) },
+      { name: '_renderBestWorstDay', fn: () => ProgressView._renderBestWorstDay(goals) },
+      { name: '_renderProteinByMeal', fn: () => ProgressView._renderProteinByMeal() },
+    ];
+    for (const { name, fn } of fns) {
+      let threw = false;
+      try { await fn(); } catch (e) { threw = true; }
+      results.push({ label: `${name} with totals but no entries`, threw });
+    }
+
+    // Analysis with entries but no totals
+    await clearAndInsert({ date: today, entries: [{ id: 'p1', type: 'meal', calories: 500 }], importedAt: Date.now() });
+    for (const { name, fn } of fns) {
+      let threw = false;
+      try { await fn(); } catch (e) { threw = true; }
+      results.push({ label: `${name} with entries but no totals`, threw });
+    }
+
+    // DailySummary with weightLog: null
+    await DB.updateDailySummary(today, { date: today, weightLog: null });
+    let threw = false;
+    try { await ProgressView._renderWeightChangeRate(goals); } catch (e) { threw = true; }
+    results.push({ label: '_renderWeightChangeRate with weightLog: null', threw });
+
+    // DailySummary with weightLog: [] (empty)
+    await DB.updateDailySummary(today, { date: today, weightLog: [] });
+    threw = false;
+    try { await ProgressView._renderWeightChangeRate(goals); } catch (e) { threw = true; }
+    results.push({ label: '_renderWeightChangeRate with weightLog: []', threw });
+
+    // Profile with goals: undefined
+    const origGoals = await DB.getProfile('goals');
+    await DB.setProfile('goals', undefined);
+    threw = false;
+    try { await ProgressView._renderWeeklyDeficit(undefined); } catch (e) { threw = true; }
+    results.push({ label: '_renderWeeklyDeficit with goals: undefined', threw });
+
+    threw = false;
+    try { await ProgressView._renderViceImpact(undefined); } catch (e) { threw = true; }
+    results.push({ label: '_renderViceImpact with goals: undefined', threw });
+
+    threw = false;
+    try { await ProgressView._renderBestWorstDay(undefined); } catch (e) { threw = true; }
+    results.push({ label: '_renderBestWorstDay with goals: undefined', threw });
+
+    // Restore goals and analyses
+    if (origGoals) await DB.setProfile('goals', origGoals);
+    const clrTx = db.transaction('analysis', 'readwrite');
+    clrTx.objectStore('analysis').clear();
+    await new Promise(r => { clrTx.oncomplete = r; });
+    for (const a of origAnalyses) {
+      const tx = db.transaction('analysis', 'readwrite');
+      tx.objectStore('analysis').put({ ...a, importedAt: Date.now() });
+      await new Promise(r => { tx.oncomplete = r; });
+    }
+
+    return results;
+  });
+
+  for (const r of partialResults) {
+    assert(!r.threw, `Chaos: ${r.label} does not throw`);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 6. Concurrent rendering
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n  -- Chaos: Concurrent Rendering --');
+
+  const concurrentResult = await page.evaluate(async () => {
+    const goals = await DB.getProfile('goals') || {};
+    let threw = false;
+    try {
+      await Promise.all([
+        ProgressView._renderWeeklyDeficit(goals),
+        ProgressView._renderLoggingConsistency(),
+        ProgressView._renderViceImpact(goals),
+        ProgressView._renderMacroSplit(),
+        ProgressView._renderBestWorstDay(goals),
+        ProgressView._renderWeekendVsWeekday(),
+        ProgressView._renderWeightChangeRate(goals),
+        ProgressView._renderProteinByMeal(),
+        ProgressView._renderFoodTimingHeatmap(),
+        ProgressView._renderWorkoutGrid(),
+      ]);
+    } catch (e) {
+      threw = true;
+    }
+    return { threw };
+  });
+  assert(!concurrentResult.threw, 'Chaos: all 10 insight functions called via Promise.all do not throw');
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 7. 320px viewport with garbage data
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n  -- Chaos: 320px Viewport with Corrupted Data --');
+
+  const chaosSmallPage = await context.newPage();
+  await chaosSmallPage.setViewportSize({ width: 320, height: 568 });
+  await chaosSmallPage.goto(BASE_URL, { waitUntil: 'networkidle' });
+  await chaosSmallPage.waitForTimeout(1500);
+  await chaosSmallPage.waitForFunction(() => typeof DB !== 'undefined' && typeof DB.openDB === 'function');
+
+  // Inject corrupted data at 320px
+  const chaos320Result = await chaosSmallPage.evaluate(async () => {
+    const db = await DB.openDB();
+    const today = UI.today();
+
+    // Insert extreme analysis
+    const tx = db.transaction('analysis', 'readwrite');
+    tx.objectStore('analysis').put({
+      date: today,
+      entries: [
+        { id: 'chaos320_1', type: 'meal', subtype: 'lunch', calories: 99999, protein: 9999, carbs: 9999, fat: 9999 },
+        { id: 'chaos320_2', type: 'custom', quantity: 50 },
+      ],
+      totals: { calories: 99999, protein: 9999, carbs: 9999, fat: 9999 },
+      importedAt: Date.now(),
+    });
+    await new Promise(r => { tx.oncomplete = r; });
+
+    await DB.setProfile('goals', { calories: 1200, protein: 105, water_oz: 64 });
+
+    return { injected: true };
+  });
+
+  // Navigate to Insights at 320px with corrupt data
+  await chaosSmallPage.reload({ waitUntil: 'networkidle' });
+  await chaosSmallPage.waitForTimeout(1000);
+  await chaosSmallPage.click('nav button:has-text("Progress")');
+  await chaosSmallPage.waitForTimeout(300);
+  const chaosInsBtn = await chaosSmallPage.$('button:has-text("Insights")');
+  if (chaosInsBtn) await chaosInsBtn.click();
+  await chaosSmallPage.waitForTimeout(800);
+
+  // Check no overflow at 320px with extreme data
+  const chaosOverflow = await chaosSmallPage.evaluate(() => {
+    const vw = window.innerWidth;
+    const container = document.getElementById('progress-container');
+    if (!container) return { found: false, overflowing: [] };
+    const cards = container.querySelectorAll('.card, .stats-row, .stat-card');
+    const overflowing = [];
+    for (const card of cards) {
+      const r = card.getBoundingClientRect();
+      if (r.right > vw + 2) {
+        overflowing.push({ cls: card.className.split(' ')[0], right: Math.round(r.right) });
+      }
+    }
+    return { found: true, overflowing };
+  });
+
+  assert(
+    chaosOverflow.overflowing.length === 0,
+    `Chaos: 320px with extreme data — no overflow (${chaosOverflow.overflowing.length} violations${chaosOverflow.overflowing.length > 0 ? ': ' + chaosOverflow.overflowing.map(c => `${c.cls}(right=${c.right})`).join(', ') : ''})`
+  );
+
+  await chaosSmallPage.close();
+
+  // Restore fixture data by re-injecting
+  await page.evaluate(async (data) => {
+    const db = await DB.openDB();
+    for (const s of ['entries', 'dailySummary', 'analysis', 'profile', 'mealPlan']) {
+      const tx = db.transaction(s, 'readwrite'); tx.objectStore(s).clear();
+      await new Promise(r => { tx.oncomplete = r; });
+    }
+    for (const e of data.entries) await DB.addEntry(e);
+    for (const s of data.summaries) await DB.updateDailySummary(s.date, s);
+    for (const a of data.analyses) {
+      const tx = db.transaction('analysis', 'readwrite');
+      tx.objectStore('analysis').put({ ...a, importedAt: Date.now() });
+      await new Promise(r => { tx.oncomplete = r; });
+    }
+    await DB.setProfile('goals', data.goals);
+    await DB.setProfile('regimen', data.regimen);
+  }, fixtures);
+}
+
 async function run() {
   console.log('=== Health Tracker Validation ===\n');
 
@@ -7307,6 +7866,7 @@ async function run() {
     await testLongTextInput(page, fixtures);
     await testSettingUpdatesImport(page, fixtures);
     await testInsightRenders(page, fixtures);
+    await testChaosInsights(page, context, fixtures);
     // voice logging removed — not a priority
     await testConsoleErrors(page);
 

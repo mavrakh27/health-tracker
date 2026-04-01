@@ -1084,9 +1084,10 @@ const ProgressView = {
     const cal = totals.calories || 0;
     const pro = totals.protein || 0;
     const water = analysis.goals?.water?.actual_oz || 0;
-    const hasWorkout = (analysis.entries || []).some(e => e.type === 'workout');
-    const hasMeals = (analysis.entries || []).some(e => e.type === 'meal' || e.type === 'drink' || e.type === 'snack');
-    const viceCount = (analysis.entries || []).filter(e => e.type === 'custom').reduce((s, e) => s + (e.quantity || 1), 0);
+    const entries = Array.isArray(analysis.entries) ? analysis.entries : [];
+    const hasWorkout = entries.some(e => e.type === 'workout');
+    const hasMeals = entries.some(e => e.type === 'meal' || e.type === 'drink' || e.type === 'snack');
+    const viceCount = entries.filter(e => e.type === 'custom').reduce((s, e) => s + (e.quantity || 1), 0);
 
     const dayName = new Date(analysis.date + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
     const dayPlan = regimen?.weeklySchedule?.find(d => d.day === dayName);
@@ -1792,8 +1793,10 @@ const ProgressView = {
   // #1 — Weekly Deficit Running Total
   async _renderWeeklyDeficit(goals) {
     const today = UI.today();
+    if (!today) return '';
+    goals = goals || {};
     const monday = ProgressView._mondayOf(today);
-    if (monday > today) return '';
+    if (!monday || monday > today) return '';
     const analyses = await DB.getAnalysisRange(monday, today);
     if (analyses.length === 0) return '';
 
@@ -1821,8 +1824,10 @@ const ProgressView = {
   // #2 — Rate of Weight Change
   async _renderWeightChangeRate(goals) {
     const today = UI.today();
+    if (!today) return '';
+    goals = goals || {};
     const start = ProgressView._daysAgo(30);
-    if (start > today) return '';
+    if (!start || start > today) return '';
     const summaries = await DB.getDailySummaryRange(start, today);
     const analyses = await DB.getAnalysisRange(start, today);
 
@@ -1885,8 +1890,10 @@ const ProgressView = {
   // #3 — Vice Impact on Score
   async _renderViceImpact(goals) {
     const today = UI.today();
+    if (!today) return '';
+    goals = goals || {};
     const start = ProgressView._daysAgo(30);
-    if (start > today) return '';
+    if (!start || start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     const regimen = await DB.getRegimen();
     if (analyses.length === 0) return '';
@@ -1894,7 +1901,7 @@ const ProgressView = {
     const viceDays = [];
     const cleanDays = [];
     for (const a of analyses) {
-      const viceCount = (a.entries || []).filter(e => e.type === 'custom').reduce((s, e) => s + (e.quantity || 1), 0);
+      const viceCount = (Array.isArray(a.entries) ? a.entries : []).filter(e => e.type === 'custom').reduce((s, e) => s + (e.quantity || 1), 0);
       const score = ProgressView._scoreFromAnalysis(a, goals, regimen).moderate;
       if (score == null) continue;
       if (viceCount > 0) {
@@ -1933,11 +1940,13 @@ const ProgressView = {
   // #4 — Logging Consistency
   async _renderLoggingConsistency() {
     const today = UI.today();
+    if (!today) return '';
     const weeks = [];
     for (let w = 0; w < 3; w++) {
       const weekEnd = new Date(UI.today() + 'T12:00:00');
       weekEnd.setDate(weekEnd.getDate() - w * 7);
       const monday = ProgressView._mondayOf(`${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`);
+      if (!monday) return '';
       const sunday = new Date(monday + 'T12:00:00');
       sunday.setDate(sunday.getDate() + 6);
       const sundayStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
@@ -1945,7 +1954,7 @@ const ProgressView = {
       const analyses = await DB.getAnalysisRange(monday, endStr);
       const daysWithMeals = new Set();
       for (const a of analyses) {
-        if ((a.entries || []).some(e => e.type === 'meal')) {
+        if ((Array.isArray(a.entries) ? a.entries : []).some(e => e.type === 'meal')) {
           daysWithMeals.add(a.date);
         }
       }
@@ -1977,8 +1986,9 @@ const ProgressView = {
   // #5 — Macro % Split (7-day avg)
   async _renderMacroSplit() {
     const today = UI.today();
+    if (!today) return '';
     const start = ProgressView._daysAgo(7);
-    if (start > today) return '';
+    if (!start || start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     if (analyses.length === 0) return '';
 
@@ -2027,14 +2037,15 @@ const ProgressView = {
   // #6 — Protein Distribution by Meal
   async _renderProteinByMeal() {
     const today = UI.today();
+    if (!today) return '';
     const start = ProgressView._daysAgo(14);
-    if (start > today) return '';
+    if (!start || start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     if (analyses.length === 0) return '';
 
     const slots = { breakfast: [], lunch: [], dinner: [], snack: [] };
     for (const a of analyses) {
-      for (const e of (a.entries || [])) {
+      for (const e of (Array.isArray(a.entries) ? a.entries : [])) {
         if (e.type !== 'meal') continue;
         const sub = (e.subtype || 'snack').toLowerCase();
         const slot = slots[sub] || slots.snack;
@@ -2074,8 +2085,10 @@ const ProgressView = {
   // #7 — Best/Worst Day of Week
   async _renderBestWorstDay(goals) {
     const today = UI.today();
+    if (!today) return '';
+    goals = goals || {};
     const start = ProgressView._daysAgo(30);
-    if (start > today) return '';
+    if (!start || start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     const regimen = await DB.getRegimen();
     if (analyses.length === 0) return '';
@@ -2128,8 +2141,9 @@ const ProgressView = {
   // #8 — Food Timing Heatmap
   async _renderFoodTimingHeatmap() {
     const today = UI.today();
+    if (!today) return '';
     const start = ProgressView._daysAgo(30);
-    if (start > today) return '';
+    if (!start || start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     if (analyses.length === 0) return '';
 
@@ -2144,7 +2158,7 @@ const ProgressView = {
     // Build map of analysis entries by id for calorie data
     const analysisEntryMap = {};
     for (const a of analyses) {
-      for (const ae of (a.entries || [])) {
+      for (const ae of (Array.isArray(a.entries) ? a.entries : [])) {
         if (ae.id) analysisEntryMap[ae.id] = ae;
       }
     }
@@ -2203,8 +2217,9 @@ const ProgressView = {
   // #9 — Weekend vs Weekday Split
   async _renderWeekendVsWeekday() {
     const today = UI.today();
+    if (!today) return '';
     const start = ProgressView._daysAgo(30);
-    if (start > today) return '';
+    if (!start || start > today) return '';
     const analyses = await DB.getAnalysisRange(start, today);
     if (analyses.length === 0) return '';
 
@@ -2252,8 +2267,9 @@ const ProgressView = {
   // #10 — Workout Consistency Grid
   async _renderWorkoutGrid() {
     const today = UI.today();
+    if (!today) return '';
     const start = ProgressView._daysAgo(56); // 8 weeks
-    if (start > today) return '';
+    if (!start || start > today) return '';
     const entries = await DB.getEntriesByDateRange(start, today);
     const regimen = await DB.getRegimen();
     const schedule = regimen?.weeklySchedule || [];
