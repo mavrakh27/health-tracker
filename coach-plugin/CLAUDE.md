@@ -76,6 +76,12 @@ See `coach-rules.md` for the full set. Key ones for quick reference:
 - Celebrate bonus effort beyond the plan
 - Respect equipment constraints (check bio.txt)
 
+## Data Location
+
+This folder (the coach project directory) IS the data directory. Analysis files, profile, logs -- all live here. This folder must NOT be inside `~/.claude/` or any `.claude/` directory. Claude treats `.claude/` as config space and prompts for write permission on every file change, which breaks processing.
+
+If you detect this folder is inside `.claude/`, warn the user immediately and suggest relocating to `~/coach` or `~/HealthTracker`.
+
 ## Processing
 
 The processing pipeline runs every 30 minutes via scheduled task. It:

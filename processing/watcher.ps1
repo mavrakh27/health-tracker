@@ -16,8 +16,8 @@ function Log($msg) {
 }
 
 $hour = (Get-Date).Hour
-if ($hour -ge 0 -and $hour -lt 8) {
-    Log "Quiet hours (12am-8am). Exiting."
+if ($hour -ge 1 -and $hour -lt 8) {
+    Log "Quiet hours (1am-8am). Exiting."
     exit 0
 }
 
@@ -74,6 +74,8 @@ $pendingUrl = "$syncUrl/sync/$syncKey/pending"
 try {
     $resp = Invoke-RestMethod -Uri $pendingUrl -Method Get -TimeoutSec 10
     $pending = $resp.pending
+    # Capture generation counters so we can detect mid-processing uploads on /done
+    $genMap = if ($resp.gen) { $resp.gen } else { @{} }
 
     if (-not $pending -or $pending.Count -eq 0) {
         Log "[watcher] No pending data. Exiting."
@@ -113,7 +115,11 @@ try {
             if ($needUpload) {
                 $adate = $_.BaseName
                 try {
-                    $resp = Invoke-RestMethod -Uri "$syncUrl/sync/$syncKey/day/$adate/done" -Method Post -ContentType 'application/json; charset=utf-8' -InFile $_.FullName -TimeoutSec 30
+                    # Pass the gen we read at the start so the relay can detect stale processing
+                    $genVal = if ($genMap -and $genMap.$adate) { $genMap.$adate } else { $null }
+                    $doneUrl = "$syncUrl/sync/$syncKey/day/$adate/done"
+                    if ($null -ne $genVal) { $doneUrl += "?gen=$genVal" }
+                    $resp = Invoke-RestMethod -Uri $doneUrl -Method Post -ContentType 'application/json; charset=utf-8' -InFile $_.FullName -TimeoutSec 30
                     if ($resp.ok) {
                         Get-Date | Out-File $marker -Encoding ascii
                         $uploadCount++

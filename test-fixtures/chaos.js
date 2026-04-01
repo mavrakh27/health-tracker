@@ -296,9 +296,22 @@ async function runChaos({ rounds = ROUNDS, screenshots = SCREENSHOTS } = {}) {
   await page.goto(BASE_URL, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1500);
 
+  // Inject sync key so Coach tab doesn't show pairing modal (which hides nav)
+  await page.evaluate(() => {
+    localStorage.setItem('cloudRelay_backup', JSON.stringify({
+      workerUrl: 'https://fake-test-relay.example.com',
+      syncKey: 'test-chaos-00000000-0000-0000-0000-000000000000'
+    }));
+  });
+
   // Inject regimen so workout cards render
   await page.evaluate(async () => {
     await DB.openDB();
+    // Inject cloud relay config into IndexedDB too
+    await DB.setProfile('cloudRelay', {
+      workerUrl: 'https://fake-test-relay.example.com',
+      syncKey: 'test-chaos-00000000-0000-0000-0000-000000000000'
+    });
     await DB.setProfile('regimen', {
       weeklySchedule: [
         { day: 'monday', type: 'strength', description: 'Upper body', exercises: [
@@ -321,6 +334,18 @@ async function runChaos({ rounds = ROUNDS, screenshots = SCREENSHOTS } = {}) {
       ],
     });
     await DB.setProfile('goals', { calories: 1200, protein: 105, water_oz: 64, hardcore: { calories: 1000, protein: 120, water_oz: 64 } });
+    // Add a dummy entry for today so the app doesn't enter setup mode (which hides nav)
+    const today = UI.today();
+    const now = Date.now();
+    const tx = (await DB.openDB()).transaction('entries', 'readwrite');
+    tx.objectStore('entries').put({
+      id: `water_${now}_chaos_seed`,
+      date: today,
+      type: 'water',
+      timestamp: now,
+      notes: '8oz water'
+    });
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
     App.loadDayView();
   });
   await page.waitForTimeout(1000);

@@ -25,6 +25,33 @@ Even within a single processing run, **preserve existing calorie/macro estimates
 - Only analyze entries that are NEW (no matching `id` in existing analysis) or EDITED (`updatedAt` is newer than the analysis timestamp).
 - After preserving existing entries and analyzing new ones, recalculate `totals` from all entries combined.
 
+## Weight Typo Detection
+
+After reading the day's weight entry, check the previous 5 days of weight data (from existing analysis files in `{DATA_DIR}/analysis/`). Only auto-correct **obviously impossible values** -- normal fluctuations of several pounds are real and should never be touched.
+
+**Auto-correct ONLY for:**
+- **Missing decimal point** -- value is 10x the expected range (e.g., 1026 when average is ~103, clearly meant 102.6)
+- **Impossible values** -- weight < 50 lbs or > 500 lbs for an adult
+
+When auto-correcting, record it in the analysis:
+
+```json
+"weight": {
+  "value": 102.6,
+  "unit": "lbs",
+  "raw_value": 1026,
+  "corrected": true,
+  "correction_note": "Auto-corrected from 1026 -- missing decimal, 10x expected range"
+}
+```
+
+**Do NOT auto-correct:**
+- Normal fluctuations of 2-5 lbs (water retention, sodium, scale differences, period)
+- Anything that could plausibly be a real weight -- if in doubt, keep the raw value
+- If there are fewer than 3 days of prior weight data
+
+**Never silently change a weight value.** If corrected, always include `raw_value` and `correction_note` so the user can see what happened and fix it if wrong.
+
 ## Input Structure
 
 After ZIP extraction, the data is at `{EXTRACT_DIR}/`:
@@ -99,6 +126,18 @@ Before generating analysis for any date, check for `{DATA_DIR}/corrections/{DATE
 ## Coach TODOs
 
 Check for `{DATA_DIR}/coach-todos.json`. If it exists and has pending items (status: "pending"), apply them during processing and mark as "done" with a timestamp.
+
+## Date Enumeration (CRITICAL)
+
+When processing extracted data that may contain multiple days:
+
+1. **List every date folder** in `{EXTRACT_DIR}/daily/` using Glob (e.g. `daily/????-??-??/log.json`)
+2. **For each date found**, check if `{DATA_DIR}/analysis/{DATE}.json` exists
+3. **Dates WITHOUT an analysis file need full processing** -- do not skip them
+4. **Dates WITH an analysis file** follow the No Re-Processing Rule (corrections only)
+5. **Process ALL dates that need it** -- do not stop after checking a subset
+
+If you find 16 date folders but only 14 have analysis files, you MUST process the 2 missing ones. Saying "all data is already processed" when analysis files are missing is incorrect and causes data loss.
 
 ## Instructions
 

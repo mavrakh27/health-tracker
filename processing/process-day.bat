@@ -73,6 +73,10 @@ for /f "usebackq delims=" %%j in (`curl -s "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_
 REM Parse pending dates using PowerShell
 for /f "usebackq delims=" %%d in (`powershell -NoProfile -Command "try { ($env:PENDING_JSON | ConvertFrom-Json).pending -join ',' } catch { '' }"`) do set RELAY_DATES=%%d
 
+REM Save gen map to temp file for use during upload (race condition detection)
+set GEN_MAP_FILE=%TEMP%\health-tracker-gen-%RANDOM%.json
+powershell -NoProfile -Command "try { $g = ($env:PENDING_JSON | ConvertFrom-Json).gen; if ($g) { $g | ConvertTo-Json } else { '{}' } } catch { '{}' }" > "%GEN_MAP_FILE%" 2>nul
+
 if not "!RELAY_DATES!"=="" (
     echo [%TODAY%] Cloud relay has pending dates: !RELAY_DATES!
 
@@ -249,7 +253,12 @@ for %%f in ("%DATA_DIR%\analysis\????-??-??.json") do (
     )
     if "!NEED_UPLOAD!"=="1" (
         echo [%TODAY%] Uploading analysis for !ADATE!... >>"%DATA_DIR%\logs\%TODAY%.log"
-        curl -sf -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%%f" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/!ADATE!/done" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
+        REM Look up gen for this date from the map we captured at /pending time
+        set "GEN_PARAM="
+        if exist "%GEN_MAP_FILE%" (
+            for /f "usebackq delims=" %%g in (`powershell -NoProfile -Command "try { $m = Get-Content '%GEN_MAP_FILE%' -Raw | ConvertFrom-Json; $v = $m.'!ADATE!'; if ($null -ne $v) { '?gen=' + $v } else { '' } } catch { '' }"`) do set "GEN_PARAM=%%g"
+        )
+        curl -sf -X POST -H "Content-Type: application/json; charset=utf-8" --data-binary @"%%f" "%HEALTH_SYNC_URL%/sync/%HEALTH_SYNC_KEY%/day/!ADATE!/done!GEN_PARAM!" >>"%DATA_DIR%\logs\%TODAY%.log" 2>&1
         if not errorlevel 1 (
             echo [%TODAY%] Uploaded results for !ADATE! >>"%DATA_DIR%\logs\%TODAY%.log"
             echo %TODAY% %TIME% > "%%f.uploaded"
@@ -271,6 +280,9 @@ if !UPLOAD_FAIL! gtr 0 (
 :upload_done
 REM Clean up old upload markers (>30 days)
 forfiles /p "%DATA_DIR%\analysis" /m "*.uploaded" /d -30 /c "cmd /c del @path" 2>nul
+
+REM Clean up gen map temp file
+if exist "%GEN_MAP_FILE%" del "%GEN_MAP_FILE%" 2>nul
 
 REM --- Clean up extracted data ---
 rmdir /s /q "%EXTRACT_DIR%" 2>nul

@@ -168,6 +168,8 @@ const Fitness = {
         return {
           name: ex.name,
           setsReps,
+          sets: ex.sets || null,
+          reps: ex.reps || null,
           extra: ex.formCue || '',
           isCore: (ex.section || '').toLowerCase() === 'core',
           details: dbKey ? Fitness.exercises[dbKey] : null,
@@ -176,7 +178,7 @@ const Fitness = {
     }
     // Cardio day — single exercise
     if (todayPlan.type === 'cardio') {
-      return [{ name: 'cardio', setsReps: '', extra: todayPlan.description || '', isCore: false, details: null }];
+      return [{ name: 'cardio', setsReps: '', sets: null, reps: null, extra: todayPlan.description || '', isCore: false, details: null }];
     }
     // Legacy text-based format
     return Fitness.parseExercises(todayPlan.description);
@@ -201,6 +203,17 @@ const Fitness = {
           const extra = match[3] || '';
           const isCore = part.toLowerCase().startsWith('core:');
 
+          // Parse sets/reps numbers from setsReps string (e.g. "3x12")
+          let sets = null;
+          let reps = null;
+          if (setsReps) {
+            const srMatch = setsReps.match(/^(\d+)x(\d+)/);
+            if (srMatch) {
+              sets = parseInt(srMatch[1], 10);
+              reps = parseInt(srMatch[2], 10);
+            }
+          }
+
           // Look up in database (case-insensitive, partial match)
           const dbKey = Object.keys(Fitness.exercises).find(k =>
             rawName.toLowerCase().includes(k) || k.includes(rawName.toLowerCase())
@@ -209,6 +222,8 @@ const Fitness = {
           exercises.push({
             name: rawName,
             setsReps,
+            sets,
+            reps,
             extra,
             isCore,
             details: dbKey ? Fitness.exercises[dbKey] : null,
@@ -226,6 +241,7 @@ const Fitness = {
     const isRest = !todayPlan || todayPlan.type === 'rest' || todayPlan.type === 'active_rest' || todayPlan.type === 'active_recovery';
     const notes = await Fitness.getWorkoutNotes(date);
     const checked = await Fitness.getCheckedExercises(date);
+    const setsData = await Fitness.getSetsData(date);
 
     if (isRest) {
       return `
@@ -266,10 +282,39 @@ const Fitness = {
       const ex = exercises[i];
       const isDone = checked.has(ex.name);
       const hasDetails = !!ex.details;
+      const hasStructuredSets = ex.sets && ex.reps;
 
       // Section divider for Core
       if (ex.isCore && (i === 0 || !exercises[i - 1].isCore)) {
         html += `<div style="font-size:var(--text-xs); font-weight:600; color:var(--text-muted); text-transform:uppercase; margin:var(--space-sm) 0 var(--space-xs);">Core</div>`;
+      }
+
+      // Build set rows for structured exercises
+      let setRowsHtml = '';
+      if (hasStructuredSets) {
+        const exKey = ex.name;
+        // Get existing set data or build default from plan
+        let exSets = setsData[exKey];
+        if (!exSets || exSets.length !== ex.sets) {
+          // Initialize from plan — if exercise was previously checked (old format), mark all sets done
+          exSets = Array.from({ length: ex.sets }, () => ({
+            done: isDone,
+            reps: ex.reps,
+          }));
+        }
+        setRowsHtml = `<div class="fitness-sets">`;
+        for (let s = 0; s < ex.sets; s++) {
+          const setDone = exSets[s]?.done || false;
+          const setReps = exSets[s]?.reps ?? ex.reps;
+          setRowsHtml += `
+            <div class="fitness-set-row${setDone ? ' set-done' : ''}" data-exercise="${UI.escapeHtml(exKey)}" data-set="${s}">
+              <span class="fitness-set-label">Set ${s + 1}</span>
+              <input type="number" class="fitness-set-reps" value="${setReps}" inputmode="numeric" min="0" max="999">
+              <button class="fitness-set-check${setDone ? ' checked' : ''}" data-exercise="${UI.escapeHtml(exKey)}" data-set="${s}">${setDone ? '&#x2713;' : ''}</button>
+            </div>
+          `;
+        }
+        setRowsHtml += `</div>`;
       }
 
       html += `
@@ -287,6 +332,7 @@ const Fitness = {
             </div>
             ${hasDetails ? `<button class="fitness-info-btn" data-idx="${i}" aria-label="Exercise info">?</button>` : ''}
           </div>
+          ${setRowsHtml}
           <div class="fitness-details" id="fitness-detail-${i}" style="display:none;">
             ${hasDetails ? `
               <div class="fitness-detail-section">
@@ -332,33 +378,166 @@ const Fitness = {
   // Wire up event handlers after rendering
   bindEvents(date, container) {
     const root = container || document;
-    // Checkbox toggles
+
+    // Helper: update stat card counter based on exercise-level checkboxes
+    function updateStatCard() {
+      const total = root.querySelectorAll('.fitness-check').length;
+      const done = root.querySelectorAll('.fitness-check.checked').length;
+      const statCard = document.querySelector('[data-stat-action="workout"] .stat-value');
+      if (statCard && total > 0) statCard.textContent = `${done}/${total}`;
+    }
+
+    // Helper: mark exercise card done/undone visually
+    function setExerciseDone(exerciseCard, mainBtn, isDone) {
+      if (isDone) {
+        mainBtn.classList.add('checked');
+        mainBtn.innerHTML = '&#x2713;';
+        exerciseCard.classList.add('fitness-done');
+        exerciseCard.querySelector('.fitness-exercise-name')?.classList.add('fitness-strikethrough');
+      } else {
+        mainBtn.classList.remove('checked');
+        mainBtn.innerHTML = '';
+        exerciseCard.classList.remove('fitness-done');
+        exerciseCard.querySelector('.fitness-exercise-name')?.classList.remove('fitness-strikethrough');
+      }
+    }
+
+    // Exercise-level checkbox — "complete all" toggle
     root.querySelectorAll('.fitness-check').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const name = btn.dataset.name;
-        const checked = await Fitness.getCheckedExercises(date);
         const exerciseCard = btn.closest('.fitness-exercise');
-        if (checked.has(name)) {
-          checked.delete(name);
-          btn.classList.remove('checked');
-          btn.innerHTML = '';
-          exerciseCard?.classList.remove('fitness-done');
-          exerciseCard?.querySelector('.fitness-exercise-name')?.classList.remove('fitness-strikethrough');
+        const setRows = exerciseCard ? exerciseCard.querySelectorAll('.fitness-set-row') : [];
+        const hasSetRows = setRows.length > 0;
+
+        if (hasSetRows) {
+          // Toggle all sets based on current state — if all checked, uncheck all; else check all
+          const allChecked = [...setRows].every(row => row.classList.contains('set-done'));
+          const newDone = !allChecked;
+
+          const setsData = await Fitness.getSetsData(date);
+          if (!setsData[name]) setsData[name] = [];
+
+          setRows.forEach((row, idx) => {
+            const setCheck = row.querySelector('.fitness-set-check');
+            const repsInput = row.querySelector('.fitness-set-reps');
+            const repsVal = repsInput ? parseInt(repsInput.value, 10) || 0 : 0;
+            if (!setsData[name][idx]) setsData[name][idx] = {};
+            setsData[name][idx].done = newDone;
+            setsData[name][idx].reps = repsVal;
+            if (newDone) {
+              row.classList.add('set-done');
+              if (setCheck) { setCheck.classList.add('checked'); setCheck.innerHTML = '&#x2713;'; }
+            } else {
+              row.classList.remove('set-done');
+              if (setCheck) { setCheck.classList.remove('checked'); setCheck.innerHTML = ''; }
+            }
+          });
+
+          await Fitness.saveSetsData(date, setsData);
+          setExerciseDone(exerciseCard, btn, newDone);
+
+          // Sync fitness_checked
+          const checked = await Fitness.getCheckedExercises(date);
+          if (newDone) checked.add(name); else checked.delete(name);
+          await Fitness.saveCheckedExercises(date, checked);
         } else {
-          checked.add(name);
+          // No set rows — simple toggle (legacy/cardio exercises)
+          const checked = await Fitness.getCheckedExercises(date);
+          const isDone = checked.has(name);
+          if (isDone) {
+            checked.delete(name);
+            setExerciseDone(exerciseCard, btn, false);
+          } else {
+            checked.add(name);
+            setExerciseDone(exerciseCard, btn, true);
+          }
+          await Fitness.saveCheckedExercises(date, checked);
+        }
+
+        updateStatCard();
+      });
+    });
+
+    // Set-level checkbox — toggle individual set
+    root.querySelectorAll('.fitness-set-check').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const exName = btn.dataset.exercise;
+        const setIdx = parseInt(btn.dataset.set, 10);
+        const setRow = btn.closest('.fitness-set-row');
+        const repsInput = setRow?.querySelector('.fitness-set-reps');
+        const repsVal = repsInput ? parseInt(repsInput.value, 10) || 0 : 0;
+
+        const setsData = await Fitness.getSetsData(date);
+        if (!setsData[exName]) setsData[exName] = [];
+        if (!setsData[exName][setIdx]) setsData[exName][setIdx] = {};
+
+        const wasDone = setsData[exName][setIdx].done || false;
+        const nowDone = !wasDone;
+        setsData[exName][setIdx].done = nowDone;
+        setsData[exName][setIdx].reps = repsVal;
+
+        // Update set row visuals
+        if (nowDone) {
+          setRow.classList.add('set-done');
           btn.classList.add('checked');
           btn.innerHTML = '&#x2713;';
-          exerciseCard?.classList.add('fitness-done');
-          exerciseCard?.querySelector('.fitness-exercise-name')?.classList.add('fitness-strikethrough');
+        } else {
+          setRow.classList.remove('set-done');
+          btn.classList.remove('checked');
+          btn.innerHTML = '';
         }
+
+        await Fitness.saveSetsData(date, setsData);
+
+        // Check if all sets in this exercise are now done/undone
+        const exerciseCard = btn.closest('.fitness-exercise');
+        const allSetRows = exerciseCard ? exerciseCard.querySelectorAll('.fitness-set-row') : [];
+        const allDone = [...allSetRows].every(row => row.classList.contains('set-done'));
+        const mainBtn = exerciseCard?.querySelector('.fitness-check');
+
+        if (mainBtn) setExerciseDone(exerciseCard, mainBtn, allDone);
+
+        // Sync fitness_checked
+        const checked = await Fitness.getCheckedExercises(date);
+        if (allDone) checked.add(exName); else checked.delete(exName);
         await Fitness.saveCheckedExercises(date, checked);
 
-        // Update workout stat card counter
-        const total = root.querySelectorAll('.fitness-check').length;
-        const done = root.querySelectorAll('.fitness-check.checked').length;
-        const statCard = document.querySelector('[data-stat-action="workout"] .stat-value');
-        if (statCard && total > 0) statCard.textContent = `${done}/${total}`;
+        updateStatCard();
+
+        // Trigger sync
+        if (await CloudRelay.isConfigured()) {
+          CloudRelay.queueUpload(date);
+        }
+      });
+    });
+
+    // Rep count input — save on change/blur (debounced)
+    root.querySelectorAll('.fitness-set-reps').forEach(input => {
+      let repTimer = null;
+      const saveReps = async () => {
+        const setRow = input.closest('.fitness-set-row');
+        if (!setRow) return;
+        const exName = setRow.dataset.exercise;
+        const setIdx = parseInt(setRow.dataset.set, 10);
+        const repsVal = parseInt(input.value, 10) || 0;
+
+        const setsData = await Fitness.getSetsData(date);
+        if (!setsData[exName]) setsData[exName] = [];
+        if (!setsData[exName][setIdx]) setsData[exName][setIdx] = {};
+        setsData[exName][setIdx].reps = repsVal;
+        await Fitness.saveSetsData(date, setsData);
+      };
+
+      input.addEventListener('change', () => {
+        clearTimeout(repTimer);
+        repTimer = setTimeout(saveReps, 500);
+      });
+      input.addEventListener('blur', () => {
+        clearTimeout(repTimer);
+        saveReps();
       });
     });
 
@@ -420,11 +599,39 @@ const Fitness = {
   // Persistence — store checked exercises and notes in dailySummary
   async getCheckedExercises(date) {
     const summary = await DB.getDailySummary(date);
+    // Derive from fitness_sets if available — exercise is checked when ALL its sets are done
+    if (summary.fitness_sets && Object.keys(summary.fitness_sets).length > 0) {
+      const checked = new Set();
+      for (const [exName, sets] of Object.entries(summary.fitness_sets)) {
+        if (Array.isArray(sets) && sets.length > 0 && sets.every(s => s.done)) {
+          checked.add(exName);
+        }
+      }
+      // Also include any legacy fitness_checked entries not yet in fitness_sets
+      for (const name of (summary.fitness_checked || [])) {
+        checked.add(name);
+      }
+      return checked;
+    }
+    // Fall back to legacy fitness_checked
     return new Set(summary.fitness_checked || []);
   },
 
   async saveCheckedExercises(date, checkedSet) {
+    // Keep fitness_checked in sync for backward compat with processing/analysis
     await DB.updateDailySummary(date, { fitness_checked: [...checkedSet] });
+  },
+
+  async getSetsData(date) {
+    const summary = await DB.getDailySummary(date);
+    return summary.fitness_sets || {};
+  },
+
+  async saveSetsData(date, setsObj) {
+    await DB.updateDailySummary(date, { fitness_sets: setsObj });
+    if (await CloudRelay.isConfigured()) {
+      CloudRelay.queueUpload(date);
+    }
   },
 
   async getWorkoutNotes(date) {

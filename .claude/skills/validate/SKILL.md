@@ -1,6 +1,6 @@
 # /validate — Health Tracker
 
-End-to-end verification that the PWA works correctly. Four phases: static checks, Playwright data injection tests, interactive dogfood loop, and chaos testing.
+End-to-end verification that the PWA works correctly. Six phases: static checks, Playwright regression tests, AI visual QA (screenshots), interactive dogfood loop, Chrome extension live QA, and chaos testing.
 
 ## Quick Run
 
@@ -13,8 +13,15 @@ for f in pwa/scripts/*.js pwa/sw.js; do node --check "$f" 2>&1; done
 # Phase 2: Playwright tests (server starts automatically, no manual setup)
 node test-fixtures/run-tests.js --screenshots
 
+# Phase 2.5: AI Visual QA (read screenshots, evaluate visually — see below)
+# No command — Claude Code reads .claude/test-screenshots/ PNGs and evaluates them
+
 # Phase 2 + Phase 3: Full validation including interactive dogfood
 node test-fixtures/run-tests.js --screenshots --dogfood
+
+# Phase 3.5: Chrome Extension Live QA (requires --chrome flag)
+# Launch: claude --chrome
+# Then interactively browse http://localhost:8080 using Chrome MCP tools
 
 # Phase 4: Chaos testing (random user actions, invariant checks)
 node test-fixtures/chaos.js --rounds 50 --screenshots
@@ -114,28 +121,132 @@ When adding new features, update `test-fixtures/data.js` to include test cases f
 
 **Critical:** Analysis entries in fixtures MUST have `id` fields matching their corresponding IndexedDB entry IDs. Without matching IDs, analysis-status features (inline calories, pending/stale indicators) won't render — they'll silently fail with no errors. Always visually verify screenshots after changes to entry rendering.
 
-## Visual UX Review
+## Phase 2.5 — AI Visual QA
 
-After Playwright tests pass, take screenshots and review them for:
+After Playwright tests pass (Phase 2), run AI-powered visual evaluation on the screenshots. This catches layout, theme, and UX issues that DOM assertions miss.
 
-- **Layout alignment**: Centering, spacing, overflow — score cards centered, no left-aligned content that should be centered
-- **Theme consistency**: All elements match dark theme — no white/unstyled buttons, no default browser styling bleeding through
-- **Touch target sizes**: Minimum 44px on mobile — buttons, links, interactive elements all large enough to tap
-- **Text readability**: Contrast ratios meet WCAG AA, font sizes appropriate for mobile, no truncated text
-- **Empty states**: Graceful handling — no "undefined", "NaN", "?g", or placeholder text leaking through
-- **Modal styling**: Consistent across all modals — close button, padding, border radius, backdrop
+### How it works
 
-Review the screenshots in `.claude/test-screenshots/validate/` — especially:
-- `today-default.png` — score centering, entry layout, quick actions
-- `plan-with-data.png` — meal plan calories, Save Notes button styling
-- `profile-default.png` — all cards styled consistently
-- `viewport-iPhone-SE.png` — smallest viewport, check for overflow
+Playwright already saves screenshots to `.claude/test-screenshots/validate/` during Phase 2. In this phase, Claude Code reads the screenshots directly (multimodal) and evaluates them against the criteria below. No API key needed — Claude Code is the evaluator.
 
-And in `.claude/test-screenshots/dogfood/` — especially:
-- `dogfood-01-fresh-start.png` — empty state appearance
-- `dogfood-*-food-logged.png` — entry creation flow
-- `dogfood-*-edit-modal-*.png` — edit flow
-- `dogfood-*-viewport-*.png` — multi-viewport screenshots
+### Process
+
+1. **Read key screenshots** — use the Read tool on these PNG files (Claude Code can see images):
+
+   **Core screens (always check):**
+   - `audit-today-diet.png`, `audit-today-fitness.png`, `audit-today-skin.png` — all 3 Today panels
+   - `audit-coach.png` — Coach tab
+   - `audit-progress-insights.png`, `audit-progress-trends.png`, `audit-progress-skin.png` — Progress tabs
+   - `audit-settings.png`, `audit-settings-bottom.png` — Settings
+   - `challenges-progress.png`, `challenges-320px.png` — Challenges tab at both viewports
+
+   **Modals and interactions:**
+   - `final-water.png` — water picker modal
+   - `final-edit-modal.png` — entry edit modal
+   - `review-13-goal-setup.png` — goal setup modal
+   - `review-15-more-sheet.png` — more actions sheet
+
+   **Narrow viewport (320px):**
+   - `visual-qa-320.png`, `visual-qa-settings-320.png`, `visual-qa-coach-320.png`, `visual-qa-progress-320.png`
+
+   **If dogfood screenshots exist** (`.claude/test-screenshots/dogfood/`):
+   - `dogfood-01-fresh-start.png` — empty/welcome state
+   - Any `dogfood-*-viewport-*.png` — multi-viewport checks
+
+2. **Evaluate each screenshot** against these criteria:
+
+   | Category | What to check | Fail examples |
+   |----------|--------------|---------------|
+   | **Layout** | Centering, spacing, overflow, alignment | Content cut off, elements overlapping, asymmetric padding |
+   | **Theme** | All elements match dark theme, cool tones | White/unstyled elements, warm colors, default browser styling |
+   | **Touch targets** | Minimum 44px on mobile | Tiny buttons, cramped links, overlapping tap areas |
+   | **Text** | Readability, contrast, no truncation | Text running off-screen, illegible contrast, ellipsis where it shouldn't be |
+   | **Empty states** | Graceful placeholders | "undefined", "NaN", "?g", "[object Object]", blank where content expected |
+   | **Modals** | Consistent styling | Missing close button, no backdrop, inconsistent border radius |
+   | **Visual artifacts** | Stray dots, misaligned elements, rendering glitches | Orphan elements, half-rendered components |
+
+3. **Report findings** as PASS, WARN, or FAIL:
+   - **PASS** — no visual issues found
+   - **WARN** — minor cosmetic issues (slightly off spacing, minor inconsistency) — note them but don't block
+   - **FAIL** — broken layout, invisible text, missing content, theme violations — must fix before shipping
+
+### Tips for effective visual QA
+
+- Compare 320px screenshots against wider ones — layout should adapt, not break
+- Look for elements that "disappear" at narrow viewports (hidden by overflow)
+- Check that modals don't extend past the viewport on mobile
+- Verify scroll indicators exist when content overflows vertically
+- Dark theme: watch for white flashes, unstyled inputs, default select dropdowns
+
+## Phase 3.5 — Chrome Extension Live QA
+
+Uses the Claude Chrome extension (MCP tools) to interactively browse the running app in a real browser and evaluate it like a user would. This catches issues that headless Playwright misses — real rendering, real touch behavior, real scroll physics.
+
+**Requires:** Claude Code launched with `--chrome` flag (enables Chrome MCP tools). The Chrome extension must be installed and connected.
+
+### Setup
+
+```bash
+# Start local server in background
+cd C:\Users\emily\projects\health-tracker && python -m http.server 8080 -d pwa &
+
+# Launch Claude Code with Chrome extension
+claude --chrome
+```
+
+### Process
+
+Use these MCP tools to walk through the app:
+
+1. **Navigate** to `http://localhost:8080` using `mcp__claude-in-chrome__navigate`
+2. **Screenshot** each screen using `mcp__claude-in-chrome__computer` (action: screenshot)
+3. **Interact** — tap buttons, open modals, swipe panels, scroll — using `mcp__claude-in-chrome__computer` (action: click/type/scroll)
+4. **Run JS checks** using `mcp__claude-in-chrome__javascript_tool` for DOM assertions
+
+### Walkthrough checklist
+
+Walk through these flows in order, screenshotting and evaluating at each step:
+
+**Today tab:**
+- [ ] Load app — score ring renders, date shows correctly
+- [ ] Swipe between Diet / Fitness / Skin panels
+- [ ] Tap Food quick action — form opens, type a meal, save
+- [ ] Tap Water — picker opens, select amount, verify total updates
+- [ ] Tap an entry — edit modal opens, content editable
+- [ ] Navigate to previous day and back
+
+**Coach tab:**
+- [ ] Inbox renders (or empty state)
+- [ ] Skincare section shows routine or onboarding wizard
+- [ ] If onboarding: walk through all 5 steps (welcome, concerns, product photo, face photo, completion)
+
+**Progress tab:**
+- [ ] Insights / Trends / Skin / Challenges sub-tabs all render
+- [ ] Challenges: tap "Start a Challenge" — template picker opens with icons/difficulty
+- [ ] Select a template — confirmation step shows tasks, duration, dates
+- [ ] Enroll — onboarding screen appears, then challenge card with checklist
+
+**Settings tab:**
+- [ ] Daily targets card shows values
+- [ ] Goal setup modal opens/closes
+- [ ] Cloud Sync card present
+
+**Mobile viewport:**
+- [ ] Resize browser to ~320px width
+- [ ] Verify no horizontal overflow on any tab
+- [ ] Verify touch targets are large enough
+- [ ] Modals don't overflow viewport
+
+### Evaluation
+
+Report findings using the same PASS/WARN/FAIL criteria as Phase 2.5. Chrome extension QA is the highest-fidelity check — if something looks broken here, it's broken for real users.
+
+### When to run
+
+- Before releases to main
+- After major UI changes (new screens, layout overhauls)
+- When Phase 2.5 screenshot review flags something ambiguous
+- Not needed for every small change — use judgment
 
 ## Phase 4 — Chaos Testing
 

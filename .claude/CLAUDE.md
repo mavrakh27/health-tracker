@@ -105,6 +105,7 @@ See `.claude/notes/deprecation-log.md` for removed features and why (iCloud sync
 - **process-day.bat skips dates with existing analysis files.** To force reprocess: move/delete the analysis JSON first, download the ZIP manually from the relay, then run Claude directly.
 - **Relay `newResults` can become empty** (already acked or race condition). The `/results/resync` endpoint re-queues all results from R2. The PWA has a "Re-sync All Results" button for this.
 - **Never add upload skip logic based on timestamps.** `queueUpload` is only called from user actions — if it fires, data changed. Previous skip logic comparing entry timestamps to `analysis.importedAt` silently blocked uploads after resyncs or metadata edits.
+- **Never PUT data back to the relay without verifying payload size.** PowerShell binary downloads silently return 0 bytes — a PUT with that overwrites real data with nothing. Always check size before any destructive write to the relay.
 
 ## Status Tracking
 

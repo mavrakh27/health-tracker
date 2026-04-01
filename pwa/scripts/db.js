@@ -717,6 +717,7 @@ async function exportDay(dateStr) {
     notes: summary.notes || null,
     coachChat: summary.coachChat || null,
     fitness_checked: summary.fitness_checked || null,
+    fitness_sets: summary.fitness_sets || null,
     fitness_notes: summary.fitness_notes || null,
     period: periodInfo,
   };

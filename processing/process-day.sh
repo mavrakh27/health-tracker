@@ -75,6 +75,8 @@ echo "[$TODAY] Checking cloud relay for pending data..."
 # Get list of pending dates
 PENDING_JSON=$(curl -s "$HEALTH_SYNC_URL/sync/$HEALTH_SYNC_KEY/pending" || echo '{}')
 RELAY_DATES=$(echo "$PENDING_JSON" | jq -r '.pending[]? // empty' 2>/dev/null | tr '\n' ' ' | xargs)
+# Capture gen map for race condition detection on /done
+GEN_JSON=$(echo "$PENDING_JSON" | jq -c '.gen // {}' 2>/dev/null || echo '{}')
 
 if [ -n "$RELAY_DATES" ]; then
     echo "[$TODAY] Cloud relay has pending dates: $RELAY_DATES"
@@ -82,10 +84,12 @@ if [ -n "$RELAY_DATES" ]; then
     for DATE in $RELAY_DATES; do
         if [ -f "$DATA_DIR/analysis/$DATE.json" ]; then
             echo "[$TODAY] $DATE already has analysis - uploading result and marking done"
+            GEN_VAL=$(echo "$GEN_JSON" | jq -r --arg d "$DATE" '.[$d] // empty' 2>/dev/null || echo '')
+            GEN_PARAM=$([ -n "$GEN_VAL" ] && echo "?gen=$GEN_VAL" || echo "")
             curl -s -X POST \
                 -H "Content-Type: application/json; charset=utf-8" \
                 --data-binary "@$DATA_DIR/analysis/$DATE.json" \
-                "$HEALTH_SYNC_URL/sync/$HEALTH_SYNC_KEY/day/$DATE/done"
+                "$HEALTH_SYNC_URL/sync/$HEALTH_SYNC_KEY/day/$DATE/done${GEN_PARAM}"
             echo
         else
             echo "[$TODAY] Downloading $DATE from relay..."
@@ -214,10 +218,12 @@ echo "[$TODAY] Uploading analysis results to cloud relay..."
 for DATE in "${NEW_DATES[@]}"; do
     if [ -f "$DATA_DIR/analysis/$DATE.json" ]; then
         echo "[$TODAY] Uploading analysis for $DATE..."
+        GEN_VAL=$(echo "$GEN_JSON" | jq -r --arg d "$DATE" '.[$d] // empty' 2>/dev/null || echo '')
+        GEN_PARAM=$([ -n "$GEN_VAL" ] && echo "?gen=$GEN_VAL" || echo "")
         if curl -s -X POST \
             -H "Content-Type: application/json; charset=utf-8" \
             --data-binary "@$DATA_DIR/analysis/$DATE.json" \
-            "$HEALTH_SYNC_URL/sync/$HEALTH_SYNC_KEY/day/$DATE/done"; then
+            "$HEALTH_SYNC_URL/sync/$HEALTH_SYNC_KEY/day/$DATE/done${GEN_PARAM}"; then
             echo "[$TODAY] Uploaded results for $DATE"
         else
             echo "[$TODAY] WARNING: Failed to upload results for $DATE"

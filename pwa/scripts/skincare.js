@@ -1,15 +1,396 @@
 // skincare.js — Skincare routine checklist (AM/PM)
 
+// ── Skin concern options for onboarding ──
+const SKIN_CONCERNS = [
+  { key: 'acne', label: 'Acne / Breakouts' },
+  { key: 'dryness', label: 'Dryness' },
+  { key: 'oiliness', label: 'Oiliness' },
+  { key: 'aging', label: 'Fine Lines / Aging' },
+  { key: 'sensitivity', label: 'Sensitivity / Redness' },
+  { key: 'hyperpigmentation', label: 'Dark Spots / Hyperpigmentation' },
+  { key: 'pores', label: 'Visible Pores' },
+  { key: 'dullness', label: 'Dullness / Uneven Tone' },
+  { key: 'dark_circles', label: 'Dark Circles' },
+  { key: 'texture', label: 'Rough Texture' },
+];
+
+const SKIN_TYPES = [
+  { key: 'dry', label: 'Dry' },
+  { key: 'oily', label: 'Oily' },
+  { key: 'combination', label: 'Combination' },
+  { key: 'normal', label: 'Normal' },
+  { key: 'unsure', label: 'Not sure' },
+];
+
+// ── Skincare Onboarding Wizard ──
+const SkincareOnboarding = {
+  _state: {
+    step: 0,
+    skinType: null,
+    concerns: [],
+    productPhoto: null,
+    facePhoto: null,
+  },
+
+  reset() {
+    this._state = { step: 0, skinType: null, concerns: [], productPhoto: null, facePhoto: null };
+  },
+
+  async render(date) {
+    const s = this._state;
+    const steps = ['welcome', 'concerns', 'products', 'face', 'complete'];
+    const stepName = steps[s.step] || 'welcome';
+
+    let html = '<div class="skincare-onboarding">';
+
+    // Progress dots
+    html += '<div class="skincare-ob-progress">';
+    for (let i = 0; i < steps.length; i++) {
+      const cls = i === s.step ? 'active' : (i < s.step ? 'done' : '');
+      html += `<div class="skincare-ob-dot ${cls}"></div>`;
+    }
+    html += '</div>';
+
+    if (stepName === 'welcome') {
+      html += SkincareOnboarding._renderWelcome();
+    } else if (stepName === 'concerns') {
+      html += SkincareOnboarding._renderConcerns(s);
+    } else if (stepName === 'products') {
+      html += SkincareOnboarding._renderProducts(s);
+    } else if (stepName === 'face') {
+      html += SkincareOnboarding._renderFace(s);
+    } else if (stepName === 'complete') {
+      html += await SkincareOnboarding._renderComplete(date);
+    }
+
+    html += '</div>';
+    return html;
+  },
+
+  _renderWelcome() {
+    return `
+      <div class="skincare-ob-card">
+        <div class="skincare-ob-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" width="40" height="40">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+        </div>
+        <h3 class="skincare-ob-title">Skincare Tracker</h3>
+        <p class="skincare-ob-desc">
+          Build a personalized skincare routine with AI coaching. We will collect a few things to get started:
+        </p>
+        <ul class="skincare-ob-list">
+          <li>Your skin type and concerns</li>
+          <li>A photo of your current products (optional)</li>
+          <li>A face photo for skin analysis baseline (optional)</li>
+        </ul>
+        <p class="skincare-ob-desc" style="margin-top:var(--space-sm); font-size:var(--text-xs); color:var(--text-muted);">
+          Your coach will analyze everything within 30 minutes and build a routine tailored to you. All photos stay private on your device and sync only to your personal relay.
+        </p>
+        <button class="btn btn-primary btn-block btn-lg skincare-ob-next" data-action="next">Get Started</button>
+      </div>
+    `;
+  },
+
+  _renderConcerns(state) {
+    let html = `
+      <div class="skincare-ob-card">
+        <h3 class="skincare-ob-title">About Your Skin</h3>
+        <p class="skincare-ob-desc">Select your skin type:</p>
+        <div class="skincare-ob-type-grid">
+    `;
+    for (const t of SKIN_TYPES) {
+      const sel = state.skinType === t.key ? ' selected' : '';
+      html += `<button class="skincare-ob-type-btn${sel}" data-type="${t.key}">${UI.escapeHtml(t.label)}</button>`;
+    }
+    html += `</div>
+        <p class="skincare-ob-desc" style="margin-top:var(--space-md);">Select your top concerns:</p>
+        <div class="skincare-ob-concerns-grid">`;
+    for (const c of SKIN_CONCERNS) {
+      const sel = state.concerns.includes(c.key) ? ' selected' : '';
+      html += `<button class="skincare-ob-concern-btn${sel}" data-concern="${c.key}">${UI.escapeHtml(c.label)}</button>`;
+    }
+    html += `</div>
+        <div class="skincare-ob-actions">
+          <button class="btn btn-ghost skincare-ob-back" data-action="back">Back</button>
+          <button class="btn btn-primary skincare-ob-next" data-action="next">Continue</button>
+        </div>
+      </div>
+    `;
+    return html;
+  },
+
+  _renderProducts(state) {
+    const hasPhoto = !!state.productPhoto;
+    return `
+      <div class="skincare-ob-card">
+        <h3 class="skincare-ob-title">Your Current Products</h3>
+        <p class="skincare-ob-desc">
+          Lay out all your skincare products and take a photo. Your coach will identify each product and suggest how to use them.
+        </p>
+        <div class="skincare-ob-photo-area" id="skincare-ob-product-preview">
+          ${hasPhoto
+            ? `<img src="${state.productPhoto.url}" class="skincare-ob-photo-img" alt="Product shelf photo">
+               <button class="skincare-ob-photo-remove" data-action="remove-product-photo" title="Remove">&times;</button>`
+            : `<div class="skincare-ob-photo-placeholder" id="skincare-ob-product-capture">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                  <rect x="2" y="5" width="20" height="16" rx="2"/>
+                  <circle cx="12" cy="13" r="4"/>
+                  <path d="M8.5 5L9.5 3h5l1 2"/>
+                </svg>
+                <span>Tap to photograph your products</span>
+              </div>`
+          }
+        </div>
+        <div class="skincare-ob-actions">
+          <button class="btn btn-ghost skincare-ob-back" data-action="back">Back</button>
+          <button class="btn btn-${hasPhoto ? 'primary' : 'secondary'} skincare-ob-next" data-action="next">${hasPhoto ? 'Continue' : 'Skip for now'}</button>
+        </div>
+      </div>
+    `;
+  },
+
+  _renderFace(state) {
+    const hasPhoto = !!state.facePhoto;
+    return `
+      <div class="skincare-ob-card">
+        <h3 class="skincare-ob-title">Face Photo Baseline</h3>
+        <p class="skincare-ob-desc">
+          Take a face photo in natural light with a neutral expression. Your coach will use this to assess your skin and track progress over time.
+        </p>
+        <div class="skincare-ob-photo-area" id="skincare-ob-face-preview">
+          ${hasPhoto
+            ? `<img src="${state.facePhoto.url}" class="skincare-ob-photo-img" alt="Face photo">
+               <button class="skincare-ob-photo-remove" data-action="remove-face-photo" title="Remove">&times;</button>`
+            : `<div class="skincare-ob-photo-placeholder" id="skincare-ob-face-capture">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="32" height="32">
+                  <circle cx="12" cy="8" r="5"/>
+                  <path d="M20 21a8 8 0 00-16 0"/>
+                </svg>
+                <span>Tap to take a face photo</span>
+              </div>`
+          }
+        </div>
+        <div class="skincare-ob-actions">
+          <button class="btn btn-ghost skincare-ob-back" data-action="back">Back</button>
+          <button class="btn btn-${hasPhoto ? 'primary' : 'secondary'} skincare-ob-next" data-action="next">${hasPhoto ? 'Finish Setup' : 'Skip for now'}</button>
+        </div>
+      </div>
+    `;
+  },
+
+  async _renderComplete(date) {
+    return `
+      <div class="skincare-ob-card" style="text-align:center;">
+        <div class="skincare-ob-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2" width="40" height="40">
+            <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+          </svg>
+        </div>
+        <h3 class="skincare-ob-title">Setup Complete</h3>
+        <p class="skincare-ob-desc">
+          Your coach will analyze your photos and skin profile within the next processing cycle (up to 30 minutes). Check back on the Coach tab for your personalized routine.
+        </p>
+        <div class="skincare-ob-waiting">
+          <div class="skincare-ob-waiting-bar"></div>
+          <span>Waiting for coach analysis...</span>
+        </div>
+        <button class="btn btn-primary btn-block btn-lg skincare-ob-next" data-action="done" style="margin-top:var(--space-md);">Got it</button>
+      </div>
+    `;
+  },
+
+  bindEvents(date, container) {
+    const state = this._state;
+
+    // Navigation: next / back / done
+    container.querySelectorAll('[data-action="next"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (state.step === 1) {
+          // Save concerns before advancing
+          await SkincareOnboarding._saveSkinProfile(state);
+        }
+        if (state.step === 3) {
+          // Completing the wizard — save everything
+          await SkincareOnboarding._finishOnboarding(date, state);
+        }
+        if (state.step >= 4) {
+          // Done — re-render the skincare panel to show waiting state
+          SkincareOnboarding.reset();
+          const el = container.closest('#today-skincare') || container;
+          el.innerHTML = await SkinCareView.render(date);
+          SkinCareView.bindEvents(date);
+          return;
+        }
+        state.step++;
+        SkincareOnboarding._rerender(date, container);
+      });
+    });
+
+    container.querySelectorAll('[data-action="back"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (state.step > 0) state.step--;
+        SkincareOnboarding._rerender(date, container);
+      });
+    });
+
+    // Skin type selection
+    container.querySelectorAll('.skincare-ob-type-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.skinType = btn.dataset.type;
+        container.querySelectorAll('.skincare-ob-type-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+
+    // Concern toggle
+    container.querySelectorAll('.skincare-ob-concern-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.concern;
+        const idx = state.concerns.indexOf(key);
+        if (idx >= 0) {
+          state.concerns.splice(idx, 1);
+          btn.classList.remove('selected');
+        } else {
+          state.concerns.push(key);
+          btn.classList.add('selected');
+        }
+      });
+    });
+
+    // Product photo capture
+    const productCapture = container.querySelector('#skincare-ob-product-capture');
+    if (productCapture) {
+      productCapture.addEventListener('click', async () => {
+        const photo = await Camera.capture('meal');
+        if (!photo) return;
+        state.productPhoto = photo;
+        SkincareOnboarding._rerender(date, container);
+      });
+    }
+
+    // Product photo remove
+    container.querySelectorAll('[data-action="remove-product-photo"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (state.productPhoto) Camera.revokeURL(state.productPhoto.url);
+        state.productPhoto = null;
+        SkincareOnboarding._rerender(date, container);
+      });
+    });
+
+    // Face photo capture
+    const faceCapture = container.querySelector('#skincare-ob-face-capture');
+    if (faceCapture) {
+      faceCapture.addEventListener('click', async () => {
+        const photo = await Camera.capture('body');
+        if (!photo) return;
+        state.facePhoto = photo;
+        SkincareOnboarding._rerender(date, container);
+      });
+    }
+
+    // Face photo remove
+    container.querySelectorAll('[data-action="remove-face-photo"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (state.facePhoto) Camera.revokeURL(state.facePhoto.url);
+        state.facePhoto = null;
+        SkincareOnboarding._rerender(date, container);
+      });
+    });
+  },
+
+  async _rerender(date, container) {
+    const el = container.closest('#today-skincare') || container;
+    el.innerHTML = await SkincareOnboarding.render(date);
+    SkincareOnboarding.bindEvents(date, el);
+  },
+
+  async _saveSkinProfile(state) {
+    let profile = await DB.getSkincareRoutine();
+    if (!profile) {
+      profile = { weeklyTemplate: { default: { am: [], pm: [] }, overrides: {} }, rotations: [], products: [] };
+    }
+    profile.skinType = state.skinType;
+    profile.concerns = [...state.concerns];
+    profile.onboardingStarted = new Date().toISOString();
+    await DB.setSkincareRoutine(profile);
+  },
+
+  async _finishOnboarding(date, state) {
+    // 1. Save skin profile (concerns + type)
+    await SkincareOnboarding._saveSkinProfile(state);
+
+    // 2. Save product shelf photo as an entry for processing
+    if (state.productPhoto) {
+      const entry = {
+        id: UI.generateId('skincareProducts'),
+        type: 'skincareProducts',
+        date: date,
+        timestamp: new Date().toISOString(),
+        notes: 'Skincare product shelf photo for coach analysis',
+        photo: true,
+      };
+      await DB.addEntry(entry, state.productPhoto.blob);
+    }
+
+    // 3. Save face photo as body photo with face subtype
+    if (state.facePhoto) {
+      const entry = {
+        id: UI.generateId('bodyPhoto_face'),
+        type: 'bodyPhoto',
+        subtype: 'face',
+        date: date,
+        timestamp: new Date().toISOString(),
+        notes: 'Skincare onboarding face photo',
+        photo: true,
+        duration_minutes: null,
+      };
+      await DB.addEntry(entry, state.facePhoto.blob);
+    }
+
+    // 4. Mark onboarding complete
+    let profile = await DB.getSkincareRoutine();
+    if (!profile) profile = {};
+    profile.onboardingComplete = true;
+    profile.onboardingDate = new Date().toISOString();
+    await DB.setSkincareRoutine(profile);
+
+    // 5. Trigger sync
+    if (typeof CloudRelay !== 'undefined' && await CloudRelay.isConfigured()) {
+      CloudRelay.queueUpload(date);
+    }
+
+    // Clean up object URLs
+    if (state.productPhoto) Camera.revokeURL(state.productPhoto.url);
+    if (state.facePhoto) Camera.revokeURL(state.facePhoto.url);
+
+    UI.toast('Skincare setup complete');
+  },
+};
+
 const SkinCareView = {
   async render(date) {
     // 1. Load skincare profile
     const profile = await DB.getSkincareRoutine();
+
+    // No routine yet — check if onboarding was completed (waiting for analysis) or show onboarding
     if (!profile || !profile.products || profile.products.length === 0) {
-      return `<div class="card" style="text-align:center; padding:var(--space-lg);">
-        <p style="font-weight:600; margin-bottom:var(--space-xs);">Set up your skincare routine</p>
-        <p style="font-size:var(--text-sm); color:var(--text-muted); margin-bottom:var(--space-md);">Talk to your coach to create a personalized routine.</p>
-        <button class="btn btn-primary" onclick="App.showCoachSetup()">Set Up with Coach</button>
-      </div>`;
+      if (profile?.onboardingComplete) {
+        // Onboarding done, waiting for coach to build routine
+        return `<div class="skincare-ob-card" style="text-align:center;">
+          <div class="skincare-ob-waiting">
+            <div class="skincare-ob-waiting-bar"></div>
+            <span>Waiting for coach to build your routine...</span>
+          </div>
+          <p style="font-size:var(--text-xs); color:var(--text-muted); margin-top:var(--space-sm);">
+            Your coach processes data every 30 minutes. Check the Coach tab for updates.
+          </p>
+        </div>`;
+      }
+      // Show onboarding wizard
+      return await SkincareOnboarding.render(date);
     }
 
     // 2. Resolve today's routine (applies template + rotations for this day)
@@ -112,6 +493,13 @@ const SkinCareView = {
   },
 
   async bindEvents(date) {
+    // If onboarding wizard is active, delegate to it
+    const obContainer = document.querySelector('.skincare-onboarding');
+    if (obContainer) {
+      SkincareOnboarding.bindEvents(date, obContainer);
+      return;
+    }
+
     // Checkbox toggle
     document.querySelectorAll('.skincare-check').forEach(btn => {
       btn.addEventListener('click', async (e) => {
@@ -234,16 +622,33 @@ const SkincareCoach = {
     let html = '<div class="coach-analysis-section"><p class="coach-section-label">Skincare Routine</p>';
 
     if (!profile || !profile.products || profile.products.length === 0) {
-      html += `
-        <div class="card" style="text-align:center; padding:var(--space-lg);">
-          <p style="font-weight:600; margin-bottom:var(--space-xs);">No skincare routine yet</p>
-          <p style="font-size:var(--text-sm); color:var(--text-muted); margin-bottom:var(--space-md);">
-            Add products and build your weekly routine.
-          </p>
-          <div style="display:flex; gap:var(--space-sm); justify-content:center; flex-wrap:wrap;">
-            <button class="btn btn-primary" id="sc-manage-products-btn">Manage Products</button>
-          </div>
-        </div>`;
+      if (profile?.onboardingComplete) {
+        // Onboarding done, waiting for coach to build routine
+        html += `
+          <div class="card" style="text-align:center; padding:var(--space-lg);">
+            <div class="skincare-ob-waiting" style="margin-bottom:var(--space-sm);">
+              <div class="skincare-ob-waiting-bar"></div>
+              <span>Waiting for coach to build your routine...</span>
+            </div>
+            <p style="font-size:var(--text-xs); color:var(--text-muted);">
+              Your skin profile${profile.concerns?.length ? ' (' + profile.concerns.join(', ') + ')' : ''} has been submitted. Your coach will analyze your photos and create a personalized routine.
+            </p>
+            <div style="margin-top:var(--space-md); display:flex; gap:var(--space-sm); justify-content:center; flex-wrap:wrap;">
+              <button class="btn btn-ghost" id="sc-manage-products-btn">Add Products Manually</button>
+            </div>
+          </div>`;
+      } else {
+        html += `
+          <div class="card" style="text-align:center; padding:var(--space-lg);">
+            <p style="font-weight:600; margin-bottom:var(--space-xs);">No skincare routine yet</p>
+            <p style="font-size:var(--text-sm); color:var(--text-muted); margin-bottom:var(--space-md);">
+              Start the skincare onboarding on the Today tab (Skin panel), or add products manually.
+            </p>
+            <div style="display:flex; gap:var(--space-sm); justify-content:center; flex-wrap:wrap;">
+              <button class="btn btn-primary" id="sc-manage-products-btn">Manage Products</button>
+            </div>
+          </div>`;
+      }
       html += '</div>';
       return html;
     }

@@ -440,7 +440,7 @@ const Challenges = {
         cls += ' future';
       } else if (rec?.allComplete) {
         cls += ' complete';
-      } else if (dateStr <= today) {
+      } else {
         cls += ' incomplete';
       }
       html += `<div class="${cls}" title="Day ${i + 1}"></div>`;
@@ -449,11 +449,39 @@ const Challenges = {
     return html;
   },
 
+  // --- Difficulty labels for templates ---
+  _templateDifficulty(t) {
+    if (t.restartOnMiss && t.durationDays >= 75) return { label: 'Extreme', cls: 'extreme' };
+    if (t.durationDays >= 100) return { label: 'Hard', cls: 'hard' };
+    if (t.durationDays >= 30) return { label: 'Moderate', cls: 'moderate' };
+    return { label: 'Beginner', cls: 'beginner' };
+  },
+
+  _templateIcon(id) {
+    const icons = {
+      '75hard': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c-4 0-7-3-7-7 0-3 2-5 4-7 1-1 2-2 2-4 1 2 3 3 4 5 .5-1 1-2 1-3 2 2 3 4 3 6 0 4-3 10-7 10z"/></svg>',
+      '7day_reset': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 105.64-11.36L1 10"/></svg>',
+      '100day': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
+      'custom': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+    };
+    return icons[id] || icons['custom'];
+  },
+
+  _templateAccent(id) {
+    const accents = {
+      '75hard': 'var(--accent-red)',
+      '7day_reset': 'var(--accent-blue)',
+      '100day': 'var(--accent-orange)',
+      'custom': 'var(--accent-purple)',
+    };
+    return accents[id] || 'var(--accent-primary)';
+  },
+
   // --- Template picker ---
   renderTemplatePicker() {
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
-    sheet.style.maxHeight = '80dvh';
+    sheet.style.maxHeight = '85dvh';
 
     const templates = Object.values(ChallengeTemplates);
 
@@ -462,18 +490,41 @@ const Challenges = {
         <span class="modal-title">Start a Challenge</span>
         <button class="modal-close" id="chal-picker-close" aria-label="Close">&times;</button>
       </div>
-      <div>
-        ${templates.map(t => `
-          <div class="challenge-template-card" data-template-id="${UI.escapeHtml(t.id)}">
+      <div class="chal-picker-list">
+        ${templates.map(t => {
+          const diff = Challenges._templateDifficulty(t);
+          const icon = Challenges._templateIcon(t.id);
+          const accent = Challenges._templateAccent(t.id);
+          const autoCount = t.tasks.filter(tk => tk.autoCheck).length;
+          return `
+          <div class="challenge-template-card chal-tpl-enhanced" data-template-id="${UI.escapeHtml(t.id)}">
+            <div class="chal-tpl-icon-row">
+              <div class="chal-tpl-icon" style="color:${accent}; background:color-mix(in srgb, ${accent} 12%, transparent);">${icon}</div>
+              <span class="chal-tpl-difficulty chal-tpl-difficulty--${diff.cls}">${diff.label}</span>
+            </div>
             <div class="challenge-template-name">${UI.escapeHtml(t.name)}</div>
             <div class="challenge-template-desc">${UI.escapeHtml(t.description)}</div>
-            <div class="challenge-template-meta">${t.durationDays} days -- ${t.tasks.length} daily tasks${t.restartOnMiss ? ' -- restarts on miss' : ''}</div>
+            <div class="chal-tpl-tags">
+              <span class="chal-tpl-tag">${t.durationDays} days</span>
+              <span class="chal-tpl-tag">${t.tasks.length} daily tasks</span>
+              ${autoCount > 0 ? `<span class="chal-tpl-tag chal-tpl-tag--auto">${autoCount} auto-tracked</span>` : ''}
+              ${t.restartOnMiss ? '<span class="chal-tpl-tag chal-tpl-tag--restart">restarts on miss</span>' : ''}
+            </div>
+            <div class="chal-tpl-task-preview">
+              ${t.tasks.slice(0, 3).map(tk => `<span class="chal-tpl-task-pill">${UI.escapeHtml(tk.label)}</span>`).join('')}
+              ${t.tasks.length > 3 ? `<span class="chal-tpl-task-pill chal-tpl-task-more">+${t.tasks.length - 3} more</span>` : ''}
+            </div>
           </div>
-        `).join('')}
-        <div class="challenge-template-card" data-template-id="custom">
+        `}).join('')}
+        <div class="challenge-template-card chal-tpl-enhanced" data-template-id="custom">
+          <div class="chal-tpl-icon-row">
+            <div class="chal-tpl-icon" style="color:var(--accent-purple); background:color-mix(in srgb, var(--accent-purple) 12%, transparent);">${Challenges._templateIcon('custom')}</div>
+          </div>
           <div class="challenge-template-name">Custom Challenge</div>
-          <div class="challenge-template-desc">Create your own challenge with custom duration and tasks.</div>
-          <div class="challenge-template-meta">You choose</div>
+          <div class="challenge-template-desc">Design your own challenge with custom tasks, duration, and rules.</div>
+          <div class="chal-tpl-tags">
+            <span class="chal-tpl-tag">You choose</span>
+          </div>
         </div>
       </div>
     `;
@@ -486,82 +537,437 @@ const Challenges = {
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
     sheet.querySelectorAll('.challenge-template-card').forEach(card => {
-      card.addEventListener('click', async () => {
+      card.addEventListener('click', () => {
         const tid = card.dataset.templateId;
-        if (tid === 'custom') {
-          close();
-          Challenges.showCustomBuilder();
-          return;
-        }
-        await Challenges.enroll(tid);
         close();
-        if (App.currentScreen === 'progress') ProgressView.init();
-        if (App.currentScreen === 'today') App.loadDayView();
+        if (tid === 'custom') {
+          Challenges.showCustomBuilder();
+        } else {
+          Challenges.showConfirmation(tid);
+        }
       });
     });
   },
 
-  showCustomBuilder() {
+  // --- Confirmation / customization step ---
+  showConfirmation(templateId, customTemplate) {
+    const template = customTemplate || ChallengeTemplates[templateId];
+    if (!template) return;
+
     const overlay = UI.createElement('div', 'modal-overlay');
     const sheet = UI.createElement('div', 'modal-sheet');
-    sheet.style.maxHeight = '80dvh';
+    sheet.style.maxHeight = '90dvh';
+
+    const diff = Challenges._templateDifficulty(template);
+    const icon = Challenges._templateIcon(template.id);
+    const accent = Challenges._templateAccent(template.id);
+    const autoCount = template.tasks.filter(t => t.autoCheck).length;
+
+    // We'll track editable tasks state
+    let editableTasks = template.tasks.map((t, i) => ({ ...t, _idx: i }));
+
+    const renderTaskList = () => {
+      return editableTasks.map((t, i) => `
+        <div class="chal-confirm-task" data-idx="${i}">
+          <div class="chal-confirm-task-main">
+            <span class="chal-confirm-task-label">${UI.escapeHtml(t.label)}</span>
+            ${t.autoCheck ? '<span class="challenge-auto-label">auto</span>' : ''}
+          </div>
+          <button class="chal-confirm-task-remove" data-idx="${i}" aria-label="Remove task">&times;</button>
+        </div>
+      `).join('');
+    };
+
+    const renderSheet = () => {
+      const startDate = App.selectedDate;
+      const endObj = new Date(startDate + 'T12:00:00');
+      endObj.setDate(endObj.getDate() + template.durationDays - 1);
+      const endDate = UI.formatDate(Challenges._fmt(endObj));
+
+      sheet.innerHTML = `
+        <div class="modal-header">
+          <button class="chal-confirm-back" id="chal-confirm-back" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="modal-title">Review</span>
+          <button class="modal-close" id="chal-confirm-close" aria-label="Close">&times;</button>
+        </div>
+
+        <div class="chal-confirm-hero">
+          <div class="chal-confirm-icon" style="color:${accent}; background:color-mix(in srgb, ${accent} 15%, transparent);">${icon}</div>
+          <div class="chal-confirm-name">${UI.escapeHtml(template.name)}</div>
+          <div class="chal-confirm-desc">${UI.escapeHtml(template.description)}</div>
+        </div>
+
+        <div class="chal-confirm-stats">
+          <div class="chal-confirm-stat">
+            <div class="chal-confirm-stat-value">${template.durationDays}</div>
+            <div class="chal-confirm-stat-label">Days</div>
+          </div>
+          <div class="chal-confirm-stat">
+            <div class="chal-confirm-stat-value">${editableTasks.length}</div>
+            <div class="chal-confirm-stat-label">Daily Tasks</div>
+          </div>
+          <div class="chal-confirm-stat">
+            <div class="chal-confirm-stat-value">${template.restartOnMiss ? 'Yes' : 'No'}</div>
+            <div class="chal-confirm-stat-label">Restart</div>
+          </div>
+        </div>
+
+        <div class="chal-confirm-date-row">
+          <span>${UI.formatDate(startDate)}</span>
+          <span class="chal-confirm-arrow">--&gt;</span>
+          <span>${endDate}</span>
+        </div>
+
+        <div class="chal-confirm-section-label">Daily Tasks</div>
+        <div class="chal-confirm-section-hint">Tap x to remove, or add your own tasks below</div>
+        <div class="chal-confirm-tasks" id="chal-confirm-task-list">
+          ${renderTaskList()}
+        </div>
+
+        <div class="chal-confirm-add-row">
+          <input type="text" class="input-field chal-confirm-add-input" id="chal-confirm-add-input" placeholder="Add a task..." maxlength="100">
+          <button class="btn btn-ghost chal-confirm-add-btn" id="chal-confirm-add-btn">Add</button>
+        </div>
+
+        ${template.restartOnMiss ? '<div class="chal-confirm-warning">Miss a day and you restart from Day 1. No exceptions.</div>' : ''}
+
+        <button class="btn btn-primary btn-block chal-confirm-begin" id="chal-confirm-begin">Begin Challenge</button>
+      `;
+    };
+
+    renderSheet();
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+
+    const bindConfirmEvents = () => {
+      document.getElementById('chal-confirm-close').addEventListener('click', close);
+      document.getElementById('chal-confirm-back').addEventListener('click', () => {
+        close();
+        if (customTemplate) {
+          Challenges.showCustomBuilder(customTemplate);
+        } else {
+          Challenges.renderTemplatePicker();
+        }
+      });
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+      // Remove task buttons
+      sheet.querySelectorAll('.chal-confirm-task-remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const idx = parseInt(btn.dataset.idx);
+          if (editableTasks.length <= 1) {
+            UI.toast('Need at least one task');
+            return;
+          }
+          editableTasks.splice(idx, 1);
+          renderSheet();
+          bindConfirmEvents();
+        });
+      });
+
+      // Add task
+      const addInput = document.getElementById('chal-confirm-add-input');
+      const addBtn = document.getElementById('chal-confirm-add-btn');
+      const doAdd = () => {
+        const val = addInput.value.trim();
+        if (!val) return;
+        editableTasks.push({ id: 'custom_' + Date.now(), label: val, autoCheck: null });
+        addInput.value = '';
+        renderSheet();
+        bindConfirmEvents();
+      };
+      addBtn.addEventListener('click', doAdd);
+      addInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+
+      // Begin challenge
+      document.getElementById('chal-confirm-begin').addEventListener('click', async () => {
+        if (editableTasks.length === 0) {
+          UI.toast('Add at least one task');
+          return;
+        }
+        const chalData = customTemplate ? {
+          name: template.name,
+          description: template.description || '',
+          durationDays: template.durationDays,
+          restartOnMiss: template.restartOnMiss,
+          tasks: editableTasks.map(t => ({ label: t.label, autoCheck: t.autoCheck || null })),
+        } : undefined;
+
+        let challenge;
+        if (customTemplate) {
+          challenge = await Challenges.enroll('custom', chalData);
+        } else {
+          // If tasks were modified from the original, enroll as custom with template name
+          const origTasks = template.tasks.map(t => t.label).join('|');
+          const newTasks = editableTasks.map(t => t.label).join('|');
+          if (origTasks !== newTasks) {
+            challenge = await Challenges.enroll('custom', {
+              name: template.name,
+              description: template.description,
+              durationDays: template.durationDays,
+              restartOnMiss: template.restartOnMiss,
+              tasks: editableTasks.map(t => ({ label: t.label, autoCheck: t.autoCheck || null })),
+            });
+          } else {
+            challenge = await Challenges.enroll(templateId);
+          }
+        }
+        close();
+        Challenges.showOnboarding(challenge);
+      });
+    };
+
+    bindConfirmEvents();
+  },
+
+  // --- Post-enrollment onboarding ---
+  showOnboarding(challenge) {
+    if (!challenge) {
+      if (App.currentScreen === 'progress') ProgressView.init();
+      if (App.currentScreen === 'today') App.loadDayView();
+      return;
+    }
+
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.style.maxHeight = '85dvh';
+
+    const accent = Challenges._templateAccent(challenge.templateId);
+    const icon = Challenges._templateIcon(challenge.templateId);
+    const autoTasks = challenge.tasks.filter(t => t.autoCheck);
+    const manualTasks = challenge.tasks.filter(t => !t.autoCheck);
+
+    let tipsHtml = '';
+
+    if (autoTasks.length > 0) {
+      tipsHtml += `
+        <div class="chal-onboard-tip">
+          <div class="chal-onboard-tip-icon" style="color:var(--accent-blue);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="chal-onboard-tip-text">
+            <strong>${autoTasks.length} task${autoTasks.length > 1 ? 's' : ''} auto-track</strong> based on your logged data (water, workouts, meals, photos). Just log normally and they check themselves.
+          </div>
+        </div>
+      `;
+    }
+
+    if (manualTasks.length > 0) {
+      tipsHtml += `
+        <div class="chal-onboard-tip">
+          <div class="chal-onboard-tip-icon" style="color:var(--accent-primary);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <div class="chal-onboard-tip-text">
+            <strong>${manualTasks.length} task${manualTasks.length > 1 ? 's' : ''} need manual check-off</strong> each day. Tap the checkbox when you complete them.
+          </div>
+        </div>
+      `;
+    }
+
+    if (challenge.restartOnMiss) {
+      tipsHtml += `
+        <div class="chal-onboard-tip">
+          <div class="chal-onboard-tip-icon" style="color:var(--accent-red);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+          </div>
+          <div class="chal-onboard-tip-text">
+            <strong>Restart on miss is ON.</strong> If you don't complete all tasks in a day, the challenge resets to Day 1. Stay sharp.
+          </div>
+        </div>
+      `;
+    } else {
+      tipsHtml += `
+        <div class="chal-onboard-tip">
+          <div class="chal-onboard-tip-icon" style="color:var(--accent-green);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="chal-onboard-tip-text">
+            <strong>No restarts.</strong> If you miss a day, you just keep going. Progress counts, not perfection.
+          </div>
+        </div>
+      `;
+    }
 
     sheet.innerHTML = `
-      <div class="modal-header">
-        <span class="modal-title">Custom Challenge</span>
-        <button class="modal-close" id="custom-chal-close" aria-label="Close">&times;</button>
+      <div class="chal-onboard-hero" style="background:color-mix(in srgb, ${accent} 8%, transparent);">
+        <div class="chal-onboard-icon" style="color:${accent}; background:color-mix(in srgb, ${accent} 15%, transparent);">${icon}</div>
+        <div class="chal-onboard-heading">You're in.</div>
+        <div class="chal-onboard-name">${UI.escapeHtml(challenge.name)}</div>
+        <div class="chal-onboard-subtitle">${challenge.durationDays} days starting today</div>
       </div>
-      <div style="padding:var(--space-md); overflow-y:auto;">
-        <div style="margin-bottom:var(--space-md);">
-          <label class="input-label">Challenge Name</label>
-          <input type="text" id="custom-chal-name" class="input-field" placeholder="My Challenge" style="width:100%;">
-        </div>
-        <div style="margin-bottom:var(--space-md);">
-          <label class="input-label">Duration (days)</label>
-          <input type="number" id="custom-chal-days" class="input-field" value="30" min="1" max="365" style="width:100%;">
-        </div>
-        <div style="margin-bottom:var(--space-md);">
-          <label class="input-label">Restart on missed day?</label>
-          <select id="custom-chal-restart" class="input-field" style="width:100%;">
-            <option value="no">No — just continue</option>
-            <option value="yes">Yes — restart from Day 1</option>
-          </select>
-        </div>
-        <div style="margin-bottom:var(--space-md);">
-          <label class="input-label">Daily Tasks (one per line)</label>
-          <textarea id="custom-chal-tasks" class="input-field" rows="5" placeholder="Drink 8 glasses of water\nWorkout for 30 minutes\nNo sugar" style="width:100%; resize:vertical;"></textarea>
-        </div>
-        <button class="btn btn-primary btn-block" id="custom-chal-start">Start Challenge</button>
+      <div class="chal-onboard-body">
+        <div class="chal-onboard-section-label">What to expect</div>
+        ${tipsHtml}
+        <div class="chal-onboard-section-label" style="margin-top:var(--space-lg);">Your daily checklist appears on the Today tab and Progress tab. Complete all tasks each day to build your streak.</div>
+        <button class="btn btn-primary btn-block chal-onboard-go" id="chal-onboard-go">Let's go</button>
       </div>
     `;
 
     overlay.appendChild(sheet);
     document.body.appendChild(overlay);
 
-    const close = () => overlay.remove();
-    document.getElementById('custom-chal-close').addEventListener('click', close);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-
-    document.getElementById('custom-chal-start').addEventListener('click', async () => {
-      const name = document.getElementById('custom-chal-name').value.trim();
-      const days = parseInt(document.getElementById('custom-chal-days').value) || 30;
-      const restart = document.getElementById('custom-chal-restart').value === 'yes';
-      const tasksRaw = document.getElementById('custom-chal-tasks').value.trim();
-      const taskLines = tasksRaw.split('\n').map(l => l.trim()).filter(l => l);
-
-      if (!name) { UI.toast('Enter a challenge name'); return; }
-      if (taskLines.length === 0) { UI.toast('Add at least one task'); return; }
-
-      await Challenges.enroll('custom', {
-        name,
-        durationDays: days,
-        restartOnMiss: restart,
-        tasks: taskLines.map(l => ({ label: l })),
-      });
-      close();
+    const close = () => {
+      overlay.remove();
       if (App.currentScreen === 'progress') ProgressView.init();
       if (App.currentScreen === 'today') App.loadDayView();
-    });
+    };
+
+    document.getElementById('chal-onboard-go').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  },
+
+  // --- Custom challenge builder ---
+  showCustomBuilder(prefill) {
+    const overlay = UI.createElement('div', 'modal-overlay');
+    const sheet = UI.createElement('div', 'modal-sheet');
+    sheet.style.maxHeight = '90dvh';
+
+    let tasks = prefill ? prefill.tasks.map((t, i) => ({ id: 'custom_' + i, label: typeof t === 'string' ? t : (t.label || ''), autoCheck: null })) : [];
+
+    const renderTasks = () => {
+      if (tasks.length === 0) {
+        return '<div class="chal-builder-empty">No tasks yet. Add your first daily task below.</div>';
+      }
+      return tasks.map((t, i) => `
+        <div class="chal-builder-task" data-idx="${i}">
+          <span class="chal-builder-task-handle" aria-label="Drag to reorder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="16" height="16"><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="8" y1="18" x2="16" y2="18"/></svg>
+          </span>
+          <span class="chal-builder-task-label">${UI.escapeHtml(t.label)}</span>
+          <div class="chal-builder-task-actions">
+            ${i > 0 ? `<button class="chal-builder-task-move" data-idx="${i}" data-dir="up" aria-label="Move up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="18 15 12 9 6 15"/></svg></button>` : ''}
+            ${i < tasks.length - 1 ? `<button class="chal-builder-task-move" data-idx="${i}" data-dir="down" aria-label="Move down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg></button>` : ''}
+            <button class="chal-builder-task-del" data-idx="${i}" aria-label="Remove">&times;</button>
+          </div>
+        </div>
+      `).join('');
+    };
+
+    const render = () => {
+      sheet.innerHTML = `
+        <div class="modal-header">
+          <button class="chal-confirm-back" id="chal-builder-back" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="modal-title">Build Your Challenge</span>
+          <button class="modal-close" id="chal-builder-close" aria-label="Close">&times;</button>
+        </div>
+        <div class="chal-builder-body">
+          <div class="chal-builder-field">
+            <label class="input-label">Name</label>
+            <input type="text" id="chal-builder-name" class="input-field" placeholder="e.g. 30-Day Clean Eating" maxlength="60" value="${UI.escapeHtml((prefill && prefill.name) || '')}">
+          </div>
+          <div class="chal-builder-row">
+            <div class="chal-builder-field" style="flex:1;">
+              <label class="input-label">Duration</label>
+              <div class="chal-builder-duration-row">
+                <input type="number" id="chal-builder-days" class="input-field" value="${(prefill && prefill.durationDays) || 30}" min="1" max="365">
+                <span class="chal-builder-duration-unit">days</span>
+              </div>
+            </div>
+            <div class="chal-builder-field" style="flex:1;">
+              <label class="input-label">On miss</label>
+              <select id="chal-builder-restart" class="input-field">
+                <option value="no"${prefill && prefill.restartOnMiss ? '' : ' selected'}>Continue</option>
+                <option value="yes"${prefill && prefill.restartOnMiss ? ' selected' : ''}>Restart Day 1</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="chal-builder-section-label">Daily Tasks (${tasks.length})</div>
+          <div class="chal-builder-task-list" id="chal-builder-task-list">
+            ${renderTasks()}
+          </div>
+
+          <div class="chal-builder-add-row">
+            <input type="text" class="input-field chal-builder-add-input" id="chal-builder-add-input" placeholder="Add a task..." maxlength="100">
+            <button class="btn btn-ghost chal-builder-add-btn" id="chal-builder-add-btn">Add</button>
+          </div>
+
+          <button class="btn btn-primary btn-block" id="chal-builder-next" style="margin-top:var(--space-lg);">Review Challenge</button>
+        </div>
+      `;
+    };
+
+    render();
+    overlay.appendChild(sheet);
+    document.body.appendChild(overlay);
+
+    const close = () => overlay.remove();
+
+    const bindBuilderEvents = () => {
+      document.getElementById('chal-builder-close').addEventListener('click', close);
+      document.getElementById('chal-builder-back').addEventListener('click', () => {
+        close();
+        Challenges.renderTemplatePicker();
+      });
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+      // Add task
+      const addInput = document.getElementById('chal-builder-add-input');
+      const addBtn = document.getElementById('chal-builder-add-btn');
+      const doAdd = () => {
+        const val = addInput.value.trim();
+        if (!val) return;
+        tasks.push({ id: 'custom_' + Date.now(), label: val, autoCheck: null });
+        render();
+        bindBuilderEvents();
+        // Focus the add input again
+        document.getElementById('chal-builder-add-input').focus();
+      };
+      addBtn.addEventListener('click', doAdd);
+      addInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doAdd(); });
+
+      // Delete task
+      sheet.querySelectorAll('.chal-builder-task-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          tasks.splice(parseInt(btn.dataset.idx), 1);
+          render();
+          bindBuilderEvents();
+        });
+      });
+
+      // Move task
+      sheet.querySelectorAll('.chal-builder-task-move').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx);
+          const dir = btn.dataset.dir;
+          const target = dir === 'up' ? idx - 1 : idx + 1;
+          if (target < 0 || target >= tasks.length) return;
+          [tasks[idx], tasks[target]] = [tasks[target], tasks[idx]];
+          render();
+          bindBuilderEvents();
+        });
+      });
+
+      // Next -> confirmation
+      document.getElementById('chal-builder-next').addEventListener('click', () => {
+        const name = document.getElementById('chal-builder-name').value.trim();
+        const days = parseInt(document.getElementById('chal-builder-days').value) || 30;
+        const restart = document.getElementById('chal-builder-restart').value === 'yes';
+
+        if (!name) { UI.toast('Enter a challenge name'); return; }
+        if (tasks.length === 0) { UI.toast('Add at least one task'); return; }
+
+        close();
+        Challenges.showConfirmation('custom', {
+          id: 'custom',
+          name,
+          description: '',
+          durationDays: days,
+          restartOnMiss: restart,
+          tasks: tasks.map(t => ({ ...t })),
+        });
+      });
+    };
+
+    bindBuilderEvents();
   },
 
   // --- Event binding ---

@@ -93,12 +93,16 @@ async function handle(request, env, key, route) {
     if (!DATE_RE.test(date)) return json(400, { error: 'invalid date' });
 
     const body = await request.arrayBuffer();
+    if (!body.byteLength) return json(400, { error: 'empty body' });
     if (body.byteLength > MAX_ZIP_SIZE) return json(413, { error: 'too large' });
 
     await env.BUCKET.put(`exports/${key}/${date}.zip`, body);
     await updateState(env, key, state => {
       if (!state.pending) state.pending = [];
       if (!state.pending.includes(date)) state.pending.push(date);
+      // Increment generation counter so in-flight processing can detect stale reads
+      if (!state.gen) state.gen = {};
+      state.gen[date] = (state.gen[date] || 0) + 1;
     });
     return json(200, { ok: true, date });
   }
@@ -106,7 +110,7 @@ async function handle(request, env, key, route) {
   // GET /sync/{key}/pending — list unprocessed days
   if (route === 'pending' && method === 'GET') {
     const state = await getState(env, key);
-    return json(200, { pending: state.pending || [] });
+    return json(200, { pending: state.pending || [], gen: state.gen || {} });
   }
 
   // GET /sync/{key}/dates — list ALL dates that have raw data (pending or processed)
@@ -169,8 +173,19 @@ async function handle(request, env, key, route) {
       await env.BUCKET.put(`results/${key}/${date}.json`, body);
     }
 
+    // Parse the generation counter the caller read when it fetched /pending.
+    // If gen is provided and is stale (a newer upload happened during processing),
+    // keep the date in pending so the next watcher run re-processes it.
+    const reqGen = parseInt(new URL(request.url).searchParams.get('gen') || '');
+
     await updateState(env, key, state => {
-      state.pending = (state.pending || []).filter(d => d !== date);
+      const currentGen = (state.gen || {})[date] || 0;
+      const isStale = !isNaN(reqGen) && reqGen < currentGen;
+      if (!isStale) {
+        // Gen matches (or no gen provided — backward compat): remove from pending
+        state.pending = (state.pending || []).filter(d => d !== date);
+      }
+      // Always add to newResults so phone gets the latest analysis regardless
       if (!state.newResults) state.newResults = [];
       if (!state.newResults.includes(date)) state.newResults.push(date);
     });

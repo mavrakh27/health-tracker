@@ -44,6 +44,8 @@ async function screenshot(page, name) {
 
 async function clearAllData(page) {
   await page.evaluate(async () => {
+    // Clear localStorage so sync config doesn't persist between test runs
+    localStorage.clear();
     const db = await DB.openDB();
     for (const storeName of ['entries', 'dailySummary', 'analysis', 'profile', 'mealPlan', 'photos']) {
       const tx = db.transaction(storeName, 'readwrite');
@@ -58,6 +60,15 @@ function generateTestImageBuffer() {
   // Minimal valid JPEG — we'll use canvas in-browser instead for upload
   // This is just a placeholder; actual photo upload uses Playwright's file chooser
   return null;
+}
+
+// Wait for a nav button to be visible and stable before clicking
+async function clickNavButton(page, label, { timeout = 5000 } = {}) {
+  const selector = `nav button:has-text("${label}")`;
+  await page.waitForSelector(selector, { state: 'visible', timeout });
+  // Brief settle — screen transitions can briefly hide/show nav
+  await page.waitForTimeout(100);
+  await page.click(selector);
 }
 
 async function runDogfood(existingBrowser) {
@@ -105,9 +116,9 @@ async function runDogfood(existingBrowser) {
     const hasEmptyScore = scoreText.trim() === '--' || scoreText.trim() === '?' || scoreText.trim() === '0' || scoreText.trim() === '';
     assert(hasEmptyScore || !scoreEl, `Empty state: score shows placeholder (got "${scoreText.trim()}")`);
 
-    // Check for goal setup CTA (welcome card)
-    const welcomeBtn = await page.$('button:has-text("Set Your Goals")');
-    const hasWelcome = !!welcomeBtn;
+    // Check for welcome/pairing card (new onboarding shows pairing inputs, not "Set Your Goals")
+    const welcomeCard = await page.$('.welcome-card');
+    const hasWelcome = !!welcomeCard;
 
     await screenshot(page, 'fresh-start');
 
@@ -117,13 +128,17 @@ async function runDogfood(existingBrowser) {
     console.log('\n--- Step 2: Onboarding / Goal Setup ---');
 
     if (hasWelcome) {
-      // Click the welcome CTA
-      await welcomeBtn.click();
+      // App is in setup mode (nav hidden). Exit setup mode so we can navigate.
+      // In real usage, user would pair first. For testing, skip pairing and go straight to goals.
+      await page.evaluate(() => {
+        App.setSetupMode(false);
+        App.showGoalSetup();
+      });
       await page.waitForTimeout(500);
-      assert(true, 'Clicked "Set Your Goals" welcome button');
+      assert(true, 'Exited setup mode and opened goal setup');
     } else {
       // Navigate to Profile and click Edit on Daily Targets
-      await page.click('nav button:has-text("Settings")');
+      await clickNavButton(page, 'Settings');
       await page.waitForTimeout(500);
       const editBtn = await page.$('.s-action-btn');
       if (editBtn) {
@@ -194,7 +209,23 @@ async function runDogfood(existingBrowser) {
     // Step 3: Log food — use More → Food Note flow
     // ================================================================
     console.log('\n--- Step 3: Log Food ---');
-    await page.click('nav button:has-text("Today")');
+    // After onboarding, the app is still in setup mode (no entries yet, which hides nav).
+    // Force setup mode off so nav is visible, and keep it off across loadDayView calls
+    // by preventing re-entry until the test logs its own entries.
+    await page.evaluate(() => {
+      App.setSetupMode(false);
+      // Temporarily patch loadDayView to never re-enter setup mode during testing
+      if (!App._origLoadDayView) {
+        App._origLoadDayView = App.loadDayView.bind(App);
+        App.loadDayView = async function() {
+          await App._origLoadDayView();
+          App.setSetupMode(false);
+        };
+      }
+    });
+    await page.waitForTimeout(200);
+
+    await clickNavButton(page, 'Today');
     await page.waitForTimeout(500);
 
     // Ensure we're on today's date and the day view is fully loaded
@@ -373,7 +404,7 @@ async function runDogfood(existingBrowser) {
     console.log('\n--- Step 7: Edit Entry ---');
 
     // Make sure we're on Today with entries — reload to ensure fresh state
-    await page.click('nav button:has-text("Today")');
+    await clickNavButton(page, 'Today');
     await page.waitForTimeout(500);
     await page.evaluate(() => App.goToDate(UI.today()));
     await page.waitForTimeout(800);
@@ -523,7 +554,7 @@ async function runDogfood(existingBrowser) {
     // Step 10: Progress tab (was Plan)
     // ================================================================
     console.log('\n--- Step 10: Progress Tab ---');
-    await page.click('nav button:has-text("Progress")');
+    await clickNavButton(page, 'Progress');
     await page.waitForTimeout(600);
 
     const progressContainer10 = await page.$('#progress-container');
@@ -536,7 +567,7 @@ async function runDogfood(existingBrowser) {
     // Step 11: Progress tab
     // ================================================================
     console.log('\n--- Step 11: Progress Tab ---');
-    await page.click('nav button:has-text("Progress")');
+    await clickNavButton(page, 'Progress');
     await page.waitForTimeout(600);
 
     const progressContainer = await page.$('#progress-container');
@@ -556,7 +587,7 @@ async function runDogfood(existingBrowser) {
     // Step 12: Profile tab
     // ================================================================
     console.log('\n--- Step 12: Profile Tab ---');
-    await page.click('nav button:has-text("Settings")');
+    await clickNavButton(page, 'Settings');
     await page.waitForTimeout(500);
 
     const profileText = await page.textContent('#screen-settings');
@@ -616,7 +647,7 @@ async function runDogfood(existingBrowser) {
         assert(dbGoals && dbGoals.calories === 1500, `Goals saved to DB as 1500 (got: ${dbGoals?.calories})`);
 
         // Navigate to Profile to see updated summary (goals save redirects to Today)
-        await page.click('nav button:has-text("Settings")');
+        await clickNavButton(page, 'Settings');
         await page.waitForTimeout(500);
         // Explicitly reload goals summary in case async load hasn't completed
         await page.evaluate(() => Settings.loadGoalsSummary());
@@ -658,7 +689,7 @@ async function runDogfood(existingBrowser) {
     console.log('\n--- Step 14: Cloud Sync Setup ---');
 
     // Make sure we're on profile
-    await page.click('nav button:has-text("Settings")');
+    await clickNavButton(page, 'Settings');
     await page.waitForTimeout(400);
 
     const syncSetupBtn = await page.$('button:has-text("Setup")');
@@ -690,7 +721,7 @@ async function runDogfood(existingBrowser) {
     // ================================================================
     console.log('\n--- Step 15: Water Picker Detailed ---');
 
-    await page.click('nav button:has-text("Today")');
+    await clickNavButton(page, 'Today');
     await page.waitForTimeout(400);
 
     // Open water picker
@@ -753,7 +784,7 @@ async function runDogfood(existingBrowser) {
     // ================================================================
     console.log('\n--- Step 16: Photo Upload ---');
 
-    await page.click('nav button:has-text("Today")');
+    await clickNavButton(page, 'Today');
     await page.waitForTimeout(400);
 
     // Use Food button to open food logger, then click Take Photo
@@ -843,7 +874,7 @@ async function runDogfood(existingBrowser) {
 
       // Check each tab
       for (const tab of ['Today', 'Progress', 'Settings']) {
-        await page.click(`nav button:has-text("${tab}")`);
+        await clickNavButton(page, tab);
         await page.waitForTimeout(400);
 
         const bodyWidth = await page.evaluate(() => document.body.scrollWidth);
@@ -857,7 +888,7 @@ async function runDogfood(existingBrowser) {
       assert(navBtns.length === 4, `${vp.name}: all 4 nav buttons present`);
 
       // Check all quick action buttons are reachable
-      await page.click('nav button:has-text("Today")');
+      await clickNavButton(page, 'Today');
       await page.waitForTimeout(300);
       const quickActions = await page.$$('.quick-action');
       for (const qa of quickActions) {

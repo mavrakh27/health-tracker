@@ -487,6 +487,12 @@ const UI = {
         </div>
       </div>
       ${hourPickerHtml}
+      ${entry.type === 'weight' ? `
+        <div class="form-group" style="margin-bottom: var(--space-md);">
+          <label class="form-label">Weight (${entry.weight_unit || 'lbs'})</label>
+          <input type="number" class="form-input" id="edit-weight-value" value="${entry.weight_value || ''}" step="0.1" inputmode="decimal" style="min-height:44px; font-size: var(--text-lg);">
+        </div>
+      ` : ''}
       <div class="form-group">
         <label class="form-label">Notes</label>
         <textarea class="form-input" id="edit-notes" placeholder="Add notes" rows="1"${isBodyPhoto ? ' disabled' : ''}>${UI.escapeHtml(entry.notes || '')}</textarea>
@@ -691,6 +697,16 @@ const UI = {
         const dur = document.getElementById('edit-duration')?.value;
         updated.duration_minutes = dur ? parseInt(dur) : null;
       }
+      if (entry.type === 'weight') {
+        const weightInput = document.getElementById('edit-weight-value');
+        if (weightInput) {
+          const newWeight = parseFloat(weightInput.value);
+          if (!isNaN(newWeight) && newWeight > 0) {
+            updated.weight_value = newWeight;
+            updated.notes = `${newWeight} ${entry.weight_unit || 'lbs'}`;
+          }
+        }
+      }
       // Hour picker for food entries — update the hour portion of the timestamp
       let hourChanged = false;
       const hourSelect = document.getElementById('edit-hour');
@@ -705,12 +721,23 @@ const UI = {
       }
       // Only set updatedAt if something actually changed
       const changed = notes !== (entry.notes || '') || newDate !== oldDate || hourChanged
-        || (entry.type === 'workout' && updated.duration_minutes !== entry.duration_minutes);
+        || (entry.type === 'workout' && updated.duration_minutes !== entry.duration_minutes)
+        || (entry.type === 'weight' && updated.weight_value !== entry.weight_value);
       if (changed) {
         updated.updatedAt = new Date().toISOString();
       }
       try {
         await DB.updateEntry(updated);
+        // Update dailySummary weight when a weight entry is edited
+        if (updated.type === 'weight' && updated.weight_value) {
+          const summary = await DB.getDailySummary(updated.date) || {};
+          summary.weight = { value: updated.weight_value, unit: updated.weight_unit || 'lbs', timestamp: Date.now() };
+          if (summary.weightLog) {
+            const logEntry = summary.weightLog.find(w => Math.abs(w.timestamp - new Date(entry.timestamp).getTime()) < 60000);
+            if (logEntry) logEntry.value = updated.weight_value;
+          }
+          await DB.saveDailySummary(updated.date, summary);
+        }
         // Sync both old and new dates if the entry moved
         CloudRelay.queueUpload(newDate);
         if (newDate !== oldDate) CloudRelay.queueUpload(oldDate);

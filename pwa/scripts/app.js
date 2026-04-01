@@ -721,14 +721,25 @@ const App = {
       CloudRelay.checkForResults().catch(() => {});
     });
 
-    // Check for results when app is foregrounded (covers iOS PWA resume,
-    // Android tab switch, and desktop alt-tab). Without this, results that
-    // arrive while the app is backgrounded are never pulled until next full load.
+    // Check for results + upload stale dates when app is foregrounded (covers
+    // iOS PWA resume, Android tab switch, and desktop alt-tab).
+    let lastCatchUp = 0;
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState !== 'visible') return;
       const configured = await CloudRelay.isConfigured();
       if (!configured) return;
       CloudRelay.checkForResults().catch(() => {});
+      // Catch up stale dates (throttled to once per 30 min)
+      const now = Date.now();
+      if (now - lastCatchUp < 30 * 60 * 1000) return;
+      lastCatchUp = now;
+      const dates = await DB.getDatesNeedingSync();
+      if (dates.length > 0) {
+        CloudRelay.log(`Foreground catch-up: ${dates.length} stale date(s)`);
+        for (const date of dates) {
+          await CloudRelay._doUpload(date);
+        }
+      }
     });
 
     // Initialize DB, then load the initial route

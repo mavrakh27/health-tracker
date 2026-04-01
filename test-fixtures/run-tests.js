@@ -4742,6 +4742,516 @@ async function testChallenges(page, context, fixtures) {
   });
 }
 
+// --- Challenge Confirmation & Onboarding Flow ---
+async function testChallengeConfirmationFlow(page, context, fixtures) {
+  console.log('\n--- Challenge Confirmation Flow ---');
+
+  // Clean up any leftover challenges
+  await page.evaluate(async () => {
+    const all = await DB.getChallenges();
+    for (const c of all) { c.status = 'abandoned'; await DB.saveChallenge(c); }
+  });
+
+  // 1. Open the template picker
+  await page.click('nav button:has-text("Progress")');
+  await page.waitForTimeout(500);
+  const chalBtn = await page.$('button[data-ptab="challenges"]');
+  if (chalBtn) await chalBtn.click();
+  await page.waitForTimeout(800);
+
+  // Click "Start a Challenge" or "Start Another Challenge"
+  const startBtn = await page.$('#chal-start-first') || await page.$('#chal-add-more');
+  assert(!!startBtn, 'Challenge start button exists');
+  if (startBtn) await startBtn.click();
+  await page.waitForTimeout(500);
+
+  // 2. Verify picker modal is open with template cards
+  const pickerOverlay = await page.$('.modal-overlay');
+  assert(!!pickerOverlay, 'Template picker modal opens');
+
+  const templateCards = await page.$$('.challenge-template-card');
+  assert(templateCards.length >= 4, `Picker shows 4+ template cards (got ${templateCards.length})`);
+
+  // 3. Click 7-Day Reset template card
+  const resetCard = await page.$('.challenge-template-card[data-template-id="7day_reset"]');
+  assert(!!resetCard, 'Picker has 7-Day Reset card');
+  if (resetCard) await resetCard.click();
+  await page.waitForTimeout(500);
+
+  // 4. Confirmation modal appears with correct content
+  const confirmModal = await page.$('.modal-overlay');
+  assert(!!confirmModal, 'Confirmation modal opens after selecting template');
+
+  const confirmName = await page.$eval('.chal-confirm-name', el => el.textContent).catch(() => '');
+  assert(confirmName === '7-Day Reset', `Confirmation shows template name: "${confirmName}"`);
+
+  const confirmDesc = await page.$eval('.chal-confirm-desc', el => el.textContent).catch(() => '');
+  assert(confirmDesc.length > 0, 'Confirmation shows template description');
+
+  // 5. Stat cards: days, tasks, restart info
+  const statValues = await page.$$eval('.chal-confirm-stat-value', els => els.map(e => e.textContent));
+  assert(statValues.includes('7'), 'Confirmation stat shows 7 days');
+  assert(statValues.includes('4'), 'Confirmation stat shows 4 tasks');
+  assert(statValues.includes('No'), 'Confirmation stat shows restart=No');
+
+  // 6. Task list has all 4 tasks
+  const confirmTasks = await page.$$('.chal-confirm-task');
+  assert(confirmTasks.length === 4, `Confirmation shows 4 tasks (got ${confirmTasks.length})`);
+
+  const confirmTaskLabels = await page.$$eval('.chal-confirm-task-label', els => els.map(e => e.textContent));
+  assert(confirmTaskLabels.some(l => l.includes('water')), 'Confirmation task list includes water');
+
+  await screenshot(page, 'challenge-confirmation');
+
+  // 7. Remove a task
+  const removeBtn = await page.$('.chal-confirm-task-remove');
+  assert(!!removeBtn, 'Task remove button exists');
+  if (removeBtn) await removeBtn.click();
+  await page.waitForTimeout(300);
+
+  const tasksAfterRemove = await page.$$('.chal-confirm-task');
+  assert(tasksAfterRemove.length === 3, `After remove: 3 tasks (got ${tasksAfterRemove.length})`);
+
+  // Stat card should update to 3
+  const updatedStatValues = await page.$$eval('.chal-confirm-stat-value', els => els.map(e => e.textContent));
+  assert(updatedStatValues.includes('3'), 'Stat card updates to 3 tasks after removal');
+
+  // 8. Add a custom task
+  const addInput = await page.$('#chal-confirm-add-input');
+  const addBtn = await page.$('#chal-confirm-add-btn');
+  assert(!!addInput && !!addBtn, 'Add task input and button exist');
+  if (addInput && addBtn) {
+    await addInput.fill('Meditate 10 min');
+    await addBtn.click();
+    await page.waitForTimeout(300);
+  }
+
+  const tasksAfterAdd = await page.$$('.chal-confirm-task');
+  assert(tasksAfterAdd.length === 4, `After add: 4 tasks (got ${tasksAfterAdd.length})`);
+
+  const addedLabels = await page.$$eval('.chal-confirm-task-label', els => els.map(e => e.textContent));
+  assert(addedLabels.some(l => l.includes('Meditate')), 'Custom task "Meditate 10 min" appears in list');
+
+  // 9. Click "Begin Challenge" and verify onboarding shows
+  const beginBtn = await page.$('#chal-confirm-begin');
+  assert(!!beginBtn, 'Begin Challenge button exists');
+  if (beginBtn) await beginBtn.click();
+  await page.waitForTimeout(800);
+
+  // 10. Onboarding modal appears
+  const onboardHeading = await page.$eval('.chal-onboard-heading', el => el.textContent).catch(() => '');
+  assert(onboardHeading.includes("You're in"), `Onboarding shows "You're in." (got "${onboardHeading}")`);
+
+  const onboardName = await page.$eval('.chal-onboard-name', el => el.textContent).catch(() => '');
+  assert(onboardName === '7-Day Reset', `Onboarding shows challenge name (got "${onboardName}")`);
+
+  // Tips should exist
+  const tips = await page.$$('.chal-onboard-tip');
+  assert(tips.length >= 2, `Onboarding shows 2+ tips (got ${tips.length})`);
+
+  // "Let's go" button
+  const goBtn = await page.$('#chal-onboard-go');
+  assert(!!goBtn, 'Onboarding has "Let\'s go" button');
+
+  await screenshot(page, 'challenge-onboarding');
+
+  // 11. Dismiss onboarding
+  if (goBtn) await goBtn.click();
+  await page.waitForTimeout(500);
+
+  // Overlay should be gone
+  const overlayGone = await page.$('.chal-onboard-hero');
+  assert(!overlayGone, 'Onboarding dismissed after "Let\'s go"');
+
+  // 12. Verify enrollment persisted
+  const enrolledChal = await page.evaluate(async () => {
+    const active = await DB.getChallenges('active');
+    const match = active.find(c => c.name === '7-Day Reset');
+    return match ? { name: match.name, status: match.status, taskCount: match.tasks.length } : null;
+  });
+  assert(enrolledChal !== null, 'Challenge persisted in DB after enrollment');
+  assert(enrolledChal.status === 'active', 'Enrolled challenge is active');
+
+  // Clean up
+  await page.evaluate(async () => {
+    const all = await DB.getChallenges();
+    for (const c of all) { c.status = 'abandoned'; await DB.saveChallenge(c); }
+  });
+
+  // 13. 75 Hard confirmation shows restart warning
+  await page.evaluate(() => { Challenges.showConfirmation('75hard'); });
+  await page.waitForTimeout(500);
+
+  const restartWarning = await page.$('.chal-confirm-warning');
+  assert(!!restartWarning, '75 Hard confirmation shows restart warning');
+
+  const restartStatValues = await page.$$eval('.chal-confirm-stat-value', els => els.map(e => e.textContent));
+  assert(restartStatValues.includes('Yes'), '75 Hard stat shows restart=Yes');
+  assert(restartStatValues.includes('75'), '75 Hard stat shows 75 days');
+  assert(restartStatValues.includes('7'), '75 Hard stat shows 7 tasks');
+
+  // Close confirmation
+  const closeBtn = await page.$('#chal-confirm-close');
+  if (closeBtn) await closeBtn.click();
+  await page.waitForTimeout(300);
+}
+
+// --- Challenge Custom Builder ---
+async function testChallengeCustomBuilder(page, context, fixtures) {
+  console.log('\n--- Challenge Custom Builder ---');
+
+  // Clean up
+  await page.evaluate(async () => {
+    const all = await DB.getChallenges();
+    for (const c of all) { c.status = 'abandoned'; await DB.saveChallenge(c); }
+  });
+
+  // 1. Open custom builder directly
+  await page.evaluate(() => { Challenges.showCustomBuilder(); });
+  await page.waitForTimeout(500);
+
+  const builderModal = await page.$('.modal-overlay');
+  assert(!!builderModal, 'Custom builder modal opens');
+
+  const builderTitle = await page.$eval('.modal-title', el => el.textContent).catch(() => '');
+  assert(builderTitle.includes('Build'), `Builder title is "Build Your Challenge" (got "${builderTitle}")`);
+
+  // 2. Empty state message when no tasks
+  const emptyMsg = await page.$('.chal-builder-empty');
+  assert(!!emptyMsg, 'Empty state shows when no tasks added');
+
+  // 3. Name input exists
+  const nameInput = await page.$('#chal-builder-name');
+  assert(!!nameInput, 'Name input exists');
+
+  // 4. Duration and on-miss fields exist side by side
+  const daysInput = await page.$('#chal-builder-days');
+  const restartSelect = await page.$('#chal-builder-restart');
+  assert(!!daysInput, 'Duration (days) input exists');
+  assert(!!restartSelect, 'On-miss select exists');
+
+  // 5. Add 3 tasks
+  const addInput = await page.$('#chal-builder-add-input');
+  const addBtn = await page.$('#chal-builder-add-btn');
+  assert(!!addInput && !!addBtn, 'Add task input and button exist');
+
+  const taskNames = ['Drink 2L water', 'Walk 30 min', 'Journal'];
+  for (const name of taskNames) {
+    // Re-query after each DOM rebuild
+    const input = await page.$('#chal-builder-add-input');
+    const btn = await page.$('#chal-builder-add-btn');
+    await input.fill(name);
+    await btn.click();
+    await page.waitForTimeout(200);
+  }
+
+  const builderTasks = await page.$$('.chal-builder-task');
+  assert(builderTasks.length === 3, `3 tasks added (got ${builderTasks.length})`);
+
+  // 6. Verify task labels
+  const taskLabels = await page.$$eval('.chal-builder-task-label', els => els.map(e => e.textContent));
+  assert(taskLabels[0] === 'Drink 2L water', `First task is "Drink 2L water" (got "${taskLabels[0]}")`);
+  assert(taskLabels[2] === 'Journal', `Third task is "Journal" (got "${taskLabels[2]}")`);
+
+  // 7. Reorder: move "Journal" up (index 2 -> 1)
+  const moveUpBtn = await page.$('.chal-builder-task-move[data-idx="2"][data-dir="up"]');
+  assert(!!moveUpBtn, 'Move up button exists for third task');
+  if (moveUpBtn) await moveUpBtn.click();
+  await page.waitForTimeout(300);
+
+  const reorderedLabels = await page.$$eval('.chal-builder-task-label', els => els.map(e => e.textContent));
+  assert(reorderedLabels[1] === 'Journal', `After move up: "Journal" is at index 1 (got "${reorderedLabels[1]}")`);
+  assert(reorderedLabels[2] === 'Walk 30 min', `After move up: "Walk 30 min" is at index 2 (got "${reorderedLabels[2]}")`);
+
+  // 8. Delete a task
+  const delBtn = await page.$('.chal-builder-task-del[data-idx="0"]');
+  assert(!!delBtn, 'Delete button exists');
+  if (delBtn) await delBtn.click();
+  await page.waitForTimeout(300);
+
+  const tasksAfterDel = await page.$$('.chal-builder-task');
+  assert(tasksAfterDel.length === 2, `After delete: 2 tasks (got ${tasksAfterDel.length})`);
+
+  // 9. Fill in name and click "Review Challenge"
+  const nameInputRefresh = await page.$('#chal-builder-name');
+  if (nameInputRefresh) await nameInputRefresh.fill('My Custom Challenge');
+
+  const daysInputRefresh = await page.$('#chal-builder-days');
+  if (daysInputRefresh) {
+    await daysInputRefresh.fill('');
+    await daysInputRefresh.type('14');
+  }
+
+  const reviewBtn = await page.$('#chal-builder-next');
+  assert(!!reviewBtn, 'Review Challenge button exists');
+  if (reviewBtn) await reviewBtn.click();
+  await page.waitForTimeout(500);
+
+  // 10. Confirmation modal appears with custom challenge data
+  const customConfirmName = await page.$eval('.chal-confirm-name', el => el.textContent).catch(() => '');
+  assert(customConfirmName === 'My Custom Challenge', `Confirmation shows custom name (got "${customConfirmName}")`);
+
+  const customStatValues = await page.$$eval('.chal-confirm-stat-value', els => els.map(e => e.textContent));
+  assert(customStatValues.includes('14'), 'Custom confirmation shows 14 days');
+  assert(customStatValues.includes('2'), 'Custom confirmation shows 2 tasks');
+
+  await screenshot(page, 'challenge-custom-builder-confirm');
+
+  // 11. Begin the custom challenge
+  const beginBtn = await page.$('#chal-confirm-begin');
+  if (beginBtn) await beginBtn.click();
+  await page.waitForTimeout(800);
+
+  // Onboarding should show
+  const onboardHeading = await page.$eval('.chal-onboard-heading', el => el.textContent).catch(() => '');
+  assert(onboardHeading.includes("You're in"), 'Custom challenge shows onboarding');
+
+  // Dismiss
+  const goBtn = await page.$('#chal-onboard-go');
+  if (goBtn) await goBtn.click();
+  await page.waitForTimeout(500);
+
+  // 12. Verify custom challenge persisted
+  const customChal = await page.evaluate(async () => {
+    const active = await DB.getChallenges('active');
+    const match = active.find(c => c.name === 'My Custom Challenge');
+    return match ? { name: match.name, durationDays: match.durationDays, taskCount: match.tasks.length } : null;
+  });
+  assert(customChal !== null, 'Custom challenge persisted in DB');
+  assert(customChal.durationDays === 14, `Custom challenge is 14 days (got ${customChal?.durationDays})`);
+  assert(customChal.taskCount === 2, `Custom challenge has 2 tasks (got ${customChal?.taskCount})`);
+
+  // 13. Validation: builder rejects empty name
+  await page.evaluate(async () => {
+    const all = await DB.getChallenges();
+    for (const c of all) { c.status = 'abandoned'; await DB.saveChallenge(c); }
+  });
+  await page.evaluate(() => { Challenges.showCustomBuilder(); });
+  await page.waitForTimeout(300);
+
+  // Try to submit with no name and no tasks
+  const reviewBtnEmpty = await page.$('#chal-builder-next');
+  if (reviewBtnEmpty) await reviewBtnEmpty.click();
+  await page.waitForTimeout(300);
+
+  // Should still be on builder (not confirmation)
+  const stillBuilder = await page.$('#chal-builder-name');
+  assert(!!stillBuilder, 'Builder stays open when name is empty (validation)');
+
+  // Close builder
+  const builderClose = await page.$('#chal-builder-close');
+  if (builderClose) await builderClose.click();
+  await page.waitForTimeout(300);
+
+  // Clean up
+  await page.evaluate(async () => {
+    const all = await DB.getChallenges();
+    for (const c of all) { c.status = 'abandoned'; await DB.saveChallenge(c); }
+  });
+}
+
+// --- Skincare Onboarding Wizard ---
+async function testSkincareOnboarding(page, context, fixtures) {
+  console.log('\n--- Skincare Onboarding Wizard ---');
+
+  // 1. Clear skincare profile so onboarding triggers
+  await page.evaluate(async () => {
+    const db = await DB.openDB();
+    // Clear skincare profile
+    try { await DB.setProfile('skincare', null); } catch (e) {}
+    // Also remove from profile store directly
+    try {
+      const tx = db.transaction('profile', 'readwrite');
+      tx.objectStore('profile').delete('skincare');
+      await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+    } catch (e) {}
+  });
+
+  // Navigate to Today and switch to Skin panel
+  await page.click('nav button:has-text("Today")');
+  await page.waitForTimeout(500);
+  const skinBtn = await page.$('.today-seg-btn[data-panel="skin"]');
+  assert(!!skinBtn, 'Skin segment button exists');
+  if (skinBtn) await skinBtn.click();
+  await page.waitForTimeout(500);
+
+  // 2. Onboarding wizard should appear (no skincare routine = shows onboarding)
+  const obContainer = await page.$('.skincare-onboarding');
+  assert(!!obContainer, 'Skincare onboarding wizard appears when no routine exists');
+
+  // Progress dots
+  const dots = await page.$$('.skincare-ob-dot');
+  assert(dots.length === 5, `Onboarding has 5 progress dots (got ${dots.length})`);
+
+  // 3. Step 1: Welcome
+  const welcomeTitle = await page.$eval('.skincare-ob-title', el => el.textContent).catch(() => '');
+  assert(welcomeTitle.includes('Skincare'), `Welcome step shows title (got "${welcomeTitle}")`);
+
+  const getStartedBtn = await page.$('.skincare-ob-next[data-action="next"]');
+  assert(!!getStartedBtn, 'Welcome step has "Get Started" button');
+
+  await screenshot(page, 'skincare-onboarding-welcome');
+
+  // 4. Navigate to Step 2: Concerns
+  if (getStartedBtn) await getStartedBtn.click();
+  await page.waitForTimeout(500);
+
+  const step2Title = await page.$eval('.skincare-ob-title', el => el.textContent).catch(() => '');
+  assert(step2Title.includes('Skin'), `Step 2 title is about skin (got "${step2Title}")`);
+
+  // Skin type buttons
+  const typeButtons = await page.$$('.skincare-ob-type-btn');
+  assert(typeButtons.length === 5, `5 skin type buttons (got ${typeButtons.length})`);
+
+  // Concern buttons
+  const concernButtons = await page.$$('.skincare-ob-concern-btn');
+  assert(concernButtons.length === 10, `10 concern buttons (got ${concernButtons.length})`);
+
+  // 5. Select skin type
+  const comboBtn = await page.$('.skincare-ob-type-btn[data-type="combination"]');
+  assert(!!comboBtn, 'Combination skin type button exists');
+  if (comboBtn) await comboBtn.click();
+  await page.waitForTimeout(200);
+
+  // Verify selection styling
+  const comboSelected = await page.$eval('.skincare-ob-type-btn[data-type="combination"]', el => el.classList.contains('selected'));
+  assert(comboSelected, 'Selected skin type has "selected" class');
+
+  // 6. Select a concern
+  const acneBtn = await page.$('.skincare-ob-concern-btn[data-concern="acne"]');
+  if (acneBtn) await acneBtn.click();
+  await page.waitForTimeout(100);
+  const dullBtn = await page.$('.skincare-ob-concern-btn[data-concern="dullness"]');
+  if (dullBtn) await dullBtn.click();
+  await page.waitForTimeout(100);
+
+  const selectedConcerns = await page.$$eval('.skincare-ob-concern-btn.selected', els => els.map(e => e.dataset.concern));
+  assert(selectedConcerns.includes('acne'), 'Acne concern is selected');
+  assert(selectedConcerns.includes('dullness'), 'Dullness concern is selected');
+
+  await screenshot(page, 'skincare-onboarding-concerns');
+
+  // 7. Navigate to Step 3: Products photo (skip it)
+  const step2Next = await page.$('.skincare-ob-next[data-action="next"]');
+  if (step2Next) await step2Next.click();
+  await page.waitForTimeout(500);
+
+  const step3Title = await page.$eval('.skincare-ob-title', el => el.textContent).catch(() => '');
+  assert(step3Title.includes('Products'), `Step 3 is product photo (got "${step3Title}")`);
+
+  // Photo placeholder should exist
+  const productPlaceholder = await page.$('#skincare-ob-product-capture');
+  assert(!!productPlaceholder, 'Product photo placeholder exists');
+
+  // Skip button
+  const skipProductBtn = await page.$('.skincare-ob-next[data-action="next"]');
+  const skipText = await skipProductBtn.textContent();
+  assert(skipText.includes('Skip'), `Product step has skip option (got "${skipText}")`);
+
+  await screenshot(page, 'skincare-onboarding-products');
+
+  // 8. Skip to Step 4: Face photo
+  if (skipProductBtn) await skipProductBtn.click();
+  await page.waitForTimeout(500);
+
+  const step4Title = await page.$eval('.skincare-ob-title', el => el.textContent).catch(() => '');
+  assert(step4Title.includes('Face'), `Step 4 is face photo (got "${step4Title}")`);
+
+  const facePlaceholder = await page.$('#skincare-ob-face-capture');
+  assert(!!facePlaceholder, 'Face photo placeholder exists');
+
+  // Skip button for face
+  const skipFaceBtn = await page.$('.skincare-ob-next[data-action="next"]');
+  const skipFaceText = await skipFaceBtn.textContent();
+  assert(skipFaceText.includes('Skip'), `Face step has skip option (got "${skipFaceText}")`);
+
+  await screenshot(page, 'skincare-onboarding-face');
+
+  // 9. Skip to Step 5: Completion
+  if (skipFaceBtn) await skipFaceBtn.click();
+  await page.waitForTimeout(500);
+
+  const step5Title = await page.$eval('.skincare-ob-title', el => el.textContent).catch(() => '');
+  assert(step5Title.includes('Complete'), `Step 5 title is completion (got "${step5Title}")`);
+
+  // Waiting bar
+  const waitingBar = await page.$('.skincare-ob-waiting');
+  assert(!!waitingBar, 'Completion step shows waiting-for-analysis bar');
+
+  const waitingText = await page.$eval('.skincare-ob-waiting span', el => el.textContent).catch(() => '');
+  assert(waitingText.includes('Waiting') || waitingText.includes('coach'), `Waiting message shown (got "${waitingText}")`);
+
+  // "Got it" button
+  const doneBtn = await page.$('.skincare-ob-next[data-action="done"]');
+  assert(!!doneBtn, 'Completion step has "Got it" button');
+
+  await screenshot(page, 'skincare-onboarding-complete');
+
+  // 10. Verify profile saved with onboardingComplete
+  const profileCheck = await page.evaluate(async () => {
+    const routine = await DB.getSkincareRoutine();
+    return {
+      onboardingComplete: routine?.onboardingComplete,
+      skinType: routine?.skinType,
+      concerns: routine?.concerns,
+    };
+  });
+  assert(profileCheck.onboardingComplete === true, 'Profile has onboardingComplete: true');
+  assert(profileCheck.skinType === 'combination', `Profile saved skin type (got "${profileCheck.skinType}")`);
+  assert(profileCheck.concerns && profileCheck.concerns.includes('acne'), 'Profile saved concerns including acne');
+
+  // 11. Click "Got it" to dismiss
+  if (doneBtn) await doneBtn.click();
+  await page.waitForTimeout(500);
+
+  // After dismissing, the skincare panel should show the "waiting for coach" state
+  const waitingState = await page.$eval('#today-skincare', el => el.textContent).catch(() => '');
+  assert(waitingState.includes('Waiting') || waitingState.includes('coach'), 'After onboarding, panel shows waiting state');
+
+  // 12. Back button navigation works
+  // Start fresh onboarding
+  await page.evaluate(async () => {
+    const db = await DB.openDB();
+    try {
+      const tx = db.transaction('profile', 'readwrite');
+      tx.objectStore('profile').delete('skincare');
+      await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = reject; });
+    } catch (e) {}
+    SkincareOnboarding.reset();
+  });
+
+  // Re-render skincare panel
+  await page.evaluate(async () => {
+    const el = document.getElementById('today-skincare');
+    if (el) {
+      el.innerHTML = await SkinCareView.render(App.selectedDate);
+      SkinCareView.bindEvents(App.selectedDate);
+    }
+  });
+  await page.waitForTimeout(500);
+
+  // Advance to step 2
+  const nextBtn2 = await page.$('.skincare-ob-next[data-action="next"]');
+  if (nextBtn2) await nextBtn2.click();
+  await page.waitForTimeout(300);
+
+  // Click back
+  const backBtn = await page.$('.skincare-ob-back[data-action="back"]');
+  assert(!!backBtn, 'Back button exists on step 2');
+  if (backBtn) await backBtn.click();
+  await page.waitForTimeout(300);
+
+  // Should be back on welcome
+  const backTitle = await page.$eval('.skincare-ob-title', el => el.textContent).catch(() => '');
+  assert(backTitle.includes('Skincare'), 'Back button returns to welcome step');
+
+  // 13. Restore skincare fixture data for other tests
+  await page.evaluate(async (skincareProfile) => {
+    await DB.setProfile('skincare', skincareProfile);
+  }, fixtures.skincareProfile);
+  await page.waitForTimeout(200);
+}
+
 // --- Multi-User Generalization ---
 async function testMultiUserGeneralization(page, context, fixtures) {
   console.log('\n--- Multi-User Generalization ---');
@@ -5826,6 +6336,9 @@ async function run() {
     await testVisualQA(page, fixtures);
     await testVisualQA320(page, context, fixtures);
     await testChallenges(page, context, fixtures);
+    await testChallengeConfirmationFlow(page, context, fixtures);
+    await testChallengeCustomBuilder(page, context, fixtures);
+    await testSkincareOnboarding(page, context, fixtures);
     await testMultiUserGeneralization(page, context, fixtures);
     await testPhotoComparison(page, context, fixtures);
     await testWeightTrendSmoothing(page, fixtures);
