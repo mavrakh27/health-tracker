@@ -119,6 +119,12 @@ const ProgressView = {
     // Adaptive calorie target suggestion (top of Insights)
     html += await ProgressView._renderAdaptiveSuggestion(goals);
 
+    // Weekly deficit running total (#1)
+    html += await ProgressView._renderWeeklyDeficit(goals);
+
+    // Logging consistency (#4)
+    html += await ProgressView._renderLoggingConsistency();
+
     // Weekly summary (this week vs last week)
     html += await ProgressView.renderWeeklySummary(goals);
 
@@ -151,6 +157,18 @@ const ProgressView = {
       </div>`;
       html += '</div>';
     }
+
+    // Vice impact on score (#3)
+    html += await ProgressView._renderViceImpact(goals);
+
+    // Macro % split (#5)
+    html += await ProgressView._renderMacroSplit();
+
+    // Best/worst day of week (#7)
+    html += await ProgressView._renderBestWorstDay(goals);
+
+    // Weekend vs weekday split (#9)
+    html += await ProgressView._renderWeekendVsWeekday();
 
     // Meal plan
     const mealPlan = await DB.getMealPlan();
@@ -508,8 +526,20 @@ const ProgressView = {
     // Calendar heatmap
     html += await ProgressView.renderCalendarHeatmap();
 
+    // Rate of weight change (#2)
+    html += await ProgressView._renderWeightChangeRate(goals);
+
     // Weight trend
     html += await ProgressView.renderWeightTrend();
+
+    // Protein distribution by meal (#6)
+    html += await ProgressView._renderProteinByMeal();
+
+    // Food timing heatmap (#8)
+    html += await ProgressView._renderFoodTimingHeatmap();
+
+    // Workout consistency grid (#10)
+    html += await ProgressView._renderWorkoutGrid();
 
     // Progress photos
     html += await ProgressView.renderProgressPhotos();
@@ -1729,6 +1759,557 @@ const ProgressView = {
         <span style="font-size:var(--text-xs); color:var(--text-muted);">${count}x</span>
       </div>`;
     }
+    html += '</div>';
+    return html;
+  },
+
+  // =============================================
+  // DATA INSIGHTS (#1–#10)
+  // =============================================
+
+  // Helper: date string N days ago from today
+  _daysAgo(n) {
+    const d = new Date(UI.today() + 'T12:00:00');
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+
+  // Helper: get Monday of the week containing dateStr
+  _mondayOf(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay();
+    const offset = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - offset);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+
+  // #1 — Weekly Deficit Running Total
+  async _renderWeeklyDeficit(goals) {
+    const today = UI.today();
+    const monday = ProgressView._mondayOf(today);
+    const analyses = await DB.getAnalysisRange(monday, today);
+    if (analyses.length === 0) return '';
+
+    const calTarget = goals.calories || 1200;
+    let totalDeficit = 0;
+    for (const a of analyses) {
+      const actual = a.totals?.calories || 0;
+      if (actual > 0) totalDeficit += (calTarget - actual);
+    }
+
+    const isDeficit = totalDeficit > 0;
+    const lbsPerWeek = (totalDeficit / 3500).toFixed(1);
+    const sign = isDeficit ? '-' : '+';
+    const absDeficit = Math.abs(totalDeficit).toLocaleString();
+    const color = isDeficit ? 'var(--accent-green)' : 'var(--accent-red)';
+
+    let html = '<div class="card" style="text-align:center; padding:var(--space-md);">';
+    html += `<div style="font-size:var(--text-xs); text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted); margin-bottom:4px;">Weekly Deficit</div>`;
+    html += `<div style="font-size:28px; font-weight:700; color:${color};">${sign}${absDeficit} cal</div>`;
+    html += `<div style="font-size:var(--text-xs); color:var(--text-secondary); margin-top:4px;">On pace for ${sign}${Math.abs(lbsPerWeek)} lbs/wk</div>`;
+    html += '</div>';
+    return html;
+  },
+
+  // #2 — Rate of Weight Change
+  async _renderWeightChangeRate(goals) {
+    const today = UI.today();
+    const start = ProgressView._daysAgo(30);
+    const summaries = await DB.getDailySummaryRange(start, today);
+    const analyses = await DB.getAnalysisRange(start, today);
+
+    // Gather weight points
+    const weightPoints = [];
+    for (const s of summaries) {
+      if (s.weightLog?.length) {
+        const sorted = s.weightLog.slice().sort((a, b) => a.timestamp - b.timestamp);
+        weightPoints.push({ date: s.date, weight: sorted[0].value });
+      } else if (s.weight?.value) {
+        weightPoints.push({ date: s.date, weight: s.weight.value });
+      }
+    }
+    if (weightPoints.length < 2) return '';
+
+    const first = weightPoints[0];
+    const last = weightPoints[weightPoints.length - 1];
+    const daysBetween = Math.max(1, (new Date(last.date + 'T12:00:00') - new Date(first.date + 'T12:00:00')) / 86400000);
+    const actualPerWeek = ((last.weight - first.weight) / daysBetween * 7).toFixed(1);
+
+    // Expected from deficit
+    const calTarget = goals.calories || 1200;
+    let totalDeficit = 0;
+    let daysWithData = 0;
+    for (const a of analyses) {
+      const actual = a.totals?.calories || 0;
+      if (actual > 0) {
+        totalDeficit += (calTarget - actual);
+        daysWithData++;
+      }
+    }
+    const avgDailyDeficit = daysWithData > 0 ? totalDeficit / daysWithData : 0;
+    const expectedPerWeek = (-(avgDailyDeficit * 7) / 3500).toFixed(1);
+
+    const diff = Math.abs(parseFloat(actualPerWeek) - parseFloat(expectedPerWeek));
+    const matches = diff <= 0.3;
+    const icon = matches
+      ? '<span style="color:var(--accent-green);">&#10003;</span>'
+      : '<span style="color:var(--accent-orange);">&#9888;</span>';
+
+    let html = '<h2 class="section-header">Weight Change Rate</h2>';
+    html += '<div class="card">';
+    html += `<div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-sm); text-align:center;">
+      <div>
+        <div style="font-size:var(--text-lg); font-weight:600;">${actualPerWeek > 0 ? '+' : ''}${actualPerWeek}</div>
+        <div style="font-size:var(--text-xs); color:var(--text-muted);">lbs/wk actual</div>
+      </div>
+      <div>
+        <div style="font-size:var(--text-lg); font-weight:600;">${expectedPerWeek > 0 ? '+' : ''}${expectedPerWeek}</div>
+        <div style="font-size:var(--text-xs); color:var(--text-muted);">lbs/wk expected</div>
+      </div>
+    </div>`;
+    html += `<div style="text-align:center; margin-top:var(--space-xs); font-size:var(--text-xs); color:var(--text-secondary);">
+      ${icon} ${matches ? 'Weight tracking matches deficit' : 'Weight and deficit are diverging'}
+    </div>`;
+    html += '</div>';
+    return html;
+  },
+
+  // #3 — Vice Impact on Score
+  async _renderViceImpact(goals) {
+    const today = UI.today();
+    const start = ProgressView._daysAgo(30);
+    const analyses = await DB.getAnalysisRange(start, today);
+    const regimen = await DB.getRegimen();
+    if (analyses.length === 0) return '';
+
+    const viceDays = [];
+    const cleanDays = [];
+    for (const a of analyses) {
+      const viceCount = (a.entries || []).filter(e => e.type === 'custom').reduce((s, e) => s + (e.quantity || 1), 0);
+      const score = ProgressView._scoreFromAnalysis(a, goals, regimen).moderate;
+      if (score == null) continue;
+      if (viceCount > 0) {
+        viceDays.push(score);
+      } else {
+        cleanDays.push(score);
+      }
+    }
+
+    if (viceDays.length === 0) return ''; // No vices logged — don't show
+
+    const avgVice = Math.round(viceDays.reduce((s, v) => s + v, 0) / viceDays.length);
+    const avgClean = cleanDays.length > 0 ? Math.round(cleanDays.reduce((s, v) => s + v, 0) / cleanDays.length) : null;
+
+    let html = '<h2 class="section-header">Vice Impact</h2>';
+    html += '<div class="stats-row">';
+    html += `<div class="stat-card">
+      <div class="stat-value" style="color:var(--accent-red);">${viceDays.length}</div>
+      <div class="stat-label">Vice days</div>
+    </div>`;
+    if (avgClean !== null) {
+      html += `<div class="stat-card">
+        <div class="stat-value" style="color:var(--accent-orange);">${avgVice} vs ${avgClean}</div>
+        <div class="stat-label">Avg score (vice vs clean)</div>
+      </div>`;
+    } else {
+      html += `<div class="stat-card">
+        <div class="stat-value" style="color:var(--accent-orange);">${avgVice}</div>
+        <div class="stat-label">Avg score (vice days)</div>
+      </div>`;
+    }
+    html += '</div>';
+    return html;
+  },
+
+  // #4 — Logging Consistency
+  async _renderLoggingConsistency() {
+    const today = UI.today();
+    const weeks = [];
+    for (let w = 0; w < 3; w++) {
+      const weekEnd = new Date(UI.today() + 'T12:00:00');
+      weekEnd.setDate(weekEnd.getDate() - w * 7);
+      const monday = ProgressView._mondayOf(`${weekEnd.getFullYear()}-${String(weekEnd.getMonth() + 1).padStart(2, '0')}-${String(weekEnd.getDate()).padStart(2, '0')}`);
+      const sunday = new Date(monday + 'T12:00:00');
+      sunday.setDate(sunday.getDate() + 6);
+      const sundayStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`;
+      const endStr = w === 0 ? today : sundayStr;
+      const analyses = await DB.getAnalysisRange(monday, endStr);
+      const daysWithMeals = new Set();
+      for (const a of analyses) {
+        if ((a.entries || []).some(e => e.type === 'meal')) {
+          daysWithMeals.add(a.date);
+        }
+      }
+      const totalDays = w === 0
+        ? Math.min(7, Math.floor((new Date(today + 'T12:00:00') - new Date(monday + 'T12:00:00')) / 86400000) + 1)
+        : 7;
+      weeks.push({ logged: daysWithMeals.size, total: totalDays });
+    }
+
+    const trend = weeks[0].logged / weeks[0].total > weeks[1].logged / weeks[1].total
+      ? '&#9650;'
+      : weeks[0].logged / weeks[0].total < weeks[1].logged / weeks[1].total
+        ? '&#9660;'
+        : '--';
+    const trendColor = weeks[0].logged / weeks[0].total >= weeks[1].logged / weeks[1].total
+      ? 'var(--accent-green)' : 'var(--accent-red)';
+
+    let html = '<div class="card" style="padding:var(--space-sm) var(--space-md);">';
+    html += `<div style="font-size:var(--text-xs); text-transform:uppercase; letter-spacing:0.1em; color:var(--text-muted); margin-bottom:6px;">Logging Consistency</div>`;
+    html += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:var(--text-sm);">`;
+    html += `<span>This wk: <strong>${weeks[0].logged}/${weeks[0].total}</strong></span>`;
+    html += `<span>Last wk: <strong>${weeks[1].logged}/${weeks[1].total}</strong></span>`;
+    html += `<span>Prev: <strong>${weeks[2].logged}/${weeks[2].total}</strong></span>`;
+    html += `<span style="color:${trendColor};">${trend}</span>`;
+    html += '</div></div>';
+    return html;
+  },
+
+  // #5 — Macro % Split (7-day avg)
+  async _renderMacroSplit() {
+    const today = UI.today();
+    const start = ProgressView._daysAgo(7);
+    const analyses = await DB.getAnalysisRange(start, today);
+    if (analyses.length === 0) return '';
+
+    let totalProtein = 0, totalCarbs = 0, totalFat = 0;
+    let count = 0;
+    for (const a of analyses) {
+      const t = a.totals || {};
+      if ((t.protein || 0) + (t.carbs || 0) + (t.fat || 0) === 0) continue;
+      totalProtein += t.protein || 0;
+      totalCarbs += t.carbs || 0;
+      totalFat += t.fat || 0;
+      count++;
+    }
+    if (count === 0) return '';
+
+    const avgP = totalProtein / count;
+    const avgC = totalCarbs / count;
+    const avgF = totalFat / count;
+
+    const calP = avgP * 4;
+    const calC = avgC * 4;
+    const calF = avgF * 9;
+    const total = calP + calC + calF;
+    if (total === 0) return '';
+
+    const pctP = Math.round((calP / total) * 100);
+    const pctC = Math.round((calC / total) * 100);
+    const pctF = 100 - pctP - pctC; // Ensure they add to 100
+
+    let html = '<h2 class="section-header">Macro Split (7-day avg)</h2><div class="card">';
+    // Segmented bar
+    html += `<div style="display:flex; height:24px; border-radius:var(--radius-sm); overflow:hidden; margin-bottom:var(--space-xs);">`;
+    if (pctP > 0) html += `<div style="width:${pctP}%; background:var(--accent-green); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:600;">${pctP > 8 ? pctP + '%' : ''}</div>`;
+    if (pctC > 0) html += `<div style="width:${pctC}%; background:var(--accent-blue); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:600;">${pctC > 8 ? pctC + '%' : ''}</div>`;
+    if (pctF > 0) html += `<div style="width:${pctF}%; background:var(--accent-orange); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; font-weight:600;">${pctF > 8 ? pctF + '%' : ''}</div>`;
+    html += '</div>';
+    // Legend
+    html += `<div style="display:flex; justify-content:space-between; font-size:var(--text-xs); color:var(--text-muted);">`;
+    html += `<span style="color:var(--accent-green);">P ${pctP}% (${Math.round(avgP)}g)</span>`;
+    html += `<span style="color:var(--accent-blue);">C ${pctC}% (${Math.round(avgC)}g)</span>`;
+    html += `<span style="color:var(--accent-orange);">F ${pctF}% (${Math.round(avgF)}g)</span>`;
+    html += '</div></div>';
+    return html;
+  },
+
+  // #6 — Protein Distribution by Meal
+  async _renderProteinByMeal() {
+    const today = UI.today();
+    const start = ProgressView._daysAgo(14);
+    const analyses = await DB.getAnalysisRange(start, today);
+    if (analyses.length === 0) return '';
+
+    const slots = { breakfast: [], lunch: [], dinner: [], snack: [] };
+    for (const a of analyses) {
+      for (const e of (a.entries || [])) {
+        if (e.type !== 'meal') continue;
+        const sub = (e.subtype || 'snack').toLowerCase();
+        const slot = slots[sub] || slots.snack;
+        const protein = e.protein || 0;
+        if (protein > 0) slot.push(protein);
+      }
+    }
+
+    const avgSlots = {};
+    let maxAvg = 0;
+    for (const [key, vals] of Object.entries(slots)) {
+      if (vals.length === 0) continue;
+      const avg = Math.round(vals.reduce((s, v) => s + v, 0) / vals.length);
+      avgSlots[key] = avg;
+      if (avg > maxAvg) maxAvg = avg;
+    }
+
+    if (Object.keys(avgSlots).length === 0) return '';
+
+    const labels = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
+    let html = '<h2 class="section-header">Protein by Meal (14d avg)</h2><div class="card">';
+    for (const key of ['breakfast', 'lunch', 'dinner', 'snack']) {
+      if (avgSlots[key] == null) continue;
+      const pct = maxAvg > 0 ? Math.round((avgSlots[key] / maxAvg) * 100) : 0;
+      html += `<div style="display:flex; align-items:center; gap:var(--space-sm); margin-bottom:6px;">
+        <div style="width:60px; font-size:var(--text-xs); color:var(--text-muted);">${labels[key]}</div>
+        <div style="flex:1; height:16px; background:var(--bg-tertiary); border-radius:var(--radius-sm); overflow:hidden;">
+          <div style="width:${pct}%; height:100%; background:var(--accent-green); border-radius:var(--radius-sm);"></div>
+        </div>
+        <div style="width:36px; text-align:right; font-size:var(--text-xs); font-weight:600;">${avgSlots[key]}g</div>
+      </div>`;
+    }
+    html += '</div>';
+    return html;
+  },
+
+  // #7 — Best/Worst Day of Week
+  async _renderBestWorstDay(goals) {
+    const today = UI.today();
+    const start = ProgressView._daysAgo(30);
+    const analyses = await DB.getAnalysisRange(start, today);
+    const regimen = await DB.getRegimen();
+    if (analyses.length === 0) return '';
+
+    const dayScores = { 0: [], 1: [], 2: [], 3: [], 4: [], 5: [], 6: [] }; // 0=Mon
+    for (const a of analyses) {
+      const score = ProgressView._scoreFromAnalysis(a, goals, regimen).moderate;
+      if (score == null) continue;
+      const d = new Date(a.date + 'T12:00:00');
+      const dayIdx = (d.getDay() + 6) % 7; // Mon=0
+      dayScores[dayIdx].push(score);
+    }
+
+    const avgs = [];
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    for (let i = 0; i < 7; i++) {
+      const arr = dayScores[i];
+      avgs.push(arr.length > 0 ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : null);
+    }
+
+    const validAvgs = avgs.filter(a => a !== null);
+    if (validAvgs.length === 0) return '';
+
+    const bestVal = Math.max(...validAvgs);
+    const worstVal = Math.min(...validAvgs);
+
+    let html = '<h2 class="section-header">Score by Day of Week</h2>';
+    html += '<div class="card"><div style="display:flex; gap:4px; justify-content:space-between;">';
+    for (let i = 0; i < 7; i++) {
+      const avg = avgs[i];
+      let bg, fg;
+      if (avg === null) { bg = 'var(--bg-tertiary)'; fg = 'var(--text-muted)'; }
+      else if (avg >= 70) { bg = 'color-mix(in srgb, var(--accent-green) 20%, var(--bg-card))'; fg = 'var(--accent-green)'; }
+      else if (avg >= 40) { bg = 'color-mix(in srgb, var(--accent-orange) 20%, var(--bg-card))'; fg = 'var(--accent-orange)'; }
+      else { bg = 'color-mix(in srgb, var(--accent-red) 20%, var(--bg-card))'; fg = 'var(--accent-red)'; }
+
+      const isBest = avg === bestVal && avg !== null;
+      const isWorst = avg === worstVal && avg !== null && bestVal !== worstVal;
+      const border = isBest ? 'border:1.5px solid var(--accent-green);' : isWorst ? 'border:1.5px solid var(--accent-red);' : 'border:1.5px solid transparent;';
+
+      html += `<div style="flex:1; text-align:center; padding:6px 2px; border-radius:var(--radius-sm); background:${bg}; ${border}">
+        <div style="font-size:var(--text-xs); color:var(--text-muted);">${dayLabels[i]}</div>
+        <div style="font-size:var(--text-sm); font-weight:600; color:${fg};">${avg !== null ? avg : '-'}</div>
+      </div>`;
+    }
+    html += '</div></div>';
+    return html;
+  },
+
+  // #8 — Food Timing Heatmap
+  async _renderFoodTimingHeatmap() {
+    const today = UI.today();
+    const start = ProgressView._daysAgo(30);
+    const analyses = await DB.getAnalysisRange(start, today);
+    if (analyses.length === 0) return '';
+
+    const blocks = {
+      'Morning': { range: [6, 10], cal: 0, count: 0 },
+      'Midday': { range: [10, 14], cal: 0, count: 0 },
+      'Afternoon': { range: [14, 18], cal: 0, count: 0 },
+      'Evening': { range: [18, 22], cal: 0, count: 0 },
+      'Late': { range: [22, 6], cal: 0, count: 0 },
+    };
+
+    // Build map of analysis entries by id for calorie data
+    const analysisEntryMap = {};
+    for (const a of analyses) {
+      for (const ae of (a.entries || [])) {
+        if (ae.id) analysisEntryMap[ae.id] = ae;
+      }
+    }
+    // Load raw entries for timestamps
+    const rawEntries = await DB.getEntriesByDateRange(start, today);
+    for (const e of (rawEntries || [])) {
+      if (e.type !== 'meal' && e.type !== 'snack' && e.type !== 'drink') continue;
+      if (!e.timestamp) continue;
+      const hour = new Date(e.timestamp).getHours();
+      const ae = analysisEntryMap[e.id];
+      const cal = ae?.calories || ae?.calories_est || e.calories_est || 0;
+      for (const [, block] of Object.entries(blocks)) {
+        const [lo, hi] = block.range;
+        if (lo < hi) {
+          if (hour >= lo && hour < hi) { block.cal += cal; block.count++; break; }
+        } else {
+          if (hour >= lo || hour < hi) { block.cal += cal; block.count++; break; }
+        }
+      }
+    }
+
+    const maxCal = Math.max(...Object.values(blocks).map(b => b.cal), 1);
+    const hasData = Object.values(blocks).some(b => b.count > 0);
+    if (!hasData) return '';
+
+    const timeLabels = ['Morning', 'Midday', 'Afternoon', 'Evening', 'Late'];
+    const timeSubLabels = ['6-10a', '10a-2p', '2-6p', '6-10p', '10p-6a'];
+
+    let html = '<h2 class="section-header">Eating Times (30 days)</h2><div class="card">';
+    for (let i = 0; i < timeLabels.length; i++) {
+      const block = blocks[timeLabels[i]];
+      const pct = Math.round((block.cal / maxCal) * 100);
+      const intensity = block.cal > 0 ? Math.max(0.2, block.cal / maxCal) : 0;
+      html += `<div style="display:flex; align-items:center; gap:var(--space-sm); margin-bottom:6px;">
+        <div style="width:70px;">
+          <div style="font-size:var(--text-xs); font-weight:500;">${timeLabels[i]}</div>
+          <div style="font-size:9px; color:var(--text-muted);">${timeSubLabels[i]}</div>
+        </div>
+        <div style="flex:1; height:20px; background:var(--bg-tertiary); border-radius:var(--radius-sm); overflow:hidden;">
+          <div style="width:${pct}%; height:100%; background:var(--accent-primary); opacity:${intensity.toFixed(2)}; border-radius:var(--radius-sm);"></div>
+        </div>
+        <div style="width:48px; text-align:right; font-size:var(--text-xs); color:var(--text-muted);">${block.cal > 0 ? Math.round(block.cal).toLocaleString() : '-'}</div>
+      </div>`;
+    }
+    html += `<div style="font-size:var(--text-xs); color:var(--text-muted); text-align:right; margin-top:2px;">Total cal by time block</div>`;
+    html += '</div>';
+    return html;
+  },
+
+  // #9 — Weekend vs Weekday Split
+  async _renderWeekendVsWeekday() {
+    const today = UI.today();
+    const start = ProgressView._daysAgo(30);
+    const analyses = await DB.getAnalysisRange(start, today);
+    if (analyses.length === 0) return '';
+
+    const weekday = { cal: [], pro: [] };
+    const weekend = { cal: [], pro: [] };
+    for (const a of analyses) {
+      const d = new Date(a.date + 'T12:00:00');
+      const dow = d.getDay();
+      const isWeekend = dow === 0 || dow === 6;
+      const bucket = isWeekend ? weekend : weekday;
+      const cal = a.totals?.calories || 0;
+      const pro = a.totals?.protein || 0;
+      if (cal > 0) bucket.cal.push(cal);
+      if (pro > 0) bucket.pro.push(pro);
+    }
+
+    if (weekday.cal.length === 0 && weekend.cal.length === 0) return '';
+
+    const avg = arr => arr.length > 0 ? Math.round(arr.reduce((s, v) => s + v, 0) / arr.length) : 0;
+    const wdCal = avg(weekday.cal);
+    const weCal = avg(weekend.cal);
+    const wdPro = avg(weekday.pro);
+    const wePro = avg(weekend.pro);
+    const calDelta = weCal - wdCal;
+    const proDelta = wePro - wdPro;
+
+    let html = '<h2 class="section-header">Weekday vs Weekend</h2><div class="card">';
+    html += '<div style="display:grid; grid-template-columns:1fr auto 1fr; gap:var(--space-sm); text-align:center;">';
+    // Header row
+    html += '<div style="font-size:var(--text-xs); color:var(--text-muted); font-weight:600;">Weekday</div>';
+    html += '<div></div>';
+    html += '<div style="font-size:var(--text-xs); color:var(--text-muted); font-weight:600;">Weekend</div>';
+    // Calories row
+    html += `<div style="font-size:var(--text-lg); font-weight:600;">${wdCal}</div>`;
+    html += `<div style="font-size:var(--text-xs); color:${calDelta > 0 ? 'var(--accent-red)' : 'var(--accent-green)'};">${calDelta > 0 ? '+' : ''}${calDelta} cal</div>`;
+    html += `<div style="font-size:var(--text-lg); font-weight:600;">${weCal}</div>`;
+    // Protein row
+    html += `<div style="font-size:var(--text-sm); color:var(--text-secondary);">${wdPro}g P</div>`;
+    html += `<div style="font-size:var(--text-xs); color:${proDelta < 0 ? 'var(--accent-red)' : 'var(--accent-green)'};">${proDelta > 0 ? '+' : ''}${proDelta}g</div>`;
+    html += `<div style="font-size:var(--text-sm); color:var(--text-secondary);">${wePro}g P</div>`;
+    html += '</div></div>';
+    return html;
+  },
+
+  // #10 — Workout Consistency Grid
+  async _renderWorkoutGrid() {
+    const today = UI.today();
+    const start = ProgressView._daysAgo(56); // 8 weeks
+    const entries = await DB.getEntriesByDateRange(start, today);
+    const regimen = await DB.getRegimen();
+    const schedule = regimen?.weeklySchedule || [];
+
+    if (!entries || entries.length === 0) return '';
+
+    // Build set of dates with workouts
+    const workoutDates = new Set();
+    for (const e of entries) {
+      if (e.type === 'workout') workoutDates.add(e.date);
+    }
+
+    // Build schedule lookup: day name -> type
+    const scheduleMap = {};
+    for (const day of schedule) {
+      scheduleMap[day.day] = day.type;
+    }
+
+    const dayNames = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    // Build 8 weeks of data, starting from the Monday 8 weeks ago
+    const todayDate = new Date(today + 'T12:00:00');
+    const mondayStart = new Date(today + 'T12:00:00');
+    const dayOfWeek = mondayStart.getDay();
+    const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    mondayStart.setDate(mondayStart.getDate() - mondayOffset - 49); // 7 weeks back from this week's Monday
+
+    const fmt = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    let html = '<h2 class="section-header">Workout Grid (8 weeks)</h2><div class="card">';
+    // Day headers
+    html += '<div style="display:grid; grid-template-columns:32px repeat(7, 1fr); gap:3px; margin-bottom:4px;">';
+    html += '<div></div>';
+    for (const label of dayLabels) {
+      html += `<div style="text-align:center; font-size:9px; color:var(--text-muted);">${label}</div>`;
+    }
+    html += '</div>';
+
+    const cursor = new Date(mondayStart);
+    for (let week = 0; week < 8; week++) {
+      const weekLabel = week === 7 ? 'This' : week === 6 ? 'Last' : `-${7 - week}`;
+      html += `<div style="display:grid; grid-template-columns:32px repeat(7, 1fr); gap:3px; margin-bottom:3px;">`;
+      html += `<div style="font-size:9px; color:var(--text-muted); display:flex; align-items:center;">${weekLabel}</div>`;
+      for (let d = 0; d < 7; d++) {
+        const dateStr = fmt(cursor);
+        const isFuture = cursor > todayDate;
+        const hasWorkout = workoutDates.has(dateStr);
+        const dayType = scheduleMap[dayNames[d]] || '';
+        const isRestDay = dayType === 'rest' || dayType === 'active_recovery';
+        const isWorkoutDay = dayType && !isRestDay;
+
+        let bg, border;
+        if (isFuture) {
+          bg = 'transparent'; border = '1px solid var(--border-color)';
+        } else if (hasWorkout) {
+          bg = 'var(--accent-primary)'; border = '1px solid var(--accent-primary)';
+        } else if (isRestDay) {
+          bg = 'var(--bg-tertiary)'; border = '1px solid var(--border-color)';
+        } else if (isWorkoutDay) {
+          bg = 'color-mix(in srgb, var(--accent-red) 15%, var(--bg-card))'; border = '1px solid color-mix(in srgb, var(--accent-red) 30%, var(--border-color))';
+        } else {
+          bg = 'var(--bg-tertiary)'; border = '1px solid var(--border-color)';
+        }
+
+        html += `<div style="aspect-ratio:1; border-radius:3px; background:${bg}; border:${border};"></div>`;
+        cursor.setDate(cursor.getDate() + 1);
+      }
+      html += '</div>';
+    }
+
+    // Legend
+    html += `<div style="display:flex; gap:var(--space-sm); margin-top:var(--space-xs); font-size:var(--text-xs); color:var(--text-muted); flex-wrap:wrap;">
+      <span style="display:inline-flex; align-items:center; gap:3px;"><span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:var(--accent-primary);"></span>Worked out</span>
+      <span style="display:inline-flex; align-items:center; gap:3px;"><span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:var(--bg-tertiary);"></span>Rest day</span>
+      <span style="display:inline-flex; align-items:center; gap:3px;"><span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:color-mix(in srgb, var(--accent-red) 15%, var(--bg-card)); border:1px solid color-mix(in srgb, var(--accent-red) 30%, var(--border-color));"></span>Missed</span>
+    </div>`;
     html += '</div>';
     return html;
   },

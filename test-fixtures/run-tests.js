@@ -6335,7 +6335,7 @@ async function testWeightEntryEdit(page, fixtures) {
     }
   }
 
-  // Stat card always opens QuickLog (new weight), even when entries exist
+  // Stat card opens Edit modal when weight entries exist (tap-to-edit fix)
   const statCard = await page.$('[data-stat-action="weight"]');
   assert(!!statCard, 'Weight stat card exists');
   if (statCard) {
@@ -6345,7 +6345,7 @@ async function testWeightEntryEdit(page, fixtures) {
     assert(!!modal, 'Modal opens from weight stat card tap');
     if (modal) {
       const title = await page.$eval('.modal-title', el => el.textContent);
-      assert(title.includes('Log Weight'), 'Stat card tap opens Log Weight modal (always new entry)');
+      assert(title.includes('Edit'), 'Stat card tap opens Edit modal when weight entry exists');
       // Close modal
       const closeBtn = await page.$('.modal-close');
       if (closeBtn) await closeBtn.click();
