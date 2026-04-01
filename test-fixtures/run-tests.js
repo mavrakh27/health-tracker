@@ -6271,6 +6271,190 @@ async function testWeightEntryIndependence(page, fixtures) {
   await screenshot(page, 'weight-entry-independence');
 }
 
+async function testLongTextInput(page, fixtures) {
+  console.log('\n--- Long Text Input ---');
+
+  // Coach chat input: 5000-char string
+  await page.click('nav button:has-text("Coach")');
+  await page.waitForTimeout(500);
+
+  const coachInputExists = await page.$('#coach-input');
+  if (coachInputExists) {
+    const longText = 'A'.repeat(5000);
+    await page.evaluate((text) => {
+      const input = document.getElementById('coach-input');
+      if (input) {
+        input.value = text;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    }, longText);
+
+    const textareaLength = await page.evaluate(() => {
+      const input = document.getElementById('coach-input');
+      return input ? input.value.length : 0;
+    });
+    assert(textareaLength === 5000, `Coach input handles 5000 chars without truncation (got ${textareaLength})`);
+
+    // Verify no horizontal overflow
+    const noHorizontalOverflow = await page.evaluate(() => {
+      return document.body.scrollWidth <= document.body.clientWidth;
+    });
+    assert(noHorizontalOverflow, 'Coach input: no horizontal overflow with long text');
+
+    // Clear the field
+    await page.evaluate(() => {
+      const input = document.getElementById('coach-input');
+      if (input) input.value = '';
+    });
+  } else {
+    assert(false, 'Coach input field exists');
+  }
+
+  // Food entry notes: 2000-char string (test via database entry, avoiding modal complexity)
+  const longFoodText = 'B'.repeat(2000);
+  const foodTestDate = await page.evaluate(() => App.selectedDate);
+  const foodTestId = 'test-food-notes-' + Date.now();
+  const foodTestEntry = {
+    id: foodTestId,
+    type: 'meal',
+    subtype: null,
+    date: foodTestDate,
+    timestamp: new Date().toISOString(),
+    notes: longFoodText,
+    photo: false,
+    duration_minutes: null,
+  };
+
+  await page.evaluate(async (entry) => {
+    await DB.addEntry(entry);
+  }, foodTestEntry);
+
+  // Verify the notes were stored at full length
+  const foodNotesStored = await page.evaluate(async (data) => {
+    const entries = await DB.getEntriesByDate(data.testDate);
+    const found = entries.find(e => e.id === data.testId);
+    return found ? found.notes.length : 0;
+  }, { testDate: foodTestDate, testId: foodTestId });
+  assert(foodNotesStored === 2000, `Food entry notes preserve full 2000-char length in DB (got ${foodNotesStored})`);
+
+  // Clean up
+  await page.evaluate(async (data) => {
+    await DB.deleteEntry(data.testId);
+  }, { testId: foodTestId });
+
+  // Edit modal notes: 3000-char string (test via database entry)
+  const longEditText = 'C'.repeat(3000);
+  const editTestDate = await page.evaluate(() => App.selectedDate);
+  const editTestId = 'test-edit-notes-' + Date.now();
+  const editTestEntry = {
+    id: editTestId,
+    type: 'workout',
+    subtype: 'cardio',
+    date: editTestDate,
+    timestamp: new Date().toISOString(),
+    notes: longEditText,
+    photo: false,
+    duration_minutes: 30,
+  };
+
+  await page.evaluate(async (entry) => {
+    await DB.addEntry(entry);
+  }, editTestEntry);
+
+  // Verify the notes were stored at full length
+  const editNotesStored = await page.evaluate(async (data) => {
+    const entries = await DB.getEntriesByDate(data.testDate);
+    const found = entries.find(e => e.id === data.testId);
+    return found ? found.notes.length : 0;
+  }, { testDate: editTestDate, testId: editTestId });
+  assert(editNotesStored === 3000, `Edit entry notes preserve full 3000-char length in DB (got ${editNotesStored})`);
+
+  // Clean up
+  await page.evaluate(async (data) => {
+    await DB.deleteEntry(data.testId);
+  }, { testId: editTestId });
+}
+
+async function testSettingUpdatesImport(page, fixtures) {
+  console.log('\n--- Setting Updates Import ---');
+
+  const testDate = '2026-01-15';
+
+  // Test 1: Goal update via settingUpdates
+  await page.evaluate(async () => {
+    await DB.setProfile('goals', { calories: 1200, protein: 100, water_oz: 64, hardcore: { calories: 1000, protein: 130 } });
+  });
+
+  await page.evaluate(async (date) => {
+    await DB.importAnalysis(date, {
+      date: date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      settingUpdates: { goals: { calories: 1100 } }
+    });
+  }, testDate);
+
+  const goals = await page.evaluate(async () => await DB.getProfile('goals'));
+  assert(goals.calories === 1100, `Calories updated to 1100 via settingUpdates (got ${goals.calories})`);
+  assert(goals.protein === 100, `Protein preserved at 100 (got ${goals.protein})`);
+
+  // Test 2: Hardcore sub-object merge
+  await page.evaluate(async (date) => {
+    await DB.importAnalysis(date, {
+      date: date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      settingUpdates: { goals: { hardcore: { calories: 900 } } }
+    });
+  }, testDate);
+
+  const goals2 = await page.evaluate(async () => await DB.getProfile('goals'));
+  assert(goals2.hardcore.calories === 900, `Hardcore calories updated to 900 (got ${goals2.hardcore?.calories})`);
+  assert(goals2.hardcore.protein === 130, `Hardcore protein preserved at 130 (got ${goals2.hardcore?.protein})`);
+
+  // Test 3: Preferences update
+  await page.evaluate(async (date) => {
+    await DB.importAnalysis(date, {
+      date: date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      settingUpdates: { preferences: { mealsPerDay: 2 } }
+    });
+  }, testDate);
+
+  const prefs = await page.evaluate(async () => await DB.getProfile('preferences'));
+  assert(prefs.mealsPerDay === 2, `Preferences updated: mealsPerDay set to 2 (got ${prefs?.mealsPerDay})`);
+
+  // Test 4: No settingUpdates (backward compat)
+  await page.evaluate(async () => {
+    await DB.setProfile('goals', { calories: 1200, protein: 100 });
+  });
+
+  await page.evaluate(async (date) => {
+    await DB.importAnalysis(date, {
+      date: date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 }
+    });
+  }, testDate);
+
+  const goals3 = await page.evaluate(async () => await DB.getProfile('goals'));
+  assert(goals3.calories === 1200, `Goals unchanged when settingUpdates absent (backward compat, got ${goals3.calories})`);
+
+  // Test 5: Empty settingUpdates object
+  await page.evaluate(async (date) => {
+    await DB.importAnalysis(date, {
+      date: date,
+      entries: [],
+      totals: { calories: 0, protein: 0, carbs: 0, fat: 0 },
+      settingUpdates: {}
+    });
+  }, testDate);
+
+  const goals4 = await page.evaluate(async () => await DB.getProfile('goals'));
+  assert(goals4.calories === 1200, `Goals unchanged with empty settingUpdates object (got ${goals4.calories})`);
+}
+
 async function run() {
   console.log('=== Health Tracker Validation ===\n');
 
@@ -6344,6 +6528,8 @@ async function run() {
     await testWeightTrendSmoothing(page, fixtures);
     await testAdaptiveCalorieTargets(page, fixtures);
     await testWeightEntryIndependence(page, fixtures);
+    await testLongTextInput(page, fixtures);
+    await testSettingUpdatesImport(page, fixtures);
     // voice logging removed — not a priority
     await testConsoleErrors(page);
 

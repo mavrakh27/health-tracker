@@ -3301,6 +3301,31 @@ input[type="range"]::-webkit-slider-thumb {
   padding-right: 2px;
 }
 
+/* Setting update notification — inline card after coach response */
+.coach-setting-update {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  border-left: 3px solid var(--accent-green);
+  padding: var(--space-sm) var(--space-md);
+  margin: var(--space-sm) 0;
+  background: var(--bg-tertiary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.coach-setting-icon {
+  flex-shrink: 0;
+  color: var(--accent-green);
+  font-weight: bold;
+}
+
+.coach-setting-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
 /* ── Coach Analysis Section ── */
 .coach-analysis-section {
   margin-top: var(--space-lg);

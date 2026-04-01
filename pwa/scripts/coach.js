@@ -1,6 +1,44 @@
 // coach.js — Async coach chat (messages sync via cloud relay, responses arrive within ~30 min)
 
 const CoachChat = {
+  formatSettingUpdate(updates) {
+    const parts = [];
+
+    if (updates.goals) {
+      const goals = updates.goals;
+      if (goals.moderate) {
+        const mod = goals.moderate;
+        if (mod.calories) parts.push(`Moderate calorie goal updated to ${mod.calories}`);
+        if (mod.protein) parts.push(`Moderate protein goal updated to ${mod.protein}g`);
+        if (mod.water) parts.push(`Moderate water goal updated to ${mod.water}L`);
+      }
+      if (goals.hardcore) {
+        const hard = goals.hardcore;
+        if (hard.calories) parts.push(`Hardcore calorie goal updated to ${hard.calories}`);
+        if (hard.protein) parts.push(`Hardcore protein goal updated to ${hard.protein}g`);
+        if (hard.water) parts.push(`Hardcore water goal updated to ${hard.water}L`);
+      }
+      // Flat goals (legacy)
+      if (goals.calories) parts.push(`Calorie goal updated to ${goals.calories}`);
+      if (goals.protein) parts.push(`Protein goal updated to ${goals.protein}g`);
+      if (goals.water) parts.push(`Water goal updated to ${goals.water}L`);
+    }
+
+    if (updates.preferences) {
+      const prefs = updates.preferences;
+      if (prefs.mealsPerDay) parts.push(`Meals per day updated to ${prefs.mealsPerDay}`);
+      if (prefs.sleepTarget) parts.push(`Sleep target updated to ${prefs.sleepTarget}h`);
+    }
+
+    if (updates.regimen) {
+      const reg = updates.regimen;
+      if (reg.phase) parts.push(`Training phase updated to ${reg.phase}`);
+      if (reg.focusAreas) parts.push(`Focus areas updated`);
+    }
+
+    return parts.join(', ') || 'Settings updated';
+  },
+
   async render(date) {
     const summary = await DB.getDailySummary(date);
     const analysis = await DB.getAnalysis(date);
@@ -28,6 +66,14 @@ const CoachChat = {
       const response = coachMessages.find(r => r.replyTo === msg.id);
       if (response) {
         timeline.push({ role: 'coach', text: response.text, timestamp: response.timestamp || msg.timestamp + 1 });
+        // Add setting update notification after the coach response, if present
+        if (response.settingUpdates) {
+          timeline.push({
+            role: 'settings',
+            updates: response.settingUpdates,
+            timestamp: (response.timestamp || msg.timestamp + 1) + 1
+          });
+        }
       }
     }
 
@@ -53,14 +99,24 @@ const CoachChat = {
       `;
     } else {
       for (const msg of timeline) {
-        const isUser = msg.role === 'user';
-        const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
-        html += `
-          <div class="chat-bubble ${isUser ? 'chat-user' : 'chat-coach'}">
-            <div class="chat-text">${UI.escapeHtml(msg.text)}</div>
-            ${time ? `<div class="chat-time">${time}</div>` : ''}
-          </div>
-        `;
+        if (msg.role === 'settings') {
+          const summary = CoachChat.formatSettingUpdate(msg.updates);
+          html += `
+            <div class="coach-setting-update">
+              <div class="coach-setting-icon">✓</div>
+              <div class="coach-setting-text">${UI.escapeHtml(summary)}</div>
+            </div>
+          `;
+        } else {
+          const isUser = msg.role === 'user';
+          const time = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+          html += `
+            <div class="chat-bubble ${isUser ? 'chat-user' : 'chat-coach'}">
+              <div class="chat-text">${UI.escapeHtml(msg.text)}</div>
+              ${time ? `<div class="chat-time">${time}</div>` : ''}
+            </div>
+          `;
+        }
       }
       if (hasUnanswered) {
         html += '<div class="chat-waiting">Coach is reviewing your message...</div>';

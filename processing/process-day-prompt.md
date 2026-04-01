@@ -164,6 +164,8 @@ If you find 16 date folders but only 14 have analysis files, you MUST process th
    - Compare to the workout regimen — does today match the plan?
    - Note any deviations or progressions
    - If the user did EXTRA work beyond what was scheduled (e.g., core work on a cardio-only day), celebrate the initiative — never criticize the volume of voluntary bonus effort. Only compare rep counts/sets against targets on days where that exercise was actually programmed.
+   - **Bonus strength on cardio days:** The regimen includes optional `bonusStrength` exercises on cardio days (Tue/Thu/Sat). If the user logs both cardio AND strength/band exercises on the same day, note it as bonus work in highlights. The PWA scores this as +5 bonus points. Include the bonus exercises in `fitness_checked` so scoring can detect them.
+   - **Dance class flexibility:** Dance/burlesque classes are NOT pinned to specific days. Cardio days default to elliptical; the user swaps in dance whenever a class is available. Never mark a cardio day as "missed dance class."
 
 4b. **Analyze skincare adherence:**
    - Check `log.json` for a `skincare` field -- if present, it contains today's AM/PM skincare checklist

@@ -21,6 +21,11 @@ You are generating a meal plan and workout regimen based on today's health data.
    - `{DATA_DIR}/profile/bio.txt` -- personal stats, equipment constraints (optional)
    - Recent analysis files at `{DATA_DIR}/analysis/` for the past 3-7 days -- for workout weekly review
 
+2b. **Check for coach-requested plan changes:**
+   - Read the Phase 1 analysis for `coachResponses` -- if any response mentions a plan change or regimen update, factor that into the plan generation.
+   - Check `_planRequested` flag -- if true, generate a fresh plan rather than incremental updates.
+   - Read `{DATA_DIR}/profile/coach-context.md` if it exists -- this contains persistent coaching context (equipment status, training goals, progression plans) that should inform plan generation.
+
 3. **Generate a rolling 3-day meal plan:**
    - **Read `preferences.json` first** -- it defines meal structure (meals per day, office vs home day split, OMAD rules, snack policy). Follow it exactly.
    - The first day is today. Use `totals` from the Phase 1 analysis to set `days[0].remaining_meal` accurately -- the user has already consumed `totals.calories` calories and `totals.protein`g protein today.

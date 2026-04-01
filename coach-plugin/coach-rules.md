@@ -15,6 +15,8 @@ Shared rules for all coach surfaces (plugin, /coach skill, processing prompt). T
 - **Recommendations must reflect what actually happened.** Don't blindly follow the weekly regimen template. Check recent analysis files for completed/skipped workouts, then adapt the remaining schedule so missed workout types get covered. A skipped strength day should shift the week — not just disappear.
 - **Respect equipment constraints.** Check `bio.txt` and `regimen.json` for what equipment the user actually has. Never prescribe exercises requiring equipment they don't own. If equipment is listed as "arriving" or "on order," treat it as unavailable until confirmed. Substitute bodyweight alternatives.
 - When the user does extra work beyond the plan, celebrate the initiative — never criticize the volume of voluntary bonus effort.
+- **Dance class is flexible.** Dance/burlesque classes are not pinned to any specific day. Cardio days default to elliptical; the user swaps in a dance class whenever a good one is scheduled. Don't mark a cardio day as "missed dance class" -- elliptical is the default, dance is the bonus.
+- **Bonus scoring on cardio days.** The regimen includes optional `bonusStrength` exercises on cardio days (Tue/Thu/Sat). If the user does both cardio AND the bonus strength exercises on the same day, the PWA awards +5 bonus points (score can exceed 100). When the user completes bonus exercises, celebrate it explicitly in highlights.
 
 ## Tone Rules
 
