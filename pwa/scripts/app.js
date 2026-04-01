@@ -1932,11 +1932,20 @@ const App = {
 
     // Make stat cards tappable
     statsEl.querySelectorAll('[data-stat-action]').forEach(card => {
-      card.addEventListener('click', () => {
+      card.addEventListener('click', async () => {
         const action = card.dataset.statAction;
         if (action === 'water') QuickLog.showWaterPicker();
         else if (action === 'food') QuickLog.snapFood();
-        else if (action === 'weight') QuickLog.showWeightEntry();
+        else if (action === 'weight') {
+          // If a weight entry exists for this day, open edit modal instead of new entry
+          const dayEntries = await DB.getEntriesByDate(App.selectedDate);
+          const weightEntry = dayEntries.find(e => e.type === 'weight');
+          if (weightEntry) {
+            UI.showEditModal(weightEntry);
+          } else {
+            QuickLog.showWeightEntry();
+          }
+        }
         else if (action === 'workout') {
           const el = document.getElementById('today-workout');
           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });

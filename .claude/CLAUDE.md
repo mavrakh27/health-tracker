@@ -68,6 +68,10 @@ Users interact with the AI coach through three channels:
 5. Always over-count calories when estimating
 6. No emojis in the UI or code output
 
+## Changelog
+
+Append to `.claude/changelog.md` immediately after implementing each feature (not at session end). One entry per feature, not per file. This is the ground truth for "what was done" — it survives context compaction and lets future sessions verify changes stuck.
+
 ## Context Management
 
 Always delegate implementation, testing, and bug fixes to background agents. The main conversation should only coordinate, review results, and talk to the user — never do heavy file reading, code writing, or test running directly. This prevents context window exhaustion that causes session exits. Use `/agents`, `/bug`, and `/bug-hunt` skills liberally.

@@ -24,6 +24,7 @@ data/
 .claude/notes/
 .claude/.last-reviewed-commit
 .claude/test-screenshots/
+.claude/changelog.md
 
 # Test artifacts
 test-interactive*.mjs

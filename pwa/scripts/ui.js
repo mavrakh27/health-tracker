@@ -736,7 +736,7 @@ const UI = {
             const logEntry = summary.weightLog.find(w => Math.abs(w.timestamp - new Date(entry.timestamp).getTime()) < 60000);
             if (logEntry) logEntry.value = updated.weight_value;
           }
-          await DB.saveDailySummary(updated.date, summary);
+          await DB.updateDailySummary(updated.date, summary);
         }
         // Sync both old and new dates if the entry moved
         CloudRelay.queueUpload(newDate);
