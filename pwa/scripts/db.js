@@ -420,7 +420,7 @@ async function importAnalysis(dateStr, data) {
   const stores = ['analysis', 'photos'];
   if (db.objectStoreNames.contains('analysisHistory')) stores.push('analysisHistory');
   if (data.mealPlan) stores.push('mealPlan');
-  if (data.regimen || data.pwaProfile || data.supplementUpdates) stores.push('profile');
+  if (data.regimen || data.pwaProfile || data.supplementUpdates || data.settingUpdates) stores.push('profile');
   const tx = db.transaction(stores, 'readwrite');
 
   // Extract and save bundled meal plan and regimen before storing analysis
@@ -507,6 +507,37 @@ async function importAnalysis(dateStr, data) {
           }
         }
         profileStore2.put({ key: 'supplements', value: existing });
+      };
+    }
+  }
+
+  // Apply coach setting updates (goals, preferences changes requested via chat)
+  if (data.settingUpdates && typeof data.settingUpdates === 'object') {
+    const profileStore3 = tx.objectStore('profile');
+
+    if (data.settingUpdates.goals) {
+      const goalsReq = profileStore3.get('goals');
+      goalsReq.onsuccess = () => {
+        const existing = goalsReq.result?.value || {};
+        const updates = data.settingUpdates.goals;
+        // Shallow merge top-level, deep merge 'hardcore' sub-object
+        for (const [k, v] of Object.entries(updates)) {
+          if (k === 'hardcore' && typeof v === 'object') {
+            existing.hardcore = { ...(existing.hardcore || {}), ...v };
+          } else {
+            existing[k] = v;
+          }
+        }
+        profileStore3.put({ key: 'goals', value: existing });
+      };
+    }
+
+    if (data.settingUpdates.preferences) {
+      const prefsReq = profileStore3.get('preferences');
+      prefsReq.onsuccess = () => {
+        const existing = prefsReq.result?.value || {};
+        Object.assign(existing, data.settingUpdates.preferences);
+        profileStore3.put({ key: 'preferences', value: existing });
       };
     }
   }

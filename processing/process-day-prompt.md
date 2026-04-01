@@ -241,6 +241,11 @@ Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing the
     { "replyTo": "coach_msgid", "text": "Response to user's question", "timestamp": 0 }
   ],
 
+  "settingUpdates": {
+    "goals": { "calories": 1100 },
+    "preferences": { "mealsPerDay": 2 }
+  },
+
   "pwaProfile": { /* echo back profile/pwa-profile.json if it exists in the extracted data */ }
 }
 ```
@@ -265,7 +270,24 @@ Write a **single JSON file** to `{DATA_DIR}/analysis/{DATE}.json` containing the
    - Keep responses concise (2-4 sentences). Reference their actual data when relevant.
    - Tone: supportive coach, not lecturer. Encourage without being preachy.
 
-10. **Concerns should be forward-looking, not alarming:**
+10. **Coach Chat — setting modifications:**
+   - If a user's coach message asks to change goals, workout regimen, dietary preferences, or any other setting, include a `settingUpdates` field in the output JSON.
+   - Only modify settings when the user explicitly asks. Don't change settings based on analysis alone.
+   - Acknowledge the change in your coachResponse (e.g., "Done -- I've updated your calorie target to 1100").
+   - `settingUpdates` schema:
+   ```json
+   "settingUpdates": {
+     "goals": { "calories": 1100, "protein": 120 },
+     "preferences": { "mealsPerDay": 2 }
+   }
+   ```
+   - Supported fields in `settingUpdates`:
+     - `goals` -- partial object merged with existing goals. Keys: `calories`, `protein`, `water_oz`, `hardcore.calories`, `hardcore.protein`, `hardcore.water_oz`
+     - `preferences` -- partial object merged with existing preferences
+   - For regimen changes (new workout plan), output the full `regimen` field as you normally would in Phase 2 -- the existing import handles it. Just set `_planRequested: true` so Phase 2 generates a fresh plan.
+   - For complex requests ("design me an abs-focused program", "I want to switch to OMAD"), set `_planRequested: true` AND include the user's intent in your coachResponse so Phase 2 can read it and generate accordingly.
+
+11. **Concerns should be forward-looking, not alarming:**
     - The analysis may be generated mid-day while the user is still eating/drinking/exercising.
     - Frame concerns as tips for the rest of the day, not warnings about what's missing.
     - Good: "Dinner should target ~50g protein to close the gap"
