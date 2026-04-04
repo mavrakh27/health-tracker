@@ -325,17 +325,18 @@
     <div class="section" id="section-computer">
       <div class="section-label">Step 1 — Computer</div>
       <h2>Install the Coach plugin</h2>
-      <p>Coach uses Claude Code to analyze your food photos and generate personalized plans. Open a terminal on your computer and copy-paste each step:</p>
+      <p>Coach uses Claude Code to analyze your food photos and generate personalized plans. You'll need <a href="https://claude.ai/code" style="color: var(--accent);">Claude Code</a> with a Pro or Max subscription.</p>
 
       <div class="card" style="margin-bottom: 16px;">
-        <div class="platform-tabs" style="margin-bottom: 16px;">
-          <button class="platform-tab active" data-platform="mac">Mac / Linux</button>
-          <button class="platform-tab" data-platform="win">Windows</button>
-        </div>
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
             <h3>Create a folder for your coach data</h3>
+            <p>Open a terminal and run:</p>
+            <div class="platform-tabs" style="margin-bottom: 8px;">
+              <button class="platform-tab active" data-platform="mac">Mac / Linux</button>
+              <button class="platform-tab" data-platform="win">Windows</button>
+            </div>
             <div class="platform-content active" data-platform="mac">
               <div class="code-block" id="cmd-mkdir-mac">
                 mkdir coach && cd coach
@@ -354,26 +355,30 @@
           <div class="step-num">2</div>
           <div class="step-body">
             <h3>Install the Coach plugin</h3>
-            <p>Downloads profile templates, processing scripts, and the Coach skill into this folder.</p>
-            <div class="platform-content active" data-platform="mac">
-              <div class="code-block" id="cmd-mac">
-                curl -sL https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.sh | bash
-                <button class="copy-btn" data-copy="cmd-mac">Copy</button>
-              </div>
+            <p>Start Claude Code in that folder, then run these commands inside Claude:</p>
+            <div class="code-block" id="cmd-plugin-add">
+              /plugin marketplace add nEmily/health-tracker
+              <button class="copy-btn" data-copy="cmd-plugin-add">Copy</button>
             </div>
-            <div class="platform-content" data-platform="win">
-              <div class="code-block" id="cmd-win">
-                irm https://raw.githubusercontent.com/nEmily/health-tracker/main/install-coach.ps1 | iex
-                <button class="copy-btn" data-copy="cmd-win">Copy</button>
-              </div>
+            <div class="code-block" id="cmd-plugin-install" style="margin-top: 8px;">
+              /plugin install coach@health-tracker
+              <button class="copy-btn" data-copy="cmd-plugin-install">Copy</button>
             </div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">When prompted, choose "in this repo only".</p>
           </div>
         </div>
         <div class="step">
           <div class="step-num">3</div>
           <div class="step-body">
+            <h3>Restart Claude</h3>
+            <p>Exit Claude (<code>/exit</code>) and reopen it in the same folder. The Coach persona activates automatically.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
             <h3>Start coaching</h3>
-            <p>Type <code>claude</code> in the coach folder. Coach detects you're new and walks you through everything — goals, phone pairing, and automated processing.</p>
+            <p>Coach detects you're new and walks you through everything -- goals, phone pairing, and automated processing. After setup, just type <code>coach</code> in any terminal to start a session.</p>
           </div>
         </div>
       </div>
@@ -471,11 +476,6 @@
     const isAndroid = /Android/.test(ua);
     const isMac = /Mac/.test(ua) && !isIOS;
 
-    // Auto-select platform tab
-    if (!isMac && !isIOS) {
-      document.querySelector('[data-platform="win"]')?.click();
-    }
-
     // Tab switching
     document.querySelectorAll('.platform-tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -485,6 +485,11 @@
         document.querySelectorAll(`.platform-content[data-platform="${tab.dataset.platform}"]`).forEach(c => c.classList.add('active'));
       });
     });
+
+    // Auto-select platform tab (after listeners are registered)
+    if (!isMac && !isIOS) {
+      document.querySelector('[data-platform="win"]')?.click();
+    }
 
     // Platform-specific install instructions
     const installP = document.getElementById('install-detail');
@@ -503,7 +508,16 @@
         setTimeout(() => btn.textContent = 'Copy', 2000);
       };
       if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(text).then(done);
+        navigator.clipboard.writeText(text).then(done).catch(() => {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.cssText = 'position:fixed;left:-9999px';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          done();
+        });
       } else {
         const ta = document.createElement('textarea');
         ta.value = text;
@@ -593,7 +607,7 @@
 
     // If accessed on phone with ?key= param, redirect to the app
     if (params.has('key')) {
-      location.href = `${APP_BASE}?key=${params.get('key')}${params.has('relay') ? '&relay=' + params.get('relay') : ''}`;
+      location.href = `${APP_BASE}?key=${encodeURIComponent(params.get('key'))}${params.has('relay') ? '&relay=' + encodeURIComponent(params.get('relay')) : ''}`;
     }
 
     // If accessed on computer with ?sync= param, auto-generate QR code
