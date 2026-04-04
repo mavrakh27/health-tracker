@@ -355,23 +355,22 @@
           <div class="step-num">2</div>
           <div class="step-body">
             <h3>Install the Coach plugin</h3>
-            <p>Start Claude Code in that folder, then run these commands inside Claude:</p>
+            <p>Run these commands from your terminal (not inside Claude):</p>
             <div class="code-block" id="cmd-plugin-add">
-              /plugin marketplace add nEmily/health-tracker
+              claude plugin marketplace add nEmily/health-tracker
               <button class="copy-btn" data-copy="cmd-plugin-add">Copy</button>
             </div>
             <div class="code-block" id="cmd-plugin-install" style="margin-top: 8px;">
-              /plugin install coach@health-tracker
+              claude plugin install coach@health-tracker --scope local
               <button class="copy-btn" data-copy="cmd-plugin-install">Copy</button>
             </div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 8px;">When prompted, choose "in this repo only".</p>
           </div>
         </div>
         <div class="step">
           <div class="step-num">3</div>
           <div class="step-body">
-            <h3>Restart Claude</h3>
-            <p>Exit Claude (<code>/exit</code>) and reopen it in the same folder. The Coach persona activates automatically.</p>
+            <h3>Open Claude</h3>
+            <p>Start a fresh Claude session in the same folder. The Coach persona activates automatically.</p>
           </div>
         </div>
         <div class="step">
