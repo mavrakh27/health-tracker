@@ -76,6 +76,20 @@ Append to `.claude/changelog.md` immediately after implementing each feature (no
 
 Always delegate implementation, testing, and bug fixes to background agents. The main conversation should only coordinate, review results, and talk to the user — never do heavy file reading, code writing, or test running directly. This prevents context window exhaustion that causes session exits. Use `/agents`, `/bug`, and `/bug-hunt` skills liberally.
 
+**Plans must include the implement-validate-review loop.** Work runs in a cycle until done:
+
+1. **Plan review** — before any code, dispatch a review agent to check the plan for gaps
+2. **Implement** — dispatch implementation agent(s) to do the work + run validation checks
+3. **Review** — dispatch a separate review agent to check the output. Reviewers flag issues but never fix them.
+4. **Loop** — if review finds issues, feed them back to the implementation agent (step 2). Re-implement, re-validate, re-review. Repeat until review passes clean.
+
+The plan file must describe this loop explicitly, including what validation checks the implementer runs at each pass.
+
+**Review agent prompting rules:**
+- Review agents must verify claims against official documentation (fetch docs), not just local evidence. Absence of a feature in existing code does not mean the feature doesn't exist — check the spec.
+- When a review agent claims something "doesn't exist" or "isn't supported," the orchestrator must verify that claim against docs before accepting it. Extraordinary claims (entire features are fabricated) require extraordinary evidence.
+- Review agent prompts must include: use `claude-code-guide` or `WebFetch` to check official docs before concluding a feature is missing. Never base "feature X doesn't exist" solely on grep results of installed plugins.
+
 ## Branching
 
 - **`dev`** — default working branch. All iteration happens here. Push freely.

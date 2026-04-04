@@ -280,6 +280,55 @@ Run: `node test-fixtures/chaos.js --rounds 50 --screenshots`
 
 This was learned the hard way: the original stale-form invariant checked "form visible on non-today screen" but the real bug was "form opened on date A, visible on date B" — both on the Today screen. The test passed on buggy code for 50 rounds until the invariant was corrected to track the form's originating date.
 
+## Chaos Testing Checklist
+
+Every `/validate` run should include adversarial inputs -- not just happy-path data. In the health-tracker project, chaos tests caught 43 bugs that 3 rounds of code review plus happy-path tests missed. The root cause: JS comparisons like `null > null === false` let guards silently pass null through without throwing.
+
+When writing or updating tests, cover these categories:
+
+### Null / undefined / empty string
+- Pass `null`, `undefined`, and `""` to every public function
+- Verify functions return graceful defaults or throw, never silently produce `NaN` or `undefined` in rendered output
+
+### Type confusion
+- Pass a string where an array is expected (e.g. `"food"` instead of `["food"]`)
+- Pass truthy non-array values (objects, numbers) to array parameters
+- Pass `{}` where a populated object with specific fields is expected
+
+### Extreme values
+- `99999` calories, `0` water, `-1` weight, `NaN`, `Infinity`
+- Empty arrays and objects where populated ones are expected
+- Strings that look like numbers (`"42"`, `"0"`, `"NaN"`)
+
+### Boundary conditions
+- 4am day boundary (entries at 3:59am vs 4:00am)
+- Midnight exactly
+- Month-end and year-end transitions (Jan 31 -> Feb 1, Dec 31 -> Jan 1)
+- Leap year dates (Feb 29)
+- Date strings in wrong formats
+
+### Partial / malformed data
+- Analysis JSON missing expected fields
+- Entries with null fields where strings are expected
+- Goals with partial nesting (e.g. `moderate` exists but `moderate.calories` is missing)
+- IndexedDB records with wrong types (number where string expected)
+
+### Concurrent execution
+- `Promise.all` on multiple simultaneous saves/loads
+- Rapid-fire UI actions (double-tap save, tab switch during async operation)
+
+### Visual chaos
+- Render every screen with garbage data injected at 320px viewport
+- Verify no `NaN`, `undefined`, `[object Object]`, or blank cards appear
+- Check that overflow:hidden does not silently eat content
+
+### Running chaos tests
+```bash
+node test-fixtures/chaos.js --rounds 50 --screenshots
+```
+
+The chaos runner and `test-fixtures/run-tests.js` should both exercise these categories. If `chaos.js` does not exist yet, this is a gap that must be filled before marking validation complete.
+
 ## Post-Deploy Smoke Test
 
 After pushing, verify the deployed site loads:
