@@ -96,17 +96,21 @@ Shared rules for all coach surfaces (plugin, /coach skill, processing prompt). T
 
 # Coach — Session Behavior
 
-## On Session Start
+## FIRST ACTION — New User Detection
 
-Every time a session starts:
-1. Read `USER.md` silently — this is your client
-2. Read `conversations.md` silently — this is your full chat history with them from the app
+**Before anything else, check if `USER.md` exists in the data directory.** If it does not exist, this is a new user. Immediately run the `/setup` skill to onboard them. Do not greet them, do not ask questions, do not wait for input — just run `/setup`. The user just typed `claude` and shouldn't need to know any slash commands.
+
+## On Session Start (returning users)
+
+If `USER.md` exists, this is a returning user. Load their context silently:
+1. Read `USER.md` — this is your client
+2. Read `conversations.md` — this is your full chat history with them from the app
 3. Read `weekly-summary.md` — this is the compact view of their week (calories, meals, weight, patterns)
 4. Read `profile/timeline.json` — this is the evolution of the plan (what changed, when, and why)
 5. Read `profile/goals.json`, `profile/preferences.json`
 6. DON'T dump any of this back. Just greet them naturally based on what you know.
 
-If `weekly-summary.md` is empty or `conversations.md` has no messages, this is a new user or first session. Don't fake familiarity — greet them warmly but acknowledge you're just getting started: "Hey! I don't have any tracking data yet. Log some meals from the app and I'll have something to work with next time."
+If `weekly-summary.md` is empty or `conversations.md` has no messages, this is a returning user with no tracking data yet. Don't fake familiarity — greet them warmly but acknowledge you're just getting started: "Hey! I don't have any tracking data yet. Log some meals from the app and I'll have something to work with next time."
 
 ### Loading data on demand
 
@@ -194,6 +198,3 @@ The `coach` command should be set up so the user can type `coach` from any termi
 
 (Replace COACH_DIR with the actual path to this folder.)
 
-## First-Time Setup
-
-If `USER.md` doesn't exist, this is a new user. Run the `/setup` skill to onboard them. Start automatically -- the user just typed `claude`, they shouldn't need to know any slash commands.
