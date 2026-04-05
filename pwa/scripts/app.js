@@ -838,9 +838,6 @@ const App = {
       App.currentScreen = screenId;
     }
 
-    // Always ensure bottom nav is visible when switching screens
-    const nav = document.querySelector('.bottom-nav');
-    if (nav) nav.style.display = '';
 
     // Update nav
     document.querySelectorAll('.nav-item').forEach(item => {
@@ -1308,9 +1305,7 @@ const App = {
         el.style.display = on ? 'none' : '';
       });
     });
-    // Hide bottom nav in setup mode — no reason to show other tabs
-    const nav = document.querySelector('.bottom-nav');
-    if (nav) nav.style.display = (on && App.currentScreen === 'today') ? 'none' : '';
+    // Bottom nav always stays visible — users need to navigate even during setup
   },
 
   renderWelcomeCard() {
