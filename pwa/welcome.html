@@ -395,6 +395,8 @@
             <canvas id="pair-install-qr" width="200" height="200"></canvas>
           </div>
           <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan with your phone camera to install the app</p>
+          <p style="font-size: 13px; color: var(--text-muted);">or open this link on your phone:</p>
+          <p id="pair-install-url" style="font-size: 12px; color: var(--accent); word-break: break-all; margin-top: 4px;"></p>
         </div>
 
       </div>
@@ -567,6 +569,10 @@
     const installQrCanvas = document.getElementById('pair-install-qr');
     if (installQrCanvas) {
       renderQR(installQrCanvas, APP_BASE);
+    }
+    const installUrlEl = document.getElementById('pair-install-url');
+    if (installUrlEl) {
+      installUrlEl.textContent = APP_BASE;
     }
 
     const params = new URLSearchParams(location.search);
