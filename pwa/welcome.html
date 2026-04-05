@@ -323,16 +323,16 @@
 
     <!-- Step 1: Computer Setup -->
     <div class="section" id="section-computer">
-      <div class="section-label">Step 1 — Computer</div>
-      <h2>Install the Coach plugin</h2>
-      <p>Coach uses Claude Code to analyze your food photos and generate personalized plans. You'll need <a href="https://claude.ai/code" style="color: var(--accent);">Claude Code</a> with a Pro or Max subscription.</p>
+      <div class="section-label">Step 1 — Set up on your computer</div>
+      <h2>Get started with Coach</h2>
+      <p>Coach runs on your computer using <a href="https://claude.ai/code" style="color: var(--accent);">Claude Code</a> (Pro or Max). It analyzes your food photos, tracks calories, builds meal plans, and coaches you in real time.</p>
 
       <div class="card" style="margin-bottom: 16px;">
         <div class="step">
           <div class="step-num">1</div>
           <div class="step-body">
-            <h3>Create a folder for your coach data</h3>
-            <p>Open a terminal and run:</p>
+            <h3>Create a folder</h3>
+            <p>This is where Coach keeps your data. Open a terminal and run:</p>
             <div class="platform-tabs" style="margin-bottom: 8px;">
               <button class="platform-tab active" data-platform="mac">Mac / Linux</button>
               <button class="platform-tab" data-platform="win">Windows</button>
@@ -354,8 +354,8 @@
         <div class="step">
           <div class="step-num">2</div>
           <div class="step-body">
-            <h3>Install the Coach plugin</h3>
-            <p>Run these commands from your terminal (not inside Claude):</p>
+            <h3>Install Coach</h3>
+            <p>Still in your terminal, run these two commands:</p>
             <div class="code-block" id="cmd-plugin-add">
               claude plugin marketplace add nEmily/health-tracker
               <button class="copy-btn" data-copy="cmd-plugin-add">Copy</button>
@@ -369,32 +369,25 @@
         <div class="step">
           <div class="step-num">3</div>
           <div class="step-body">
-            <h3>Open Claude</h3>
-            <p>Start a fresh Claude session in the same folder. The Coach persona activates automatically.</p>
-          </div>
-        </div>
-        <div class="step">
-          <div class="step-num">4</div>
-          <div class="step-body">
-            <h3>Start coaching</h3>
-            <p>Coach detects you're new and walks you through everything -- goals, phone pairing, and automated processing. After setup, just type <code>coach</code> in any terminal to start a session.</p>
+            <h3>Launch Coach</h3>
+            <p>Type <code>claude</code> in the same folder. Coach will introduce itself and help you set up your goals, connect your phone, and get everything running.</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Step 2: Phone Pairing -->
+    <!-- Step 2: Phone -->
     <div class="section" id="section-pair">
-      <div class="section-label">Step 2 — Phone</div>
-      <h2>Connect your phone</h2>
-      <p>Scan the QR code below to install the app on your phone. Once it opens, Coach will give you a 4-digit pairing code to enter.</p>
+      <div class="section-label">Step 2 — Install on your phone</div>
+      <h2>Get the app</h2>
+      <p>Scan the QR code to open the app on your phone. Add it to your home screen, then enter the pairing code that Coach gives you during setup.</p>
 
       <div class="card">
         <div id="pair-auto-qr" style="text-align:center; margin-bottom: 16px;">
           <div class="qr-container">
             <canvas id="pair-install-qr" width="200" height="200"></canvas>
           </div>
-          <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan with your phone camera to install the app</p>
+          <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan with your phone camera</p>
           <p style="font-size: 13px; color: var(--text-muted);">or open this link on your phone:</p>
           <p id="pair-install-url" style="font-size: 12px; color: var(--accent); word-break: break-all; margin-top: 4px;"></p>
         </div>
