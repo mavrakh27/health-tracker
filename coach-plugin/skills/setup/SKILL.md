@@ -263,10 +263,17 @@ That's it — the app redeems the code, gets the sync key from the relay, and co
 
 **If the app shows "wait for setup" instead of the pairing code screen**, the user may have opened it via a direct link that already configured sync. They can go to Settings > Cloud Sync > Reset to get back to the pairing screen.
 
-**Verify the connection:**
-"Log a quick test — take a photo of whatever's in front of you and hit save. I'll pick it up on the next processing run and you'll see the analysis appear in the app."
+### 8. First sync — push goals to the phone
 
-### 8. Set up automated processing
+The phone is waiting for data. Run `/process-day` now to upload the user's profile and goals to the relay. This is what makes the phone's "waiting for setup" screen go away and show their actual plan.
+
+"Sending your goals to the app now..."
+
+Run the `/process-day` skill for today's date. Even with no food logged yet, this pushes the profile (goals, preferences, regimen) to the relay so the phone can display targets and meal plans.
+
+After it completes: "Check your phone — your goals and plan should be there now. Try logging a meal to test it out."
+
+### 9. Set up automatic processing
 
 **IMPORTANT:** Run `watcher.sh`/`watcher.ps1` (not `process-day` directly) — the watcher handles pending-data checks, quiet hours, and lock management.
 
@@ -285,7 +292,7 @@ Replace `COACH_DIR` with the actual path before giving it to the user.
 
 **Verify:** Windows: `Get-ScheduledTask -TaskName "CoachWatcher" | Select-Object State` / Mac: `crontab -l | grep Coach`
 
-### 9. Plugin Updates
+### 10. Plugin Updates
 
 "To get automatic updates when I improve, run this next time you open Claude:"
 
@@ -295,7 +302,7 @@ claude plugin marketplace → select health-tracker → Enable auto-update
 
 "Or update manually anytime with: `claude plugin update coach@health-tracker`"
 
-### 10. Lock down permissions
+### 11. Lock down permissions
 
 Rewrite `.claude/settings.json` to remove setup-only Bash commands. Only keep what Coach needs for normal sessions:
 ```json
@@ -310,7 +317,7 @@ Rewrite `.claude/settings.json` to remove setup-only Bash commands. Only keep wh
 }
 ```
 
-### 11. Confirm
+### 12. Confirm
 
 "You're all set! Here's your plan:
 - **Calories:** {target}/day ({hardcore} on crush-it days)
