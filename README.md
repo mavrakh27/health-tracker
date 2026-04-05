@@ -1,128 +1,126 @@
-# Coach — AI Health Tracker
+# Coach -- AI Health Tracker
 
-A personal health tracking PWA with AI-powered food analysis, workout planning, and daily coaching. Runs entirely on your own devices — no accounts, no cloud subscription, no third-party analytics.
+A personal health tracking app with AI-powered food analysis, calorie tracking, workout planning, and daily coaching. Snap food photos from your phone, and Coach analyzes everything -- calories, protein, macros, meal plans, and personalized feedback.
+
+Runs entirely on your own devices. No accounts, no third-party analytics, no API keys.
+
+---
+
+## How It Works
+
+1. **Log from your phone** -- snap meal photos, log workouts, water, weight
+2. **Coach processes automatically** -- your computer analyzes photos, estimates calories, generates meal plans
+3. **Results sync back** -- analysis, scores, and coaching feedback appear in the app within 30 minutes
+4. **Talk to Coach** -- message Coach from the app (async) or start a live session from your terminal
+
+---
+
+## Get Started
+
+### Install Coach
+
+Open a terminal on your computer:
+
+```bash
+mkdir coach && cd coach
+claude plugin marketplace add nEmily/health-tracker
+claude plugin install coach@health-tracker --scope local
+claude
+```
+
+Coach introduces itself and walks you through everything -- goals, phone setup, and processing.
+
+### Get the App on Your Phone
+
+Visit the [onboarding page](https://nemily.github.io/health-tracker/welcome.html) to scan a QR code or get a direct link. During setup, Coach gives you a 4-digit pairing code to connect your phone.
 
 ---
 
 ## Features
 
-- **Food logging** — log meals by photo or manually; AI estimates calories and macros from photos
-- **Calorie & macro tracking** — daily totals, targets, and trend charts
-- **Workout logging** — log sets and reps; track against your regimen
-- **Meal plans** — AI-generated daily suggestions based on your goals and history
-- **Workout recommendations** — personalized based on recent activity and targets
-- **Daily scoring** — dual moderate/hardcore scoring so you can see how you track against either plan
-- **Water & weight tracking** — quick-log from the home screen
-- **Cloud sync** — phone uploads data to a relay; your computer processes and syncs results back
-- **Offline-capable** — full PWA, works without a connection
+- **Food photo analysis** -- snap a photo, get calorie and macro estimates
+- **Calorie and macro tracking** -- daily totals, targets, and trends
+- **Personalized meal plans** -- generated from your goals, preferences, and history
+- **Workout tracking** -- log exercises, track against your regimen
+- **Daily scoring** -- 0-100 score based on calories, protein, workouts, water, and consistency
+- **AI coaching** -- real-time or async, references your actual data (not generic advice)
+- **Water and weight tracking** -- quick-log from the home screen
+- **Progress insights** -- weekly deficits, streaks, best/worst days, macro splits
+- **Cloud sync** -- phone uploads data, your computer processes it, results sync back
+- **Offline-capable** -- full PWA, works without a connection
+- **Challenge tracking** -- 75 Hard, 30 Hard, custom challenges with shareable progress cards
 
 ---
 
 ## Tech Stack
 
-- **Frontend:** Vanilla HTML/CSS/JS — no framework, no build step
-- **Storage:** IndexedDB (on-device)
-- **Sync:** Cloudflare Worker + R2 (self-hosted relay)
-- **AI processing:** Claude Code CLI (runs on your own computer)
-- **Hosting:** GitHub Pages
+| Layer | Tech |
+|-------|------|
+| Frontend | Vanilla HTML/CSS/JS -- no framework, no build step |
+| Storage | IndexedDB (on-device) |
+| Sync | Cloudflare Worker + R2 (shared relay) |
+| AI processing | Claude Code plugin (runs on your computer) |
+| Hosting | GitHub Pages |
 
 ---
 
-## System Architecture
+## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Phone["Phone — PWA"]
-        PWA["Coach PWA\nvanilla HTML/CSS/JS"]
-        IDB[("IndexedDB\nentries, photos, analysis\ngoals, skincare, profile")]
-        SW["Service Worker\noffline cache"]
+    subgraph Phone["Phone -- PWA"]
+        PWA["Coach App"]
+        IDB[("IndexedDB")]
         PWA --> IDB
-        PWA --> SW
     end
 
-    subgraph Relay["Cloud Relay — Cloudflare"]
-        Worker["Cloudflare Worker\nREST API"]
-        R2["R2 Storage\nZIPs + analysis JSON"]
+    subgraph Relay["Cloud Relay"]
+        Worker["Cloudflare Worker"]
+        R2["R2 Storage"]
         Worker --> R2
     end
 
     subgraph PC["Your Computer"]
-        Watcher["watcher.ps1\nruns every 30 min"]
-        ProcessDay["process-day.bat\norchestrates pipeline"]
-        Claude["Claude Code CLI\nfood photo analysis\nmeal plans, coaching"]
-        DataDir["~/HealthTracker/\ndaily, analysis, logs"]
-        Watcher --> ProcessDay
-        ProcessDay --> Claude
-        Claude --> DataDir
+        Plugin["Coach Plugin"]
+        Claude["Claude Code"]
+        Data["Coach data folder"]
+        Plugin --> Claude
+        Claude --> Data
     end
 
-    PWA -- "upload ZIPs\n(entries + photos)" --> Worker
-    Worker -- "download pending" --> ProcessDay
-    DataDir -- "upload analysis JSON" --> Worker
+    PWA -- "upload entries + photos" --> Worker
+    Worker -- "download pending" --> Plugin
+    Data -- "upload analysis" --> Worker
     Worker -- "sync results" --> PWA
 ```
-
-### Data Flow
-
-1. **Log** — Snap a meal photo or tap to log water/weight/workout on your phone
-2. **Upload** — PWA bundles entries + photos into a ZIP, uploads to the relay
-3. **Process** — Your computer's watcher downloads the ZIP every 30 min, runs Claude Code to analyze food photos, estimate calories, generate meal plans, and produce coaching feedback
-4. **Sync back** — Analysis JSON uploads to the relay, PWA pulls it down and shows inline calories, macro breakdowns, and coach messages
-
-### Today Screen
-
-```mermaid
-flowchart LR
-    Diet["Diet\nfood log, stats\nmeal suggestion"]
-    Fitness["Fitness\nexercise checklist\nform cues, notes"]
-    Skin["Skin\nAM/PM routine\nproduct checklist"]
-    Diet <--> Fitness <--> Skin
-```
-
-Three swipeable panels on the Today screen. Each panel has its own content and state, all sharing the same date context and score card.
-
-### Key Design Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| No framework | Zero build step, instant deploys, works forever |
-| IndexedDB | Structured storage with indexes, no size limits, offline-first |
-| Cloudflare Worker relay | Free tier covers personal use, global edge, no server to maintain |
-| Claude Code CLI (not API) | Runs on your existing subscription, no API key needed, full tool access |
-| Photos analyzed then deleted | Privacy-first: photos never leave your devices permanently |
-| Dual scoring (moderate/hardcore) | See progress against both a sustainable plan and a stretch target |
-
----
-
-## Quick Start
-
-1. **Install the app** — visit the GitHub Pages URL in Safari or Chrome, then Add to Home Screen
-2. **Set your goals** — the onboarding wizard walks you through it
-3. *(Optional)* **Set up cloud sync + AI processing** for photo analysis and coaching
-
-Full guide: [docs/getting-started.md](docs/getting-started.md)
-
----
-
-## Self-Hosting
-
-- **Relay (Cloudflare Worker):** [docs/relay-setup.md](docs/relay-setup.md)
-- **Processing (Windows / Mac / Linux):** [docs/processing-setup.md](docs/processing-setup.md)
 
 ---
 
 ## Privacy
 
-- All health data stays on your device and your own infrastructure
-- Food photos are analyzed by your own Claude Code subscription — not sent to any third-party service
-- The cloud relay (if you deploy it) is your own Cloudflare Worker
+- All health data stays on your devices
+- Food photos are analyzed by your own Claude Code subscription
+- The cloud relay only passes data between your phone and computer
 - No analytics, no tracking, no accounts
+- Meal photos are deleted after analysis; body photos stay local
+
+---
+
+## Coach Plugin
+
+Coach is a Claude Code plugin. It activates as your main conversation thread and provides:
+
+- `/coach` -- live 1:1 coaching session
+- `/process-day` -- process a day's health data
+- `/setup` -- new user onboarding
+
+The plugin includes an auto-generated SDK (`coach-sdk.md`) so Coach understands the data contract, and an app guide (`app-guide.md`) for navigating users through the PWA.
 
 ---
 
 ## Contributing
 
-See [.claude/skills/contribute/SKILL.md](.claude/skills/contribute/SKILL.md) for development setup and contribution guidelines.
+See the [contributor guide](.claude/skills/contribute/SKILL.md) for development setup.
 
 ---
 
