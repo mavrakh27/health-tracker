@@ -397,26 +397,6 @@
           <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan with your phone camera to install the app</p>
         </div>
 
-        <details style="margin-top: 8px;">
-          <summary style="font-size: 13px; color: var(--text-muted); cursor: pointer;">Advanced: pair with sync key</summary>
-          <div style="margin-top: 8px;">
-            <div class="pair-input-row">
-              <input type="text" id="pair-key" placeholder="Paste your sync key (UUID)" autocomplete="off" spellcheck="false">
-            </div>
-            <button class="btn btn-primary" id="pair-generate">Generate Pairing QR Code</button>
-          </div>
-        </details>
-
-        <div id="pair-result" style="display:none;">
-          <div class="pair-section">
-            <div class="qr-container">
-              <canvas id="pair-qr" width="200" height="200"></canvas>
-            </div>
-            <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan this with your phone camera</p>
-            <p class="pair-url" id="pair-url-display"></p>
-            <button class="btn btn-secondary copy-btn" id="pair-copy-url">Copy Link</button>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -589,49 +569,11 @@
       renderQR(installQrCanvas, APP_BASE);
     }
 
-    document.getElementById('pair-generate').addEventListener('click', () => {
-      const key = document.getElementById('pair-key').value.trim();
-      if (!key) { alert('Enter your sync key'); return; }
-
-      const pairUrl = `${APP_BASE}?key=${encodeURIComponent(key)}&relay=${encodeURIComponent(SHARED_RELAY)}`;
-
-      // Render QR
-      try {
-        renderQR(document.getElementById('pair-qr'), pairUrl);
-      } catch (e) {
-        console.warn('QR generation failed, showing URL only:', e);
-      }
-
-      document.getElementById('pair-url-display').textContent = pairUrl;
-      document.getElementById('pair-result').style.display = 'block';
-
-      // Auto-fill Apple Health URL with this sync key
-      const healthUrl = `${SHARED_RELAY}/sync/${encodeURIComponent(key)}/health/`;
-      const healthDisplay = document.getElementById('health-url-display');
-      if (healthDisplay) healthDisplay.textContent = healthUrl + '{today}';
-
-      // Scroll to result
-      document.getElementById('pair-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-
-    document.getElementById('pair-copy-url').addEventListener('click', () => {
-      const url = document.getElementById('pair-url-display').textContent;
-      const btn = document.getElementById('pair-copy-url');
-      copyText(url, btn);
-    });
-
     const params = new URLSearchParams(location.search);
 
-    // If accessed on phone with ?key= param, redirect to the app
+    // Legacy: if accessed on phone with ?key= param, redirect to the app
     if (params.has('key') && params.get('key')) {
       location.href = `${APP_BASE}?key=${encodeURIComponent(params.get('key'))}${params.has('relay') ? '&relay=' + encodeURIComponent(params.get('relay')) : ''}`;
-    }
-
-    // If accessed on computer with ?sync= param, auto-generate QR code
-    if (params.has('sync')) {
-      const input = document.getElementById('pair-key');
-      input.value = params.get('sync');
-      document.getElementById('pair-generate').click();
     }
   </script>
 </body>
