@@ -66,7 +66,10 @@ If the directory already has data (profile/, analysis/), this is a re-setup — 
       "Bash(uuidgen*)",
       "Bash(python3 -c*)",
       "Bash(crontab *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(npx *)",
+      "Bash(curl *)",
+      "Bash(echo *)"
     ]
   }
 }
@@ -241,10 +244,17 @@ curl -s -X PUT "$RELAY/pair" \
 echo "Pairing code: $CODE"
 ```
 
-**Step B — Direct the user to open the app on their phone:**
-"Open https://nemily.github.io/health-tracker/welcome.html on your computer — there's a QR code you can scan with your phone to install the app."
+**Step B — Show a QR code in the terminal:**
+Render a QR code right here so the user can scan it with their phone:
+```bash
+npx --yes qrcode-terminal "https://nemily.github.io/health-tracker/" --small
+```
+This prints a scannable QR code using Unicode blocks. Also print the URL as a fallback:
+"Scan the QR code above with your phone camera, or open this link: https://nemily.github.io/health-tracker/"
 
-The welcome page (step 2) has a QR code that opens the app. Once the app is installed and opened:
+"Once the app opens, install it to your home screen first (menu > Install app on Android, Share > Add to Home Screen on iPhone), then open it from there."
+
+Once the app is installed and opened:
 
 **Step C — Give the user the 4-digit code:**
 "The app should show a screen asking for a pairing code. Enter: **{CODE}**"
