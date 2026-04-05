@@ -101,7 +101,7 @@ const AdaptiveGoals = {
     // If expectedRate = -0.5 and weeklyChange = -1.0 → losing 0.5 lbs/wk too fast
     const deviation = weeklyChange - expectedRate;
 
-    const currentTarget = goals.calories || 1200;
+    const currentTarget = goals.calories || 2000;
 
     // Within tolerance: no suggestion
     if (Math.abs(deviation) < AdaptiveGoals.TOLERANCE) return null;

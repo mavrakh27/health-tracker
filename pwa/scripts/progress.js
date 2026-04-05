@@ -51,7 +51,7 @@ const ProgressView = {
           const suggested = parseInt(acceptBtn.dataset.suggested, 10);
           if (!suggested) return;
           const goals = await DB.getProfile('goals') || {};
-          const oldCal = goals.calories || 1200;
+          const oldCal = goals.calories || 2000;
           goals.calories = suggested;
           // Also update hardcore variant proportionally
           if (goals.hardcore?.calories) {
@@ -134,7 +134,7 @@ const ProgressView = {
     const startDate = timeline.start || today;
     const analyses = await DB.getAnalysisRange(startDate, today);
     if (analyses.length > 0) {
-      const calTarget = goals.calories || 1200;
+      const calTarget = goals.calories || 2000;
       const proTarget = goals.protein || 105;
       const calHits = analyses.filter(a => (a.totals?.calories || 0) <= calTarget * 1.1).length;
       const proHits = analyses.filter(a => (a.totals?.protein || 0) >= proTarget * 0.85).length;
@@ -1800,7 +1800,7 @@ const ProgressView = {
     const analyses = await DB.getAnalysisRange(monday, today);
     if (analyses.length === 0) return '';
 
-    const calTarget = goals.calories || 1200;
+    const calTarget = goals.calories || 2000;
     let totalDeficit = 0;
     for (const a of analyses) {
       const actual = a.totals?.calories || 0;
@@ -1849,7 +1849,7 @@ const ProgressView = {
     const actualPerWeek = ((last.weight - first.weight) / daysBetween * 7).toFixed(1);
 
     // Expected from deficit
-    const calTarget = goals.calories || 1200;
+    const calTarget = goals.calories || 2000;
     let totalDeficit = 0;
     let daysWithData = 0;
     for (const a of analyses) {

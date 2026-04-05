@@ -23,14 +23,17 @@ const QuickLog = {
       { type: 'batchPhotos', icon: UI.svg.gallery, label: 'Batch Photos', color: 'var(--color-meal)', desc: 'Upload multiple meal photos at once' },
     ];
 
-    // Add period option with dynamic label
-    const periodState = await Period.getState();
-    builtIn.push({
-      type: 'period', icon: UI.svg.period,
-      label: periodState.active ? 'End Period' : 'Period',
-      color: 'var(--color-period)',
-      desc: periodState.active ? `Day ${Math.floor((new Date(UI.today() + 'T12:00:00') - new Date(periodState.startDate + 'T12:00:00')) / 86400000) + 1} — tap to end` : 'Start tracking your cycle',
-    });
+    // Add period option only if explicitly enabled in preferences
+    const prefs = await DB.getProfile('preferences') || {};
+    if (prefs.trackPeriod) {
+      const periodState = await Period.getState();
+      builtIn.push({
+        type: 'period', icon: UI.svg.period,
+        label: periodState.active ? 'End Period' : 'Period',
+        color: 'var(--color-period)',
+        desc: periodState.active ? `Day ${Math.floor((new Date(UI.today() + 'T12:00:00') - new Date(periodState.startDate + 'T12:00:00')) / 86400000) + 1} — tap to end` : 'Start tracking your cycle',
+      });
+    }
 
     // User-specific options (added by relay/coach processing)
     const custom = await DB.getProfile('moreOptions') || [];
@@ -1012,6 +1015,7 @@ const App = {
       // Check if this is a brand new user (no entries anywhere)
       const hasAnyEntries = isToday ? await DB.hasAnyEntries() : true;
       const hasAnalysis = isToday ? !!(await DB.getAnalysis(date)) : false;
+      if (App.currentScreen !== 'today') return;
       if (isToday && !hasAnyEntries && !hasAnalysis) {
         // Pre-populate goals for new users
         await App.ensureDefaultGoals();
@@ -1067,8 +1071,11 @@ const App = {
       });
     }
 
-    // Period banner (shows if period is active on this date)
-    await Period.renderBanner(date, entryList);
+    // Period banner (shows if period is active on this date, and tracking is enabled)
+    const _periodPrefs = await DB.getProfile('preferences') || {};
+    if (_periodPrefs.trackPeriod) {
+      await Period.renderBanner(date, entryList);
+    }
 
     // Render stats and score in parallel — both use preloaded data
     const preloaded = { goals, summary, entries, analysis, regimen };
@@ -1096,7 +1103,7 @@ const App = {
           workoutEl.innerHTML = fitnessHtml;
           Fitness.bindEvents(date, workoutEl);
         } else {
-          workoutEl.innerHTML = '';
+          workoutEl.innerHTML = '<div class="card" style="padding: var(--space-lg); text-align: center; color: var(--text-secondary); font-size: var(--text-sm);">Log a workout from the + button above, or set up a workout plan in a coaching session.</div>';
         }
       } catch (e) { console.warn('Workout render error:', e); workoutEl.innerHTML = ''; }
     }
@@ -1299,7 +1306,7 @@ const App = {
     });
     // Hide bottom nav in setup mode — no reason to show other tabs
     const nav = document.querySelector('.bottom-nav');
-    if (nav) nav.style.display = on ? 'none' : '';
+    if (nav) nav.style.display = (on && App.currentScreen === 'today') ? 'none' : '';
   },
 
   renderWelcomeCard() {
@@ -1856,7 +1863,7 @@ const App = {
     let calTarget = null;
     const analysis = preloaded?.analysis ?? await DB.getAnalysis(date);
     const goals = preloaded?.goals ?? (await DB.getProfile('goals') || {});
-    calTarget = goals.calories || 1200;
+    calTarget = goals.calories || 2000;
     if (analysis?.totals?.calories != null) {
       calEaten = analysis.totals.calories;
     }

@@ -43,6 +43,43 @@ New users pair in Settings > Cloud Sync:
 2. User enters the sync key in the PWA's Settings tab
 3. Once paired, data flows automatically: phone uploads → relay → computer processes → results sync back
 
+## Meal Plan Format (Progress > Plan tab)
+
+The Plan tab renders from the `mealPlan` field in the analysis JSON. When pushing a meal plan, use this structure:
+
+```json
+{
+  "mealPlan": {
+    "generatedDate": "YYYY-MM-DD",
+    "theme": "Short description shown as subtitle",
+    "days": [
+      {
+        "date": "YYYY-MM-DD",
+        "dayType": "optional label (e.g. 'cut day')",
+        "day_totals": { "calories": 1200, "protein": 100, "snack_buffer": 150 },
+        "meals": [
+          {
+            "type": "breakfast",
+            "suggestion": "Greek yogurt with berries",
+            "calories": 300,
+            "protein": 25,
+            "prep_time": "5 min"
+          }
+        ]
+      }
+    ],
+    "shoppingList": {
+      "proteins": ["chicken breast", "greek yogurt"],
+      "produce": ["spinach", "berries"],
+      "pantry": ["rice", "olive oil"],
+      "already_have": ["salt", "pepper"]
+    }
+  }
+}
+```
+
+Key fields: `theme` (subtitle), `days` (array with meals), `shoppingList` (optional). If `days` is empty, the Plan tab shows just the `theme` text. Always include `mealPlan` in the analysis JSON after setup — even tracking-only users should see a message explaining their mode.
+
 ## What Happens After Processing
 
 Every 30 minutes, the user's computer:
