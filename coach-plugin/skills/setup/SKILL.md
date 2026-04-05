@@ -293,7 +293,22 @@ claude plugin marketplace → select health-tracker → Enable auto-update
 
 "Or update manually anytime with: `claude plugin update coach@health-tracker`"
 
-### 10. Confirm
+### 10. Lock down permissions
+
+Rewrite `.claude/settings.json` to remove setup-only Bash commands. Only keep what Coach needs for normal sessions:
+```json
+{
+  "permissions": {
+    "allow": [
+      "Read(.)",
+      "Edit(.)",
+      "Write(.)"
+    ]
+  }
+}
+```
+
+### 11. Confirm
 
 "You're all set! Here's your plan:
 - **Calories:** {target}/day ({hardcore} on crush-it days)
