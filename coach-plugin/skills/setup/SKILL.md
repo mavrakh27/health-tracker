@@ -273,13 +273,21 @@ Run the `/process-day` skill for today's date. Even with no food logged yet, thi
 
 After it completes: "Check your phone — your goals and plan should be there now. Try logging a meal to test it out."
 
-### 9. Set up automatic processing
+### 9. Set up processing
+
+Ask the user how they want their food photos and data analyzed:
+
+"I need to process your food photos and sync results back to your phone. How do you want that to work?"
+
+- **Automatic** — "My computer is usually on. Set it up to run in the background." → Set up a scheduled task/cron that runs every 30 minutes.
+- **When I open Coach** — "I'll just run it when I start a session." → Skip the scheduled task. Each time the user types `coach`, processing runs as part of the session start.
+- **Manual** — "I'll tell you when." → Skip entirely. User runs `/process-day` when they want.
+
+If they choose **automatic**, walk them through the scheduled task setup:
 
 **IMPORTANT:** Run `watcher.sh`/`watcher.ps1` (not `process-day` directly) — the watcher handles pending-data checks, quiet hours, and lock management.
 
-"One more thing — let's set up the auto-pilot so I analyze your food photos every 30 minutes. You'll need to paste a command:"
-
-**Windows — elevated PowerShell (Run as Administrator):**
+**Windows — they'll need to paste this in an elevated PowerShell (Run as Administrator):**
 ```powershell
 $a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"COACH_DIR\processing\watcher.ps1`""; $t = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Days 3650); $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries; Register-ScheduledTask -TaskName "CoachWatcher" -Action $a -Trigger $t -Settings $s -Description "Coach - processes health data every 30 min"
 ```
@@ -291,6 +299,8 @@ $a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPoli
 Replace `COACH_DIR` with the actual path before giving it to the user.
 
 **Verify:** Windows: `Get-ScheduledTask -TaskName "CoachWatcher" | Select-Object State` / Mac: `crontab -l | grep Coach`
+
+Save their choice to `profile/preferences.json` under `processing.mode` (`"automatic"`, `"on-session"`, or `"manual"`) so future sessions know how to behave.
 
 ### 10. Plugin Updates
 
