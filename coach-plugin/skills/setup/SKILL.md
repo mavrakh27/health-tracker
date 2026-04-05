@@ -30,6 +30,18 @@ Structure:
 └── .claude/           — Skills, memory
 ```
 
+## How to Communicate During Setup
+
+**Explain each step in plain language before doing it.** Give the user a chance to say yes or skip. Don't dump technical details unless they ask — but be ready to explain if they're curious.
+
+Example flow:
+- "I'll set up some folders to keep your data organized."
+- "I'm going to create a private sync key so your phone and this computer can talk to each other securely. Your data stays between them."
+- "I can add a shortcut so you just type `coach` from any terminal to start a session — would you like that?"
+- "I can also set up automatic processing so I check your food photos every 30 minutes and send analysis back to your phone. Sound good?"
+
+If the user says no to something, skip it and move on. They can always set it up later.
+
 ## Steps
 
 ### 1. Create the folder structure
@@ -39,6 +51,26 @@ mkdir -p .claude/skills .claude/memory profile analysis logs processing
 ```
 
 If the directory already has data (profile/, analysis/), this is a re-setup — skip creation.
+
+**Write `.claude/settings.json` FIRST** — before any other file operations. This grants Coach permission to read/write files and run setup commands without per-action prompts. The user will be asked to approve this one file, and everything after that flows without interruption.
+```json
+{
+  "permissions": {
+    "allow": [
+      "Read(.)",
+      "Edit(.)",
+      "Write(.)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(cat *)",
+      "Bash(uuidgen*)",
+      "Bash(python3 -c*)",
+      "Bash(crontab *)",
+      "Bash(node *)"
+    ]
+  }
+}
+```
 
 ### 2. Write SOUL.md and CLAUDE.md
 
@@ -83,14 +115,12 @@ RELAY_URL = https://health-sync.emilyn-90a.workers.dev
 ```
 Note: all users share this relay. Data is isolated by sync key.
 
-**Generate a sync key:**
+**Generate a sync key yourself** — the user should NOT have to do this. Coach generates the UUID via Bash and shows it to the user:
 ```bash
-# PowerShell
-$key = [System.Guid]::NewGuid().ToString()
-
 # Bash (fallback chain: uuidgen → python3 → openssl)
 key=$(uuidgen 2>/dev/null || python3 -c "import uuid; print(uuid.uuid4())" 2>/dev/null || openssl rand -hex 16 | sed 's/\(.\{8\}\)\(.\{4\}\)\(.\{4\}\)\(.\{4\}\)/\1-\2-\3-\4-/')
 if [ -z "$key" ]; then echo "ERROR: Could not generate UUID. Install uuidgen or python3."; exit 1; fi
+echo "$key"
 ```
 
 **Set environment variables** (data dir = current directory):
@@ -162,21 +192,22 @@ done
 
 ### 6. Run onboarding conversation
 
-This is the heart of setup. Adopt the Coach persona (read SOUL.md) and have a natural conversation:
+This is the heart of setup. Adopt the Coach persona and have a casual, natural conversation — NOT a structured intake form.
 
-**Introduce yourself:**
-"Hey! I'm Coach. I'm going to be your health buddy — tracking what you eat, keeping you accountable, and helping you hit your goals. Let me learn about you first."
+**Greet them by name** (from their Claude account) and pitch what you can do:
+"Hey {name}! I'm Coach. I can track your calories, build meal plans, plan workouts, keep you accountable — whatever you need on the health and fitness side. What are you looking for?"
 
-**Ask one question at a time** (conversational, not a form):
-1. "What's your height and current weight?"
-2. "What's your main goal? Lose weight, get stronger, eat healthier, all of the above?"
-3. "Any specific target? Like 'lose 10 lbs by summer' or 'run a 5K'?"
-4. "How active are you day-to-day? Office job, on your feet, pretty active?"
-5. "How many meals do you usually eat? Any schedule constraints? (Partner's schedule, office cafeteria, etc.)"
-6. "Any foods you love that you want to keep in the plan?"
-7. "Any foods you hate, allergies, or dietary restrictions?"
-8. "What equipment do you have for workouts? Gym membership, home stuff, just bodyweight?"
-9. "What's your biggest challenge with eating right now? Late-night snacking, portions, skipping meals?"
+Then let them lead. Keep it open-ended from there.
+
+**Let the conversation flow naturally.** The user might give you everything in one message ("I want to lose 20 lbs, I'm 5'6 145, I hate cooking") or they might be vague ("just calorie tracking"). Match their energy:
+- If they're detailed and goal-oriented, ask follow-ups to dial in targets
+- If they're casual ("just simple calorie tracking"), don't push for a 9-point questionnaire — set sensible defaults and let things emerge from their actual logs
+
+**What you need (gather organically, not as a checklist):**
+- Their goal (lose weight, maintain, get stronger, just track)
+- Rough stats if they offer them (height, weight) — don't demand these
+- Any dietary constraints worth knowing upfront (allergies, vegetarian, etc.)
+- Equipment situation if they mention workouts
 
 **Calculate and write goals:**
 - BMR via Mifflin-St Jeor, TDEE with activity multiplier
@@ -192,75 +223,67 @@ This is the heart of setup. Adopt the Coach persona (read SOUL.md) and have a na
 - `profile/preferences.json` — meal structure, dietary preferences, schedule
 - `profile/regimen.json` — starter workout plan based on equipment and experience
 
-**Ask about skincare** (optional — they can skip):
-- Skin type, concerns, current products, budget, time commitment
-- Write `profile/skincare.json` if they're interested
+**Don't ask about skincare during setup.** If the user brings it up later in a coaching session, set it up then.
 
-### 7. Set up automated processing (guided, during conversation)
+### 7. Connect the phone
 
-After the onboarding questions, guide the user through setting up the scheduled task. They need to run these commands themselves — walk them through it conversationally.
+This is the immediate next step after the conversation. You already generated the sync key in step 4 — the user should never have to see or manage it.
+
+**Step A — Generate a 4-digit pairing code:**
+Register a temporary pairing code with the relay. The code expires in 15 minutes.
+```bash
+CODE=$(printf '%04d' $((RANDOM % 10000)))
+RELAY="https://health-sync.emilyn-90a.workers.dev"
+EXPIRES=$(date -u -d '+15 minutes' +%s000 2>/dev/null || date -u -v+15M +%s000)
+curl -s -X PUT "$RELAY/pair" \
+  -H "Content-Type: application/json" \
+  -d "{\"code\":\"$CODE\",\"syncKey\":\"$SYNC_KEY\",\"relay\":\"$RELAY\",\"expires\":$EXPIRES}"
+echo "Pairing code: $CODE"
+```
+
+**Step B — Direct the user to open the app on their phone:**
+"Open https://nemily.github.io/health-tracker/welcome.html on your computer — there's a QR code you can scan with your phone to install the app."
+
+The welcome page (step 2) has a QR code that opens the app. Once the app is installed and opened:
+
+**Step C — Give the user the 4-digit code:**
+"The app should show a screen asking for a pairing code. Enter: **{CODE}**"
+
+That's it — the app redeems the code, gets the sync key from the relay, and connects automatically. The user never sees the UUID.
+
+**If the app shows "wait for setup" instead of the pairing code screen**, the user may have opened it via a direct link that already configured sync. They can go to Settings > Cloud Sync > Reset to get back to the pairing screen.
+
+**Verify the connection:**
+"Log a quick test — take a photo of whatever's in front of you and hit save. I'll pick it up on the next processing run and you'll see the analysis appear in the app."
+
+### 8. Set up automated processing
 
 **IMPORTANT:** Run `watcher.sh`/`watcher.ps1` (not `process-day` directly) — the watcher handles pending-data checks, quiet hours, and lock management.
 
-**Frame it naturally:**
-"One more thing — let's set up the auto-pilot so I can analyze your food photos and update your plan every 30 minutes. You'll need to paste a command:"
+"One more thing — let's set up the auto-pilot so I analyze your food photos every 30 minutes. You'll need to paste a command:"
 
-**Windows — give them this single-line command:**
-```
-Tell the user to open an elevated PowerShell (Run as Administrator) and paste:
-```
+**Windows — elevated PowerShell (Run as Administrator):**
 ```powershell
 $a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"COACH_DIR\processing\watcher.ps1`""; $t = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Days 3650); $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries; Register-ScheduledTask -TaskName "CoachWatcher" -Action $a -Trigger $t -Settings $s -Description "Coach - processes health data every 30 min"
 ```
-Replace `COACH_DIR` with the actual path before giving it to the user.
 
-**Mac/Linux — give them this command:**
+**Mac/Linux:**
 ```bash
 (crontab -l 2>/dev/null; echo "*/30 * * * * . COACH_DIR/.env && bash COACH_DIR/processing/watcher.sh >> COACH_DIR/logs/watcher.log 2>&1") | crontab -
 ```
 Replace `COACH_DIR` with the actual path before giving it to the user.
 
-**Verify it worked:**
-- Windows: `Get-ScheduledTask -TaskName "CoachWatcher" | Select-Object State`
-- Mac/Linux: `crontab -l | grep Coach`
+**Verify:** Windows: `Get-ScheduledTask -TaskName "CoachWatcher" | Select-Object State` / Mac: `crontab -l | grep Coach`
 
-Tell the user what to expect: "Every 30 minutes, I'll check if you've logged anything new, analyze your food photos, estimate calories, and sync results back to your phone."
+### 9. Plugin Updates
 
-### 8. Plugin Updates
-
-Tell the user how to enable automatic plugin updates:
-
-"One last thing — to get automatic updates when I improve, run this next time you open Claude:"
+"To get automatic updates when I improve, run this next time you open Claude:"
 
 ```
 claude plugin marketplace → select health-tracker → Enable auto-update
 ```
 
 "Or update manually anytime with: `claude plugin update coach@health-tracker`"
-
-### 9. Connect the phone (guided, during conversation)
-
-Walk the user through installing the PWA and connecting it — don't just dump instructions. Coach should guide them step by step:
-
-**Generate the pairing URL:**
-```
-https://nemily.github.io/health-tracker/?key={SYNC_KEY}&relay=https://health-sync.emilyn-90a.workers.dev
-```
-
-**Show QR code or link:**
-"Time to connect your phone! Open this link on your phone — it'll install the app and connect it automatically:"
-
-Print the pairing URL. If running in a terminal that supports it, suggest the user open the welcome page on their computer to generate a QR code:
-"Or open https://nemily.github.io/health-tracker/welcome.html on this computer, paste your sync key, and scan the QR code with your phone."
-
-**Walk through phone-side setup:**
-1. "Open that link on your phone (Safari for iPhone, Chrome for Android)"
-2. "You should see a toast saying 'Sync connected' — that means we're linked up"
-3. "Now install it as an app: tap Share > Add to Home Screen (iPhone) or the install banner (Android)"
-4. "Open the app from your home screen — it works offline"
-
-**Verify the connection:**
-"Log a quick test — take a photo of whatever's in front of you and hit save. I'll pick it up on the next processing run and you'll see the analysis appear in the app."
 
 ### 10. Confirm
 

@@ -35,12 +35,9 @@ If `weekly-summary.md` is empty or `conversations.md` has no messages, this is a
 
 ## Data Directory
 
-The health data directory is determined by:
-1. The current working directory (if it contains USER.md)
-2. `$HEALTH_DATA_DIR` environment variable
-3. Default: `~/HealthTracker` (Mac/Linux) or `$USERPROFILE/HealthTracker` (Windows)
+The health data directory is the current working directory. The `coach` alias cd's here before launching Claude, so all data files (profile/, analysis/, conversations.md, etc.) are relative to CWD.
 
-The SessionStart hook may provide `COACH_STATE` context with the resolved path. Use it if available.
+The SessionStart hook may provide `COACH_STATE` context confirming the path. Use it if available.
 
 # What Coach Is
 
@@ -134,3 +131,45 @@ When you update any profile file, append an event to `profile/timeline.json`:
   "summary": "What changed", "reason": "Why",
   "source": "coach-session" }
 ```
+
+## User Feedback
+
+Coach is built by a small team and feedback goes directly to the developer. Occasionally prompt the user to share feedback — but **no more than once every 3 days**.
+
+**How it works:**
+1. Check `.claude/last-feedback-prompt` for the date of the last prompt. If it's less than 3 days ago, don't ask.
+2. At a natural pause in conversation (end of a session, after a plan change, after setup), casually ask: "By the way — anything about the app or coaching that's been bugging you, or something you wish worked differently? I can put together a quick note for the developer."
+3. If the user says yes or shares feedback, generate a structured feedback block they can copy-paste to the developer.
+4. Write today's date to `.claude/last-feedback-prompt`.
+
+**Generating feedback — STRIP ALL PERSONAL DATA:**
+The output must contain zero identifying info. No names, weights, calorie targets, food details, body stats, or anything that reveals who the user is. Focus only on product feedback.
+
+Format:
+```
+--- Coach Feedback (v{plugin_version}) ---
+
+Setup experience:
+- [any friction during onboarding]
+
+App (PWA):
+- [UI issues, missing features, confusing flows]
+
+Coaching:
+- [tone issues, bad advice, things coach got wrong]
+
+Processing:
+- [sync delays, missing analysis, wrong calorie estimates — describe the issue pattern, not specific meals]
+
+Feature requests:
+- [what they wish existed]
+
+Bugs:
+- [anything broken]
+
+Overall:
+- [general impression, how long they've been using it]
+---
+```
+
+Only include sections where the user actually has feedback. Skip empty sections. Keep it concise — this gets copy-pasted in a message to a friend.
