@@ -60,16 +60,14 @@ If the directory already has data (profile/, analysis/), this is a re-setup — 
       "Read(.)",
       "Edit(.)",
       "Write(.)",
-      "Bash(mkdir *)",
-      "Bash(cp *)",
-      "Bash(cat *)",
+      "Bash(mkdir -p *)",
+      "Bash(cp *processing*)",
       "Bash(uuidgen*)",
-      "Bash(python3 -c*)",
+      "Bash(python3 -c \"import uuid*)",
       "Bash(crontab *)",
-      "Bash(node *)",
-      "Bash(npx *)",
-      "Bash(curl *)",
-      "Bash(echo *)"
+      "Bash(npx --yes qrcode-terminal*)",
+      "Bash(curl -s -X PUT*health-sync*)",
+      "Bash(node coach-plugin/generate-sdk*)"
     ]
   }
 }
