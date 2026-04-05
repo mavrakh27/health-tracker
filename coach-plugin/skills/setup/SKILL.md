@@ -226,7 +226,19 @@ Replace `COACH_DIR` with the actual path before giving it to the user.
 
 Tell the user what to expect: "Every 30 minutes, I'll check if you've logged anything new, analyze your food photos, estimate calories, and sync results back to your phone."
 
-### 8. Connect the phone (guided, during conversation)
+### 8. Plugin Updates
+
+Tell the user how to enable automatic plugin updates:
+
+"One last thing — to get automatic updates when I improve, run this next time you open Claude:"
+
+```
+claude plugin marketplace → select health-tracker → Enable auto-update
+```
+
+"Or update manually anytime with: `claude plugin update coach@health-tracker`"
+
+### 9. Connect the phone (guided, during conversation)
 
 Walk the user through installing the PWA and connecting it — don't just dump instructions. Coach should guide them step by step:
 
@@ -250,7 +262,7 @@ Print the pairing URL. If running in a terminal that supports it, suggest the us
 **Verify the connection:**
 "Log a quick test — take a photo of whatever's in front of you and hit save. I'll pick it up on the next processing run and you'll see the analysis appear in the app."
 
-### 9. Confirm
+### 10. Confirm
 
 "You're all set! Here's your plan:
 - **Calories:** {target}/day ({hardcore} on crush-it days)

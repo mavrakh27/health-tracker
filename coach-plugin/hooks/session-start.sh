@@ -32,7 +32,7 @@ elif [ ! -s "$DATA_DIR/USER.md" ]; then
 else
   LATEST=""
   if [ -d "$DATA_DIR/analysis" ]; then
-    LATEST=$(ls -1 "$DATA_DIR/analysis/"*.json 2>/dev/null | sort | tail -1)
+    LATEST=$(find "$DATA_DIR/analysis" -maxdepth 1 -name '*.json' 2>/dev/null | sort | tail -1)
     if [ -n "$LATEST" ]; then
       LATEST=" LATEST_ANALYSIS: $(basename "$LATEST" .json)."
     fi

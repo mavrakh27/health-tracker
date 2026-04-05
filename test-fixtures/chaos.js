@@ -10,7 +10,7 @@ const fs = require('fs');
 const ROUNDS = parseInt(process.argv.find((a, i) => process.argv[i - 1] === '--rounds') || '30');
 const SCREENSHOTS = process.argv.includes('--screenshots');
 const SCREENSHOT_DIR = path.join(__dirname, '..', '.claude', 'test-screenshots', 'chaos');
-const PORT = 8080;
+const PORT = parseInt(process.env.PORT || '8080');
 const BASE_URL = `http://localhost:${PORT}`;
 
 // --- Action Pool ---

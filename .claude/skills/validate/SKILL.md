@@ -9,6 +9,7 @@ cd C:\Users\emily\projects\health-tracker
 
 # Phase 1: Static checks (fast, no browser)
 for f in pwa/scripts/*.js pwa/sw.js; do node --check "$f" 2>&1; done
+node coach-plugin/generate-sdk.js && git diff --exit-code coach-plugin/coach-sdk.md || echo "FAIL: coach-sdk.md is stale — run node coach-plugin/generate-sdk.js and commit the result"
 
 # Phase 2: Playwright tests (server starts automatically, no manual setup)
 node test-fixtures/run-tests.js --screenshots
@@ -33,6 +34,12 @@ node test-fixtures/chaos.js --rounds 50 --screenshots
 2. **File integrity**: Verify all files referenced in index.html, manifest.json, and sw.js exist
 3. **Manifest validation**: start_url resolves correctly, scope is consistent, paths use `/health-tracker/`
 4. **Service worker**: sw.js cache list references existing files
+5. **Coach SDK freshness**: Regenerate the SDK and verify it matches the committed file:
+   ```bash
+   node coach-plugin/generate-sdk.js
+   git diff --exit-code coach-plugin/coach-sdk.md
+   ```
+   If it differs: FAIL — "coach-sdk.md is stale — run `node coach-plugin/generate-sdk.js` and commit the result"
 
 ## Phase 2 — Playwright Regression Tests
 
