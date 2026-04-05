@@ -339,13 +339,15 @@ function json(status, data) {
 
 const ALLOWED_ORIGINS = [
   'https://nemily.github.io',
-  'http://localhost:8080',
-  'http://127.0.0.1:8080',
 ];
+
+function isLocalDev(origin) {
+  return /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+}
 
 function cors(response, request) {
   const origin = request?.headers?.get('Origin') || '';
-  const allowed = ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+  const allowed = (ALLOWED_ORIGINS.includes(origin) || isLocalDev(origin)) ? origin : ALLOWED_ORIGINS[0];
   response.headers.set('Access-Control-Allow-Origin', allowed);
   response.headers.set('Access-Control-Allow-Methods', 'GET, PUT, POST, DELETE, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type');

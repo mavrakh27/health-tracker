@@ -387,24 +387,18 @@
     <div class="section" id="section-pair">
       <div class="section-label">Step 2 — Phone</div>
       <h2>Connect your phone</h2>
-      <p>After onboarding, you'll get a sync key. Paste it here to generate a QR code -- scan it with your phone to install the app and connect automatically.</p>
+      <p>Scan the QR code below to install the app on your phone. Once it opens, Coach will give you a 4-digit pairing code to enter.</p>
 
       <div class="card">
-        <div class="pair-input-row">
-          <input type="text" id="pair-key" placeholder="Paste your sync key (UUID)" autocomplete="off" spellcheck="false">
-        </div>
-        <button class="btn btn-primary" id="pair-generate">Generate Pairing QR Code</button>
-
-        <div id="pair-result" style="display:none;">
-          <div class="pair-section">
-            <div class="qr-container">
-              <canvas id="pair-qr" width="200" height="200"></canvas>
-            </div>
-            <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan this with your phone camera</p>
-            <p class="pair-url" id="pair-url-display"></p>
-            <button class="btn btn-secondary copy-btn" id="pair-copy-url">Copy Link</button>
+        <div id="pair-auto-qr" style="text-align:center; margin-bottom: 16px;">
+          <div class="qr-container">
+            <canvas id="pair-install-qr" width="200" height="200"></canvas>
           </div>
+          <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan with your phone camera to install the app</p>
+          <p style="font-size: 13px; color: var(--text-muted);">or open this link on your phone:</p>
+          <p id="pair-install-url" style="font-size: 12px; color: var(--accent); word-break: break-all; margin-top: 4px;"></p>
         </div>
+
       </div>
     </div>
 
@@ -571,49 +565,21 @@
     const SHARED_RELAY = 'https://health-sync.emilyn-90a.workers.dev';
     const APP_BASE = location.origin + location.pathname.replace(/welcome\.html$/, '');
 
-    document.getElementById('pair-generate').addEventListener('click', () => {
-      const key = document.getElementById('pair-key').value.trim();
-      if (!key) { alert('Enter your sync key'); return; }
-
-      const pairUrl = `${APP_BASE}?key=${encodeURIComponent(key)}&relay=${encodeURIComponent(SHARED_RELAY)}`;
-
-      // Render QR
-      try {
-        renderQR(document.getElementById('pair-qr'), pairUrl);
-      } catch (e) {
-        console.warn('QR generation failed, showing URL only:', e);
-      }
-
-      document.getElementById('pair-url-display').textContent = pairUrl;
-      document.getElementById('pair-result').style.display = 'block';
-
-      // Auto-fill Apple Health URL with this sync key
-      const healthUrl = `${SHARED_RELAY}/sync/${encodeURIComponent(key)}/health/`;
-      const healthDisplay = document.getElementById('health-url-display');
-      if (healthDisplay) healthDisplay.textContent = healthUrl + '{today}';
-
-      // Scroll to result
-      document.getElementById('pair-result').scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-
-    document.getElementById('pair-copy-url').addEventListener('click', () => {
-      const url = document.getElementById('pair-url-display').textContent;
-      const btn = document.getElementById('pair-copy-url');
-      copyText(url, btn);
-    });
+    // --- Auto-render install QR code ---
+    const installQrCanvas = document.getElementById('pair-install-qr');
+    if (installQrCanvas) {
+      renderQR(installQrCanvas, APP_BASE);
+    }
+    const installUrlEl = document.getElementById('pair-install-url');
+    if (installUrlEl) {
+      installUrlEl.textContent = APP_BASE;
+    }
 
     const params = new URLSearchParams(location.search);
 
-    // If accessed on phone with ?key= param, redirect to the app
+    // Legacy: if accessed on phone with ?key= param, redirect to the app
     if (params.has('key') && params.get('key')) {
       location.href = `${APP_BASE}?key=${encodeURIComponent(params.get('key'))}${params.has('relay') ? '&relay=' + encodeURIComponent(params.get('relay')) : ''}`;
-    }
-
-    // If accessed on computer with ?sync= param, auto-generate QR code
-    if (params.has('sync')) {
-      const input = document.getElementById('pair-key');
-      input.value = params.get('sync');
-      document.getElementById('pair-generate').click();
     }
   </script>
 </body>
