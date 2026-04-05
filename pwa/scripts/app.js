@@ -1304,11 +1304,10 @@ const App = {
   renderWelcomeCard() {
     // Check if sync is already configured (came via pairing link)
     const syncConfigured = localStorage.getItem('cloudRelay_backup');
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true; // iOS Safari
 
     if (syncConfigured) {
-      // Detect if running in a browser (not installed as PWA)
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches
-        || window.navigator.standalone === true; // iOS Safari
 
       let installHint = '';
       if (!isStandalone) {
@@ -1366,7 +1365,23 @@ const App = {
         <p style="color: var(--text-secondary); font-size: var(--text-sm); margin-bottom: var(--space-md); line-height: 1.6;">
           AI-powered health tracking. Snap food photos, log workouts, and get personalized coaching.
         </p>
+        ${!isStandalone ? `
+        <div style="background: var(--bg-secondary); border-radius: var(--radius-md); padding: var(--space-md); margin-bottom: var(--space-lg); text-align: left;">
+          <p style="font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-xs);">Step 1: Install the app</p>
+          <p style="font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5;">
+            ${/iPad|iPhone|iPod/.test(navigator.userAgent)
+              ? (/CriOS/.test(navigator.userAgent)
+                ? 'Open this page in <strong>Safari</strong> first. Chrome on iOS can\'t install home screen apps.'
+                : 'Tap the <strong>Share</strong> button (square with arrow), then <strong>Add to Home Screen</strong>.')
+              : /Android/.test(navigator.userAgent)
+                ? 'Tap the <strong>menu</strong> (three dots at top), then <strong>Install app</strong> or <strong>Add to Home Screen</strong>.'
+                : 'Install this as an app from your browser menu for the best experience.'}
+          </p>
+        </div>
+        <p style="font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-xs);">Step 2: Enter your pairing code</p>
+        ` : `
         <label style="display: block; font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-sm);">Enter your pairing code</label>
+        `}
         <div id="pairing-inputs" style="display: flex; justify-content: center; gap: var(--space-sm); margin-bottom: var(--space-sm);">
           <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" class="pair-digit" data-idx="0" style="width: 48px; height: 56px; text-align: center; font-size: 24px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;" />
           <input type="tel" maxlength="1" inputmode="numeric" pattern="[0-9]" class="pair-digit" data-idx="1" style="width: 48px; height: 56px; text-align: center; font-size: 24px; font-weight: 600; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-primary); border-radius: var(--radius-sm); outline: none;" />
