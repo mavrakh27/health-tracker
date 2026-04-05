@@ -265,13 +265,38 @@ That's it — the app redeems the code, gets the sync key from the relay, and co
 
 ### 8. First sync — push goals to the phone
 
-The phone is waiting for data. Run `/process-day` now to upload the user's profile and goals to the relay. This is what makes the phone's "waiting for setup" screen go away and show their actual plan.
+The phone is waiting for data. Do NOT run `/process-day` here — it fails on cold start with no data. Instead, push a minimal analysis directly to the relay so the phone can show goals and targets.
 
 "Sending your goals to the app now..."
 
-Run the `/process-day` skill for today's date. Even with no food logged yet, this pushes the profile (goals, preferences, regimen) to the relay so the phone can display targets and meal plans.
+**Create a stub analysis file** for today with the user's goals and an empty entry list:
+```json
+{
+  "date": "YYYY-MM-DD",
+  "entries": [],
+  "totals": { "calories": 0, "protein": 0, "carbs": 0, "fat": 0 },
+  "goals": {
+    "calories": { "target": <from goals.json>, "actual": 0, "remaining": <target>, "status": "on_track" },
+    "protein": { "target": <from goals.json>, "actual": 0, "remaining": <target>, "status": "on_track" },
+    "water": { "target_oz": <from goals.json>, "actual_oz": 0, "status": "on_track" }
+  },
+  "highlights": ["Welcome to Coach! Log your first meal to get started."],
+  "concerns": [],
+  "pwaProfile": {
+    "goals": <full goals.json content>,
+    "preferences": <full preferences.json content>
+  }
+}
+```
 
-After it completes: "Check your phone — your goals and plan should be there now. Try logging a meal to test it out."
+Write it to `analysis/YYYY-MM-DD.json`, then push to the relay:
+```bash
+curl -s -X POST "$HEALTH_SYNC_URL/sync/$HEALTH_SYNC_KEY/day/YYYY-MM-DD/done" \
+  -H "Content-Type: application/json" \
+  -d @analysis/YYYY-MM-DD.json
+```
+
+After it completes: "Check your phone — your goals should be there now. Pull down to refresh if needed."
 
 ### 9. Set up processing
 
