@@ -838,6 +838,10 @@ const App = {
       App.currentScreen = screenId;
     }
 
+    // Always ensure bottom nav is visible when switching screens
+    const nav = document.querySelector('.bottom-nav');
+    if (nav) nav.style.display = '';
+
     // Update nav
     document.querySelectorAll('.nav-item').forEach(item => {
       const isActive = item.dataset.screen === screenId;
@@ -1863,7 +1867,7 @@ const App = {
     let calTarget = null;
     const analysis = preloaded?.analysis ?? await DB.getAnalysis(date);
     const goals = preloaded?.goals ?? (await DB.getProfile('goals') || {});
-    calTarget = goals.calories || 2000;
+    calTarget = goals.calories || null;
     if (analysis?.totals?.calories != null) {
       calEaten = analysis.totals.calories;
     }
@@ -1883,25 +1887,39 @@ const App = {
     const circumference = 2 * Math.PI * radius;
     let ringHtml;
     if (calEaten != null) {
-      const ratio = Math.max(0, Math.min(calEaten / calTarget, 1));
-      const offset = circumference - ratio * circumference;
-      const over = calEaten > calTarget;
-      const ringColor = over ? 'var(--accent-red)' : 'var(--accent-green)';
       const displayCal = Math.round(calEaten);
-      ringHtml = `
-      <div class="stat-card stat-card--tap calorie-ring-card" data-stat-action="food">
-        <div class="calorie-ring-wrap">
-          <svg viewBox="0 0 44 44" class="calorie-ring-svg">
-            <circle cx="22" cy="22" r="${radius}" fill="none" stroke="var(--border-color)" stroke-width="3"/>
-            <circle cx="22" cy="22" r="${radius}" fill="none" stroke="${ringColor}" stroke-width="3"
-              stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
-              stroke-linecap="round" transform="rotate(-90 22 22)"
-              class="calorie-ring-fill"/>
-          </svg>
-          <div class="calorie-ring-center" style="color:${ringColor}">${displayCal}</div>
-        </div>
-        <div class="stat-label">of ${calTarget} cal</div>
-      </div>`;
+      if (calTarget) {
+        const ratio = Math.max(0, Math.min(calEaten / calTarget, 1));
+        const offset = circumference - ratio * circumference;
+        const over = calEaten > calTarget;
+        const ringColor = over ? 'var(--accent-red)' : 'var(--accent-green)';
+        ringHtml = `
+        <div class="stat-card stat-card--tap calorie-ring-card" data-stat-action="food">
+          <div class="calorie-ring-wrap">
+            <svg viewBox="0 0 44 44" class="calorie-ring-svg">
+              <circle cx="22" cy="22" r="${radius}" fill="none" stroke="var(--border-color)" stroke-width="3"/>
+              <circle cx="22" cy="22" r="${radius}" fill="none" stroke="${ringColor}" stroke-width="3"
+                stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"
+                stroke-linecap="round" transform="rotate(-90 22 22)"
+                class="calorie-ring-fill"/>
+            </svg>
+            <div class="calorie-ring-center" style="color:${ringColor}">${displayCal}</div>
+          </div>
+          <div class="stat-label">of ${calTarget} cal</div>
+        </div>`;
+      } else {
+        // No target set — show calories eaten with full green ring, no target label
+        ringHtml = `
+        <div class="stat-card stat-card--tap calorie-ring-card" data-stat-action="food">
+          <div class="calorie-ring-wrap">
+            <svg viewBox="0 0 44 44" class="calorie-ring-svg">
+              <circle cx="22" cy="22" r="${radius}" fill="none" stroke="var(--accent-green)" stroke-width="3"/>
+            </svg>
+            <div class="calorie-ring-center" style="color:var(--accent-green)">${displayCal}</div>
+          </div>
+          <div class="stat-label">cal today</div>
+        </div>`;
+      }
     } else {
       // No analysis yet — show food count fallback
       ringHtml = `
