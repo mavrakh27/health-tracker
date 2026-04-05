@@ -259,6 +259,8 @@ Once the app is installed and opened:
 
 That's it — the app redeems the code, gets the sync key from the relay, and connects automatically. The user never sees the UUID.
 
+**If pairing fails**, it may be a sync delay between the relay's edge nodes. Wait a few seconds and have the user try again. If it keeps failing, generate a fresh code — the old one may have been consumed by a failed attempt (codes are single-use).
+
 **If the app shows "wait for setup" instead of the pairing code screen**, the user may have opened it via a direct link that already configured sync. They can go to Settings > Cloud Sync > Reset to get back to the pairing screen.
 
 **Verify the connection:**

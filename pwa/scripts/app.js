@@ -1448,12 +1448,14 @@ const App = {
     });
   },
 
-  async redeemPairingCode(code) {
+  async redeemPairingCode(code, attempt) {
+    attempt = attempt || 1;
     const statusEl = document.getElementById('pair-status');
     const inputs = document.querySelectorAll('#pairing-inputs .pair-digit');
 
     if (statusEl) {
-      statusEl.textContent = 'Connecting...';
+      statusEl.textContent = attempt > 1 ? 'Retrying...' : 'Connecting...';
+      statusEl.style.color = 'var(--text-secondary)';
       statusEl.style.display = '';
     }
 
@@ -1468,6 +1470,15 @@ const App = {
         UI.toast('Sync connected');
         App.loadDayView();
       } else if (resp.status === 404) {
+        // Auto-retry once after 2s (R2 edge replication delay)
+        if (attempt < 3) {
+          if (statusEl) {
+            statusEl.textContent = 'Retrying...';
+            statusEl.style.display = '';
+          }
+          await new Promise(r => setTimeout(r, 2000));
+          return App.redeemPairingCode(code, attempt + 1);
+        }
         if (statusEl) {
           statusEl.textContent = 'Invalid or expired code';
           statusEl.style.color = 'var(--accent-danger, #e53e3e)';
