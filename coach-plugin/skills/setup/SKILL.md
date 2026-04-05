@@ -279,9 +279,8 @@ Ask the user how they want their food photos and data analyzed:
 
 "I need to process your food photos and sync results back to your phone. How do you want that to work?"
 
-- **Automatic** — "My computer is usually on. Set it up to run in the background." → Set up a scheduled task/cron that runs every 30 minutes.
-- **When I open Coach** — "I'll just run it when I start a session." → Skip the scheduled task. Each time the user types `coach`, processing runs as part of the session start.
-- **Manual** — "I'll tell you when." → Skip entirely. User runs `/process-day` when they want.
+- **Automatic** — "Whenever your computer is open, I'll check for new photos and messages every 30 minutes in the background. You don't need to do anything." → Set up a scheduled task/cron. It only runs while the computer is awake — no battery drain when it's closed.
+- **Manual** — "I'll only process when you start a coaching session or tell me to." → Skip the scheduled task. User runs `/process-day` or processing happens at session start.
 
 If they choose **automatic**, walk them through the scheduled task setup:
 
