@@ -30,6 +30,7 @@ body {
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: hidden;
 }
 
 /* Screen Management */
@@ -37,7 +38,7 @@ body {
   display: none;
   flex: 1;
   padding: var(--space-md);
-  padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + var(--space-lg));
+  padding-bottom: var(--space-lg);
   animation: fadeIn var(--transition-base);
 }
 
@@ -145,13 +146,9 @@ body {
 
 /* Bottom Navigation */
 .bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  flex-shrink: 0;
   width: 100%;
-  max-width: var(--max-width);
-  background: rgba(13, 17, 23, 0.88);
+  background: rgba(13, 17, 23, 0.95);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid var(--border-color);
