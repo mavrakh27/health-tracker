@@ -65,9 +65,7 @@ If the directory already has data (profile/, analysis/), this is a re-setup — 
       "Bash(uuidgen*)",
       "Bash(python3 -c \"import uuid*)",
       "Bash(crontab *)",
-      "Bash(npx --yes qrcode-terminal*)",
-      "Bash(curl -s -X PUT*health-sync*)",
-      "Bash(node coach-plugin/generate-sdk*)"
+      "Bash(curl -s*health-sync*)"
     ]
   }
 }
@@ -242,26 +240,17 @@ curl -s -X PUT "$RELAY/pair" \
 echo "Pairing code: $CODE"
 ```
 
-**Step B — Show a QR code in the terminal:**
-Render a QR code right here so the user can scan it with their phone:
-```bash
-npx --yes qrcode-terminal "https://nemily.github.io/health-tracker/" --small
-```
-This prints a scannable QR code using Unicode blocks. Also print the URL as a fallback:
-"Scan the QR code above with your phone camera, or open this link: https://nemily.github.io/health-tracker/"
+**Step B — Direct the user to the onboarding page:**
+"Open this page on your computer — it has a QR code you can scan with your phone to install the app: https://nemily.github.io/health-tracker/welcome.html"
 
-"Once the app opens, install it to your home screen first (menu > Install app on Android, Share > Add to Home Screen on iPhone), then open it from there."
-
-Once the app is installed and opened:
+The onboarding page is the single source for phone installation. It shows a QR code + fallback link. The user scans it, installs the app to their home screen, then enters the pairing code.
 
 **Step C — Give the user the 4-digit code:**
-"The app should show a screen asking for a pairing code. Enter: **{CODE}**"
+"Once the app is open on your phone, it'll ask for a pairing code. Enter: **{CODE}**"
 
-That's it — the app redeems the code, gets the sync key from the relay, and connects automatically. The user never sees the UUID.
+That's it — the app redeems the code, gets the sync key from the relay, and connects automatically.
 
-**If pairing fails**, it may be a sync delay between the relay's edge nodes. Wait a few seconds and have the user try again. If it keeps failing, generate a fresh code — the old one may have been consumed by a failed attempt (codes are single-use).
-
-**If the app shows "wait for setup" instead of the pairing code screen**, the user may have opened it via a direct link that already configured sync. They can go to Settings > Cloud Sync > Reset to get back to the pairing screen.
+**If pairing fails**, it may be a sync delay. Wait a few seconds and try again. If it keeps failing, generate a fresh code — codes are single-use and may have been consumed by a failed attempt.
 
 ### 8. First sync — push goals to the phone
 

@@ -325,7 +325,7 @@
     <div class="section" id="section-computer">
       <div class="section-label">Step 1 — Set up on your computer</div>
       <h2>Get started with Coach</h2>
-      <p>Coach runs on your computer using <a href="https://claude.ai/code" style="color: var(--accent);">Claude Code</a> (Pro or Max). It analyzes your food photos, tracks calories, builds meal plans, and coaches you in real time.</p>
+      <p>Coach runs on your computer using <a href="https://claude.ai/code" style="color: var(--accent);">Claude Code</a>. It analyzes your food photos, tracks calories, builds meal plans, and coaches you in real time.</p>
 
       <div class="card" style="margin-bottom: 16px;">
         <div class="step">
@@ -376,81 +376,27 @@
       </div>
     </div>
 
-    <!-- Step 2: Phone -->
+    <!-- Step 2: Phone Setup -->
     <div class="section" id="section-pair">
-      <div class="section-label">Step 2 — Install on your phone</div>
-      <h2>Get the app</h2>
-      <p>Scan the QR code to open the app on your phone. Add it to your home screen, then enter the pairing code that Coach gives you during setup.</p>
+      <div class="section-label">Step 2 — Set up on your phone</div>
+      <h2>Install the app</h2>
+      <p>Coach gives you a pairing code during setup. Install the app on your phone and enter the code to connect.</p>
 
-      <div class="card">
-        <div id="pair-auto-qr" style="text-align:center; margin-bottom: 16px;">
-          <div class="qr-container">
-            <canvas id="pair-install-qr" width="200" height="200"></canvas>
-          </div>
-          <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan with your phone camera</p>
-          <p style="font-size: 13px; color: var(--text-muted);">or open this link on your phone:</p>
-          <p id="pair-install-url" style="font-size: 12px; color: var(--accent); word-break: break-all; margin-top: 4px;"></p>
+      <div class="card" style="padding: 24px; display: flex; gap: 24px; align-items: center;">
+        <div class="qr-container" style="flex-shrink: 0;">
+          <canvas id="pair-install-qr" width="160" height="160"></canvas>
         </div>
-
+        <div style="flex: 1; min-width: 0;">
+          <p style="font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Scan with your phone camera</p>
+          <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px;">
+            Add it to your home screen, then enter the pairing code that Coach gives you during setup.
+          </p>
+          <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Or, just go to this link on your phone browser:</p>
+          <a id="pair-install-url" href="#" style="font-size: 12px; color: var(--accent); word-break: break-all;">Link</a>
+        </div>
       </div>
     </div>
 
-    <!-- Phone Install Tips -->
-    <div class="section" id="section-install">
-      <div class="section-label">After scanning</div>
-      <h2>Install as an app</h2>
-      <p>After scanning the QR code, the app opens in your browser with sync already connected. To install it as a home screen app:</p>
-
-      <div class="card">
-        <p id="install-detail" style="font-size: 14px; margin-bottom: 8px;">Loading platform instructions...</p>
-        <p style="font-size: 13px; color: var(--text-dim);">The app works offline once installed. Your goals sync automatically from your computer.</p>
-      </div>
-
-      <details>
-        <summary>Optional: Apple Health step tracking (iOS)</summary>
-        <div class="card" style="margin-top: 8px;">
-          <p style="font-size: 14px; margin-bottom: 12px;">Send your daily steps, distance, and active calories to Coach automatically using an iOS Shortcut.</p>
-
-          <div class="step">
-            <div class="step-num">1</div>
-            <div class="step-body">
-              <h3>Create the Shortcut</h3>
-              <p>Open <strong>Shortcuts</strong> on your iPhone. Tap <strong>+</strong> to create a new shortcut and add these actions in order:</p>
-              <div style="font-size: 13px; color: var(--text-dim); line-height: 1.8;">
-                <strong>Date</strong> > Format Date (Custom: <code>yyyy-MM-dd</code>) > save as <code>today</code><br>
-                <strong>Find Health Samples</strong>: Step Count, today, group by Day > save as <code>steps</code><br>
-                <strong>Find Health Samples</strong>: Walking + Running Distance, today, group by Day > save as <code>distance</code><br>
-                <strong>Find Health Samples</strong>: Active Energy, today, group by Day > save as <code>activeCalories</code><br>
-              </div>
-            </div>
-          </div>
-
-          <div class="step">
-            <div class="step-num">2</div>
-            <div class="step-body">
-              <h3>Send to Coach</h3>
-              <p>Add a <strong>Get Contents of URL</strong> action:</p>
-              <div class="code-block" id="cmd-health-url" style="font-size: 11px; margin-bottom: 8px;">
-                <span id="health-url-display">Paste your sync key above first</span>
-              </div>
-              <div style="font-size: 13px; color: var(--text-dim); line-height: 1.8;">
-                Method: <strong>PUT</strong><br>
-                Headers: <code>Content-Type</code> = <code>application/json</code><br>
-                Body (JSON): <code>steps</code>, <code>distance_mi</code>, <code>activeCalories</code>, <code>date</code> = today, <code>source</code> = <code>apple_health</code>
-              </div>
-            </div>
-          </div>
-
-          <div class="step">
-            <div class="step-num">3</div>
-            <div class="step-body">
-              <h3>Automate it</h3>
-              <p>Go to <strong>Automations</strong> tab > <strong>Time of Day</strong> > 9 PM > Run Shortcut. Turn off "Ask Before Running." Steps sync every night automatically.</p>
-            </div>
-          </div>
-        </div>
-      </details>
-    </div>
 
   </div>
 
@@ -475,16 +421,6 @@
     // Auto-select platform tab (after listeners are registered)
     if (!isMac && !isIOS) {
       document.querySelector('[data-platform="win"]')?.click();
-    }
-
-    // Platform-specific install instructions
-    const installP = document.getElementById('install-detail');
-    if (isIOS) {
-      installP.innerHTML = 'In Safari, tap the <strong>Share</strong> button (square with arrow), then tap <strong>Add to Home Screen</strong>.';
-    } else if (isAndroid) {
-      installP.innerHTML = 'In Chrome, tap the <strong>menu</strong> (three dots), then tap <strong>Install app</strong>. You may also see an install banner automatically.';
-    } else {
-      installP.innerHTML = 'On your phone: Safari (iOS) tap Share > Add to Home Screen. Chrome (Android) tap Menu > Install app.';
     }
 
     // --- Copy helper (clipboard API with fallback) ---
@@ -566,6 +502,7 @@
     const installUrlEl = document.getElementById('pair-install-url');
     if (installUrlEl) {
       installUrlEl.textContent = APP_BASE;
+      installUrlEl.href = APP_BASE;
     }
 
     const params = new URLSearchParams(location.search);
