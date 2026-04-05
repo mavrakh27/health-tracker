@@ -29,6 +29,7 @@ data/
 # Test artifacts
 test-interactive*.mjs
 test-screenshots*/
+pwa/tests/screenshots/
 test-output*.txt
 test-full.txt
 test-stderr.txt
