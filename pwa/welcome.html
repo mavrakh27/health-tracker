@@ -382,18 +382,16 @@
       <h2>Get the app</h2>
       <p>Scan the QR code to open the app on your phone. Add it to your home screen, then enter the pairing code that Coach gives you during setup.</p>
 
-      <div class="card" style="padding: 32px 24px; text-align: center;">
-        <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 20px;">
-          <div class="qr-container" style="padding: 20px; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);">
-            <canvas id="pair-install-qr" width="200" height="200"></canvas>
-          </div>
-          <div>
-            <p style="font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px;">Point your phone camera here</p>
-            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">
-              or open this link on your phone:
-            </p>
-            <a id="pair-install-url" href="#" style="font-size: 13px; color: var(--accent); word-break: break-all; margin-top: 4px; display: block;"></a>
-          </div>
+      <div class="card" style="padding: 24px; display: flex; gap: 24px; align-items: center;">
+        <div class="qr-container" style="flex-shrink: 0;">
+          <canvas id="pair-install-qr" width="160" height="160"></canvas>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+          <p style="font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Scan with your phone camera</p>
+          <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5; margin-bottom: 8px;">
+            This opens the app and connects it to your computer. Add it to your home screen, then enter the pairing code from Coach.
+          </p>
+          <a id="pair-install-url" href="#" style="font-size: 12px; color: var(--accent); word-break: break-all;">Link</a>
         </div>
       </div>
     </div>
