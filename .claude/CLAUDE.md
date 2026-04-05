@@ -96,6 +96,7 @@ The plan file must describe this loop explicitly, including what validation chec
 - **`main`** — release branch. GitHub Pages deploys from here. Only gets polished, tested merges.
 - To release: merge `dev` → `main` via PR or direct merge after `/validate` + `/review` pass.
 - Never push untested work directly to `main`.
+- Always bump the plugin version in `coach-plugin/.claude-plugin/plugin.json` when creating a PR to main. Users need the version number to verify updates worked.
 
 ## Running Locally
 

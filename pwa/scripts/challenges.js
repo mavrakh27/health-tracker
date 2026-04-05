@@ -17,6 +17,23 @@ const ChallengeTemplates = {
       { id: 'progress_photo', label: 'Take a progress photo', autoCheck: { source: 'bodyPhotos', threshold: 1 } },
     ],
   },
+  '30hard': {
+    id: '30hard',
+    name: '30 Hard',
+    description: '30 days. No restarts, no excuses. Two workouts, 10k steps, hit your diet goals, water, reading, progress photo — every single day. Miss a day? Keep going. Track everything.',
+    durationDays: 30,
+    restartOnMiss: false,
+    tasks: [
+      { id: 'workout_1', label: 'Workout #1 (45+ min)', autoCheck: { source: 'workout', threshold: 1 } },
+      { id: 'workout_2', label: 'Workout #2 (45+ min)', autoCheck: { source: 'workout', threshold: 2 } },
+      { id: 'steps_10k', label: '10,000 steps', autoCheck: { source: 'steps', threshold: 10000 } },
+      { id: 'diet_goals', label: 'Hit diet goals', autoCheck: { source: 'diet_goals', threshold: null } },
+      { id: 'no_alcohol', label: 'No alcohol', autoCheck: null },
+      { id: 'water', label: 'Drink 64+ oz water', autoCheck: { source: 'water', threshold: 64 } },
+      { id: 'read', label: 'Read 10 pages', autoCheck: null },
+      { id: 'progress_photo', label: 'Take a progress photo', autoCheck: { source: 'bodyPhotos', threshold: 1 } },
+    ],
+  },
   '7day_reset': {
     id: '7day_reset',
     name: '7-Day Reset',
@@ -142,6 +159,21 @@ const Challenges = {
         // Only auto-check if we have analysis data to compare
         if (analysis && analysis.totals) {
           passes = total <= target * 1.1; // 10% tolerance
+        }
+      } else if (src === 'steps') {
+        // Steps from health data (cloud relay sync)
+        const health = await CloudRelay.getHealthData(date).catch(() => null);
+        passes = health && (health.steps || 0) >= threshold;
+      } else if (src === 'diet_goals') {
+        // Check both calories and protein against profile goals
+        if (analysis && analysis.totals) {
+          const goals = await DB.getProfile('goals') || {};
+          const calTarget = goals.calories || 2000;
+          const proteinTarget = goals.protein || 100;
+          const calActual = analysis.totals.calories || 0;
+          const proteinActual = analysis.totals.protein || 0;
+          // Under calorie goal (10% tolerance) AND hit protein target (90% threshold)
+          passes = calActual <= calTarget * 1.1 && proteinActual >= proteinTarget * 0.9;
         }
       }
 
@@ -460,6 +492,7 @@ const Challenges = {
   _templateIcon(id) {
     const icons = {
       '75hard': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c-4 0-7-3-7-7 0-3 2-5 4-7 1-1 2-2 2-4 1 2 3 3 4 5 .5-1 1-2 1-3 2 2 3 4 3 6 0 4-3 10-7 10z"/></svg>',
+      '30hard': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
       '7day_reset': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 105.64-11.36L1 10"/></svg>',
       '100day': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
       'custom': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
@@ -470,6 +503,7 @@ const Challenges = {
   _templateAccent(id) {
     const accents = {
       '75hard': 'var(--accent-red)',
+      '30hard': 'var(--accent-primary)',
       '7day_reset': 'var(--accent-blue)',
       '100day': 'var(--accent-orange)',
       'custom': 'var(--accent-purple)',
@@ -1167,11 +1201,18 @@ const Challenges = {
         <button class="modal-close" id="share-menu-close" aria-label="Close">&times;</button>
       </div>
       <div class="more-sheet-options">
-        <button class="more-sheet-option" id="share-image-btn">
+        <button class="more-sheet-option" id="share-today-btn">
           <span class="more-sheet-icon" style="color:var(--accent-primary);">${UI.svg.bodyPhoto || UI.svg.clipboard}</span>
           <div class="more-sheet-text">
-            <span class="more-sheet-label">Share as Image</span>
-            <span class="more-sheet-desc">Generate a share card</span>
+            <span class="more-sheet-label">Share Today</span>
+            <span class="more-sheet-desc">Share today's task checklist</span>
+          </div>
+        </button>
+        <button class="more-sheet-option" id="share-progress-btn">
+          <span class="more-sheet-icon" style="color:var(--accent-primary);">${UI.svg.clipboard || ''}</span>
+          <div class="more-sheet-text">
+            <span class="more-sheet-label">Share Progress</span>
+            <span class="more-sheet-desc">Share 30-day overview</span>
           </div>
         </button>
         <button class="more-sheet-option" id="share-text-btn">
@@ -1191,9 +1232,14 @@ const Challenges = {
     document.getElementById('share-menu-close').addEventListener('click', close);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
 
-    document.getElementById('share-image-btn').addEventListener('click', async () => {
+    document.getElementById('share-today-btn').addEventListener('click', async () => {
       close();
-      await Challenges.generateShareCard(challenge, progressRecords);
+      await Challenges.generateDayCard(challenge, progressRecords);
+    });
+
+    document.getElementById('share-progress-btn').addEventListener('click', async () => {
+      close();
+      await Challenges.generateProgressCard(challenge, progressRecords);
     });
 
     document.getElementById('share-text-btn').addEventListener('click', async () => {
@@ -1208,97 +1254,358 @@ const Challenges = {
     });
   },
 
-  // --- Canvas share card ---
-  async generateShareCard(challenge, progressRecords) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 640;
-    canvas.height = 480;
-    const ctx = canvas.getContext('2d');
+  // --- Canvas share cards ---
+  _roundedRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  },
 
-    const dayNum = Challenges.getDayNumber(challenge, App.selectedDate);
-    const streak = Challenges.getStreak(progressRecords);
-    const completedDays = progressRecords.filter(p => p.allComplete).length;
-
-    // Background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 640, 480);
-
-    // Top accent bar
-    ctx.fillStyle = '#58a6ff';
-    ctx.fillRect(0, 0, 640, 6);
-
-    // Challenge name
-    ctx.fillStyle = '#0d1117';
-    ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(challenge.name, 320, 60);
-
-    // Day counter (large)
-    ctx.font = 'bold 72px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = '#58a6ff';
-    ctx.fillText('Day ' + dayNum, 320, 160);
-
-    // of total
-    ctx.font = '20px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = '#7d8590';
-    ctx.fillText('of ' + challenge.durationDays, 320, 190);
-
-    // Streak
-    if (streak > 0) {
-      ctx.font = 'bold 24px -apple-system, BlinkMacSystemFont, sans-serif';
-      ctx.fillStyle = '#e3b341';
-      ctx.fillText('/ ' + streak + '-day streak', 320, 230);
+  _shareOrDownload(blob, filename, challenge, progressRecords) {
+    const file = new File([blob], filename, { type: 'image/png' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      navigator.share({
+        files: [file],
+        title: challenge.name,
+        text: Challenges.generateShareText(challenge, progressRecords),
+      }).catch(() => {
+        Challenges._downloadBlob(blob, filename);
+      });
+    } else {
+      Challenges._downloadBlob(blob, filename);
     }
+  },
 
-    // Completion arc
-    const centerX = 320;
-    const centerY = 340;
-    const radius = 60;
-    const pct = completedDays / challenge.durationDays;
+  async generateDayCard(challenge, progressRecords) {
+    const W = 600;
+    const H = 460;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const today = App.selectedDate;
+    const dayNum = Challenges.getDayNumber(challenge, today);
+    const todayProgress = progressRecords.find(p => p.date === today);
+    const checked = todayProgress?.checked || [];
+    const totalTasks = challenge.tasks.length;
+    const checkedCount = checked.length;
+    const allDone = checkedCount === totalTasks;
 
+    // Background gradient
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#1a1f2e');
+    bg.addColorStop(1, '#151926');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Teal accent stripe
+    ctx.fillStyle = '#2dd4bf';
+    ctx.fillRect(0, 0, W, 3);
+
+    // Challenge name label
+    ctx.fillStyle = '#2dd4bf';
+    ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(challenge.name.toUpperCase(), 30, 32);
+
+    // Day number
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 32px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('Day ' + dayNum, 30, 70);
+
+    // Completion ring top-right
+    const ringCx = W - 55;
+    const ringCy = 52;
+    const ringR = 24;
+    // Background ring
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = '#e6edf3';
-    ctx.lineWidth = 10;
+    ctx.arc(ringCx, ringCy, ringR, 0, Math.PI * 2);
+    ctx.strokeStyle = '#2a3040';
+    ctx.lineWidth = 4;
     ctx.stroke();
-
-    ctx.beginPath();
-    ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * pct));
-    ctx.strokeStyle = '#58a6ff';
-    ctx.lineWidth = 10;
-    ctx.stroke();
-
-    ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = '#0d1117';
+    // Progress arc
+    const ringPct = totalTasks > 0 ? checkedCount / totalTasks : 0;
+    if (ringPct > 0) {
+      ctx.beginPath();
+      ctx.arc(ringCx, ringCy, ringR, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ringPct);
+      ctx.strokeStyle = allDone ? '#22c55e' : '#2dd4bf';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+    // Ring center text
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(Math.round(pct * 100) + '%', centerX, centerY);
+    ctx.fillText(checkedCount + '/' + totalTasks, ringCx, ringCy);
 
-    // Footer
-    ctx.font = '14px -apple-system, BlinkMacSystemFont, sans-serif';
-    ctx.fillStyle = '#7d8590';
+    // Divider
+    ctx.beginPath();
+    ctx.moveTo(30, 90);
+    ctx.lineTo(W - 30, 90);
+    ctx.strokeStyle = '#2a3040';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Task list
+    const taskStartY = 118;
+    const rowH = 32;
+    const maxVisible = Math.floor((H - 48 - taskStartY) / rowH);
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('Coach', 320, 460);
+
+    for (let i = 0; i < Math.min(challenge.tasks.length, maxVisible); i++) {
+      const task = challenge.tasks[i];
+      const y = taskStartY + i * rowH;
+      const isChecked = checked.includes(task.id);
+      const cbX = 36;
+      const cbY = y + 4;
+      const cbSize = 20;
+      const cbR = 4;
+
+      if (isChecked) {
+        // Green filled checkbox
+        ctx.fillStyle = '#22c55e';
+        Challenges._roundedRect(ctx, cbX, cbY, cbSize, cbSize, cbR);
+        ctx.fill();
+        // White checkmark
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(cbX + 5, cbY + 10);
+        ctx.lineTo(cbX + 9, cbY + 14);
+        ctx.lineTo(cbX + 15, cbY + 6);
+        ctx.stroke();
+        // Muted label with strikethrough
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '15px -apple-system, BlinkMacSystemFont, sans-serif';
+        const labelX = cbX + cbSize + 14;
+        const labelY = y + 18;
+        ctx.fillText(task.label, labelX, labelY);
+        // Strikethrough line
+        const textW = ctx.measureText(task.label).width;
+        ctx.beginPath();
+        ctx.moveTo(labelX, labelY - 5);
+        ctx.lineTo(labelX + textW, labelY - 5);
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        // Outlined checkbox
+        ctx.strokeStyle = '#475569';
+        ctx.lineWidth = 1.5;
+        Challenges._roundedRect(ctx, cbX, cbY, cbSize, cbSize, cbR);
+        ctx.stroke();
+        // White label
+        ctx.fillStyle = '#e2e8f0';
+        ctx.font = '15px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillText(task.label, cbX + cbSize + 14, y + 18);
+      }
+    }
+
+    // "+N more" overflow label
+    if (challenge.tasks.length > maxVisible) {
+      const overflow = challenge.tasks.length - maxVisible;
+      const overflowY = taskStartY + maxVisible * rowH + 16;
+      ctx.fillStyle = '#64748b';
+      ctx.font = '13px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(`+${overflow} more`, 36, overflowY);
+    }
+
+    // Footer bar
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, H - 48, W, 48);
+    ctx.fillStyle = '#475569';
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Coach', 30, H - 26);
+    // Date right-aligned
+    const dateObj = new Date(today + 'T12:00:00');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dateStr = months[dateObj.getMonth()] + ' ' + dateObj.getDate() + ', ' + dateObj.getFullYear();
+    ctx.textAlign = 'right';
+    ctx.fillText(dateStr, W - 30, H - 26);
 
     // Export
-    canvas.toBlob(async (blob) => {
+    canvas.toBlob((blob) => {
       if (!blob) return;
-      const file = new File([blob], 'challenge.png', { type: 'image/png' });
+      Challenges._shareOrDownload(blob, 'challenge-day.png', challenge, progressRecords);
+    }, 'image/png');
+  },
 
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            files: [file],
-            title: challenge.name,
-            text: Challenges.generateShareText(challenge, progressRecords),
-          });
-        } catch (_) {
-          // User cancelled or share failed — download instead
-          Challenges._downloadBlob(blob, 'challenge.png');
-        }
+  async generateProgressCard(challenge, progressRecords) {
+    const W = 600;
+    const H = 420;
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    const today = App.selectedDate;
+    const dayNum = Challenges.getDayNumber(challenge, today);
+    const totalTasks = challenge.tasks.length;
+
+    // Background gradient
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#1a1f2e');
+    bg.addColorStop(1, '#151926');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Teal accent stripe
+    ctx.fillStyle = '#2dd4bf';
+    ctx.fillRect(0, 0, W, 3);
+
+    // Title
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(challenge.name.toUpperCase(), 30, 45);
+
+    // Day counter
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '18px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.fillText('Day ' + dayNum + ' of ' + challenge.durationDays, 30, 75);
+
+    // Build byDate lookup
+    const byDate = {};
+    for (const p of progressRecords) byDate[p.date] = p;
+
+    // Grid
+    const cellSize = 16;
+    const cellGap = 4;
+    const cols = 10;
+    const gridX = 30;
+    const gridY = 100;
+    let bestDays = 0;
+    let totalChecked = 0;
+    let totalPossible = 0;
+
+    for (let d = 1; d <= challenge.durationDays; d++) {
+      const col = (d - 1) % cols;
+      const row = Math.floor((d - 1) / cols);
+      const x = gridX + col * (cellSize + cellGap);
+      const y = gridY + row * (cellSize + cellGap);
+
+      let color;
+      if (d > dayNum) {
+        // Future
+        color = '#1e2538';
       } else {
-        Challenges._downloadBlob(blob, 'challenge.png');
+        // Past or today — find date for this day number
+        const dayDate = new Date(challenge.startDate + 'T12:00:00');
+        dayDate.setDate(dayDate.getDate() + d - 1);
+        const dateStr = Challenges._fmt(dayDate);
+        const prog = byDate[dateStr];
+        const checkedCount = prog?.checked?.length || 0;
+        totalPossible += totalTasks;
+        totalChecked += checkedCount;
+
+        if (checkedCount === totalTasks && totalTasks > 0) {
+          // All tasks — perfect
+          color = '#22c55e';
+          bestDays++;
+        } else if (checkedCount >= Math.ceil(totalTasks * 0.5)) {
+          // 50%+
+          color = '#2dd4bf';
+          if (checkedCount >= Math.ceil(totalTasks * 0.75)) {
+            bestDays++;
+          }
+        } else if (checkedCount > 0) {
+          // Some
+          color = '#eab308';
+        } else {
+          // Missed
+          color = '#ef4444';
+        }
       }
+
+      ctx.fillStyle = color;
+      Challenges._roundedRect(ctx, x, y, cellSize, cellSize, 3);
+      ctx.fill();
+    }
+
+    // Legend row below grid
+    const totalRows = Math.ceil(challenge.durationDays / cols);
+    const legendY = gridY + totalRows * (cellSize + cellGap) + 12;
+    const legendItems = [
+      { color: '#22c55e', label: 'Perfect' },
+      { color: '#2dd4bf', label: '50%+' },
+      { color: '#eab308', label: 'Some' },
+      { color: '#ef4444', label: 'Missed' },
+      { color: '#1e2538', label: 'Future' },
+    ];
+    let legendX = gridX;
+    ctx.font = '11px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textBaseline = 'middle';
+    for (const item of legendItems) {
+      ctx.fillStyle = item.color;
+      Challenges._roundedRect(ctx, legendX, legendY, 10, 10, 2);
+      ctx.fill();
+      ctx.fillStyle = '#94a3b8';
+      ctx.textAlign = 'left';
+      ctx.fillText(item.label, legendX + 14, legendY + 5);
+      legendX += 14 + ctx.measureText(item.label).width + 16;
+    }
+
+    // Stats section
+    const statsY = legendY + 30;
+    const boxW = 160;
+    const boxH = 70;
+    const boxGap = 20;
+    const completionPct = totalPossible > 0 ? Math.round((totalChecked / totalPossible) * 100) : 0;
+
+    const stats = [
+      { value: completionPct + '%', label: 'Completion', color: '#e2e8f0' },
+      { value: String(bestDays), label: 'Best Days', color: '#22c55e' },
+      { value: String(dayNum), label: 'Days In', color: '#2dd4bf' },
+    ];
+
+    for (let i = 0; i < stats.length; i++) {
+      const bx = 30 + i * (boxW + boxGap);
+      const by = statsY;
+      ctx.fillStyle = '#1e2538';
+      Challenges._roundedRect(ctx, bx, by, boxW, boxH, 8);
+      ctx.fill();
+      // Value
+      ctx.fillStyle = stats[i].color;
+      ctx.font = 'bold 28px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(stats[i].value, bx + boxW / 2, by + 28);
+      // Label
+      ctx.fillStyle = '#64748b';
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+      ctx.fillText(stats[i].label, bx + boxW / 2, by + 54);
+    }
+
+    // Footer bar
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, H - 48, W, 48);
+    ctx.fillStyle = '#475569';
+    ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('Coach', 30, H - 26);
+    ctx.textAlign = 'right';
+    ctx.fillText(challenge.name + ' Challenge', W - 30, H - 26);
+
+    // Export
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      Challenges._shareOrDownload(blob, 'challenge-progress.png', challenge, progressRecords);
     }, 'image/png');
   },
 

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>30 Hard — Share Card Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0f1219; color: #e2e8f0; font-family: -apple-system, system-ui, sans-serif; padding: 40px; }
+  h1 { font-size: 20px; color: #94a3b8; margin-bottom: 8px; letter-spacing: 0.5px; }
+  h2 { font-size: 14px; color: #64748b; margin-bottom: 24px; font-weight: 400; }
+  .cards { display: flex; gap: 40px; flex-wrap: wrap; }
+  .card-wrapper { display: flex; flex-direction: column; gap: 12px; }
+  .card-label { font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+  canvas { border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+  .controls { margin-top: 40px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .controls button {
+    background: #1e293b; border: 1px solid #334155; color: #e2e8f0;
+    padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px;
+  }
+  .controls button:hover { background: #334155; }
+  .note { margin-top: 24px; font-size: 13px; color: #475569; max-width: 600px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<h1>30 Hard — Share Cards</h1>
+<h2>Preview of both share card types</h2>
+
+<div class="cards">
+  <div class="card-wrapper">
+    <span class="card-label">Day Share</span>
+    <canvas id="day-card" width="600" height="460"></canvas>
+  </div>
+  <div class="card-wrapper">
+    <span class="card-label">Progress Share</span>
+    <canvas id="progress-card" width="600" height="420"></canvas>
+  </div>
+</div>
+
+<div class="controls">
+  <button onclick="regenerate()">Randomize Data</button>
+  <button onclick="setScenario('early')">Day 3 (Early)</button>
+  <button onclick="setScenario('mid')">Day 15 (Mid)</button>
+  <button onclick="setScenario('late')">Day 28 (Late)</button>
+  <button onclick="setScenario('perfect')">Perfect Run</button>
+  <button onclick="setScenario('struggling')">Struggling</button>
+</div>
+
+<p class="note">
+  These are canvas-rendered previews with mock data. The Day Share shows today's task checklist.
+  The Progress Share shows the full 30-day grid with stats. Both use the Web Share API on mobile
+  (native share sheet) with download fallback on desktop.
+</p>
+
+<script>
+// Mock data generator
+const TASKS = [
+  { id: 'workout_1', label: 'Workout #1 (45+ min)' },
+  { id: 'workout_2', label: 'Workout #2 (45+ min)' },
+  { id: 'steps_10k', label: '10,000 steps' },
+  { id: 'diet_goals', label: 'Hit diet goals' },
+  { id: 'no_alcohol', label: 'No alcohol' },
+  { id: 'water', label: 'Drink 64+ oz water' },
+  { id: 'read', label: 'Read 10 pages' },
+  { id: 'progress_photo', label: 'Progress photo' },
+];
+
+let currentDay = 15;
+let dayData = []; // array of { checked: number[] indices }
+
+function generateData(day, scenario) {
+  const data = [];
+  for (let d = 0; d < 30; d++) {
+    if (d >= day) {
+      data.push({ checked: [] });
+    } else {
+      let checked = [];
+      if (scenario === 'perfect') {
+        checked = TASKS.map((_, i) => i);
+      } else if (scenario === 'struggling') {
+        // 30-50% completion
+        const count = Math.floor(Math.random() * 3) + 1;
+        const indices = shuffle([...Array(8).keys()]).slice(0, count);
+        checked = indices;
+      } else {
+        // Normal: 60-100% completion, trending better over time
+        const base = Math.min(0.95, 0.55 + (d / 30) * 0.3);
+        const count = Math.floor(base * 8) + (Math.random() > 0.4 ? 1 : 0);
+        const clamped = Math.min(8, Math.max(0, count));
+        checked = shuffle([...Array(8).keys()]).slice(0, clamped);
+      }
+      data.push({ checked });
+    }
+  }
+  return data;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// --- Drawing helpers ---
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// --- DAY SHARE CARD ---
+function drawDayCard(canvas, day, todayChecked) {
+  const ctx = canvas.getContext('2d');
+  const W = 600, H = 460;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#1a1f2e');
+  grad.addColorStop(1, '#151926');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Teal accent stripe at top
+  ctx.fillStyle = '#2dd4bf';
+  ctx.fillRect(0, 0, W, 3);
+
+  // Header
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  ctx.fillStyle = '#2dd4bf';
+  ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
+  ctx.fillText('30 HARD', 30, 32);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px -apple-system, system-ui, sans-serif';
+  ctx.fillText('Day ' + day, 30, 70);
+
+  // Completion ring (right side)
+  const completed = todayChecked.length;
+  const total = TASKS.length;
+  const pct = total > 0 ? completed / total : 0;
+  const allDone = completed >= total;
+  const ringX = W - 55, ringY = 52, ringR = 24;
+
+  // Ring background
+  ctx.beginPath();
+  ctx.arc(ringX, ringY, ringR, 0, Math.PI * 2);
+  ctx.strokeStyle = '#2a3040';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
+  // Ring progress
+  if (completed > 0) {
+    ctx.beginPath();
+    ctx.arc(ringX, ringY, ringR, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * pct));
+    ctx.strokeStyle = allDone ? '#22c55e' : '#2dd4bf';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+
+  // Ring text
+  ctx.fillStyle = allDone ? '#22c55e' : '#e2e8f0';
+  ctx.font = 'bold 14px -apple-system, system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(completed + '/' + total, ringX, ringY);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  // Divider line
+  ctx.strokeStyle = '#2a3040';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(30, 90);
+  ctx.lineTo(W - 30, 90);
+  ctx.stroke();
+
+  // Task list
+  const taskStartY = 118;
+  const rowH = 32;
+
+  for (let i = 0; i < TASKS.length; i++) {
+    const y = taskStartY + i * rowH;
+    const done = todayChecked.includes(i);
+
+    // Checkbox
+    const cbX = 36, cbY = y + 4, cbS = 20;
+    if (done) {
+      ctx.fillStyle = '#22c55e';
+      roundRect(ctx, cbX, cbY, cbS, cbS, 4);
+      ctx.fill();
+      // Checkmark
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cbX + 5, cbY + 10);
+      ctx.lineTo(cbX + 9, cbY + 14);
+      ctx.lineTo(cbX + 15, cbY + 6);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.lineJoin = 'miter';
+    } else {
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, cbX, cbY, cbS, cbS, 4);
+      ctx.stroke();
+    }
+
+    // Label
+    ctx.fillStyle = done ? '#94a3b8' : '#e2e8f0';
+    ctx.font = '15px -apple-system, system-ui, sans-serif';
+    ctx.fillText(TASKS[i].label, cbX + cbS + 14, y + 18);
+
+    // Strikethrough if done
+    if (done) {
+      const textW = ctx.measureText(TASKS[i].label).width;
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cbX + cbS + 14, y + 15);
+      ctx.lineTo(cbX + cbS + 14 + textW, y + 15);
+      ctx.stroke();
+    }
+  }
+
+  // Bottom bar
+  const botY = H - 40;
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, botY - 8, W, 48);
+
+  ctx.fillStyle = '#475569';
+  ctx.font = '12px -apple-system, system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Coach', 30, botY + 14);
+
+  ctx.textAlign = 'right';
+  const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  ctx.fillText(dateStr, W - 30, botY + 14);
+  ctx.textAlign = 'left';
+}
+
+// --- PROGRESS SHARE CARD ---
+function drawProgressCard(canvas, day, allData) {
+  const ctx = canvas.getContext('2d');
+  const W = 600, H = 420;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#1a1f2e');
+  grad.addColorStop(1, '#151926');
+  ctx.fillStyle = grad;
+  roundRect(ctx, 0, 0, W, H, 0);
+  ctx.fill();
+
+  // Accent stripe
+  ctx.fillStyle = '#2dd4bf';
+  ctx.fillRect(0, 0, W, 3);
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  // Header
+  ctx.fillStyle = '#2dd4bf';
+  ctx.font = 'bold 13px -apple-system, system-ui, sans-serif';
+  ctx.fillText('30 HARD', 32, 38);
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 24px -apple-system, system-ui, sans-serif';
+  ctx.fillText('Day ' + day + ' of 30', 32, 68);
+
+  // Grid
+  const gridX = 32, gridY = 92;
+  const cellSize = 30, cellGap = 5;
+  const cols = 10;
+
+  let bestDays = 0;
+  let totalChecked = 0;
+  let totalPossible = 0;
+
+  for (let d = 0; d < 30; d++) {
+    const row = Math.floor(d / cols);
+    const col = d % cols;
+    const x = gridX + col * (cellSize + cellGap);
+    const y = gridY + row * (cellSize + cellGap);
+
+    const checked = allData[d]?.checked?.length || 0;
+    const total = TASKS.length;
+    const isPast = d < day;
+
+    if (!isPast) {
+      ctx.fillStyle = '#1e2538';
+    } else {
+      totalChecked += checked;
+      totalPossible += total;
+
+      if (checked === total) {
+        ctx.fillStyle = '#22c55e'; // green -- all tasks
+        bestDays++;
+      } else if (checked >= Math.ceil(total * 0.5)) {
+        ctx.fillStyle = '#2dd4bf'; // teal -- 50%+
+        if (checked >= Math.ceil(total * 0.75)) bestDays++; // 75%+ = best day
+      } else if (checked > 0) {
+        ctx.fillStyle = '#eab308'; // yellow -- some effort
+      } else {
+        ctx.fillStyle = '#ef4444'; // red -- missed
+      }
+    }
+
+    roundRect(ctx, x, y, cellSize, cellSize, 5);
+    ctx.fill();
+
+    // Day number inside cell
+    ctx.fillStyle = isPast ? 'rgba(0,0,0,0.35)' : '#2a3344';
+    ctx.font = 'bold 11px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(String(d + 1), x + cellSize / 2, y + cellSize / 2 + 4);
+    ctx.textAlign = 'left';
+  }
+
+  // Legend
+  const legendY = gridY + 3 * (cellSize + cellGap) + 16;
+  const legendItems = [
+    { color: '#22c55e', label: 'Perfect' },
+    { color: '#2dd4bf', label: '50%+' },
+    { color: '#eab308', label: 'Some' },
+    { color: '#ef4444', label: 'Missed' },
+    { color: '#1e2538', label: 'Future' },
+  ];
+  let legendX = 32;
+  for (const item of legendItems) {
+    ctx.fillStyle = item.color;
+    roundRect(ctx, legendX, legendY, 10, 10, 2);
+    ctx.fill();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px -apple-system, system-ui, sans-serif';
+    ctx.fillText(item.label, legendX + 15, legendY + 9);
+    legendX += ctx.measureText(item.label).width + 32;
+  }
+
+  // Stats row
+  const statsY = legendY + 40;
+  const pct = totalPossible > 0 ? Math.round((totalChecked / totalPossible) * 100) : 0;
+
+  // Stat boxes
+  const stats = [
+    { value: pct + '%', label: 'Completion', color: '#e2e8f0' },
+    { value: String(bestDays), label: 'Best Days', color: '#22c55e' },
+    { value: String(day), label: 'Days In', color: '#2dd4bf' },
+  ];
+
+  const statBoxW = (W - 64 - 24) / 3;
+  for (let i = 0; i < stats.length; i++) {
+    const sx = 32 + i * (statBoxW + 12);
+
+    // Box background
+    ctx.fillStyle = '#1e2538';
+    roundRect(ctx, sx, statsY, statBoxW, 64, 8);
+    ctx.fill();
+
+    // Value
+    ctx.fillStyle = stats[i].color;
+    ctx.font = 'bold 28px -apple-system, system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(stats[i].value, sx + statBoxW / 2, statsY + 32);
+
+    // Label
+    ctx.fillStyle = '#64748b';
+    ctx.font = '12px -apple-system, system-ui, sans-serif';
+    ctx.fillText(stats[i].label, sx + statBoxW / 2, statsY + 52);
+    ctx.textAlign = 'left';
+  }
+
+  // Bottom bar
+  const botY = H - 40;
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, botY - 8, W, 48);
+
+  ctx.fillStyle = '#475569';
+  ctx.font = '12px -apple-system, system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Coach', 32, botY + 14);
+
+  ctx.textAlign = 'right';
+  ctx.fillText('30 Hard Challenge', W - 32, botY + 14);
+  ctx.textAlign = 'left';
+}
+
+// --- Scenario controls ---
+function setScenario(name) {
+  if (name === 'early') currentDay = 3;
+  else if (name === 'mid') currentDay = 15;
+  else if (name === 'late') currentDay = 28;
+  else if (name === 'perfect') currentDay = 20;
+  else if (name === 'struggling') currentDay = 12;
+
+  dayData = generateData(currentDay, name);
+  draw();
+}
+
+function regenerate() {
+  dayData = generateData(currentDay, 'normal');
+  draw();
+}
+
+function draw() {
+  const todayChecked = dayData[currentDay - 1]?.checked || [];
+  drawDayCard(document.getElementById('day-card'), currentDay, todayChecked);
+  drawProgressCard(document.getElementById('progress-card'), currentDay, dayData);
+}
+
+// Initial render
+setScenario('mid');
+</script>
+</body>
+</html>

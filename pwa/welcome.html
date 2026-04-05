@@ -605,7 +605,7 @@
     const params = new URLSearchParams(location.search);
 
     // If accessed on phone with ?key= param, redirect to the app
-    if (params.has('key')) {
+    if (params.has('key') && params.get('key')) {
       location.href = `${APP_BASE}?key=${encodeURIComponent(params.get('key'))}${params.has('relay') ? '&relay=' + encodeURIComponent(params.get('relay')) : ''}`;
     }
 
