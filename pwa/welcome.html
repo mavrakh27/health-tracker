@@ -579,15 +579,15 @@
       }
     }
 
+    // --- Pairing flow ---
+    const SHARED_RELAY = 'https://health-sync.emilyn-90a.workers.dev';
+    const APP_BASE = location.origin + location.pathname.replace(/welcome\.html$/, '');
+
     // --- Auto-render install QR code ---
     const installQrCanvas = document.getElementById('pair-install-qr');
     if (installQrCanvas) {
       renderQR(installQrCanvas, APP_BASE);
     }
-
-    // --- Pairing flow ---
-    const SHARED_RELAY = 'https://health-sync.emilyn-90a.workers.dev';
-    const APP_BASE = location.origin + location.pathname.replace(/welcome\.html$/, '');
 
     document.getElementById('pair-generate').addEventListener('click', () => {
       const key = document.getElementById('pair-key').value.trim();
