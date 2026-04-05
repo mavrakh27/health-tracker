@@ -215,7 +215,7 @@ fi
 
 # --- Upload results back to cloud relay ---
 echo "[$TODAY] Uploading analysis results to cloud relay..."
-for DATE in "${NEW_DATES[@]}"; do
+for DATE in "${NEW_DATES[@]+"${NEW_DATES[@]}"}"; do
     if [ -f "$DATA_DIR/analysis/$DATE.json" ]; then
         echo "[$TODAY] Uploading analysis for $DATE..."
         GEN_VAL=$(echo "$GEN_JSON" | jq -r --arg d "$DATE" '.[$d] // empty' 2>/dev/null || echo '')

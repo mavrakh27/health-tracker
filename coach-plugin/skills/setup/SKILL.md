@@ -263,16 +263,55 @@ That's it — the app redeems the code, gets the sync key from the relay, and co
 
 **If the app shows "wait for setup" instead of the pairing code screen**, the user may have opened it via a direct link that already configured sync. They can go to Settings > Cloud Sync > Reset to get back to the pairing screen.
 
-**Verify the connection:**
-"Log a quick test — take a photo of whatever's in front of you and hit save. I'll pick it up on the next processing run and you'll see the analysis appear in the app."
+### 8. First sync — push goals to the phone
 
-### 8. Set up automated processing
+The phone is waiting for data. Do NOT run `/process-day` here — it fails on cold start with no data. Instead, push a minimal analysis directly to the relay so the phone can show goals and targets.
+
+"Sending your goals to the app now..."
+
+**Create a stub analysis file** for today with the user's goals and an empty entry list:
+```json
+{
+  "date": "YYYY-MM-DD",
+  "entries": [],
+  "totals": { "calories": 0, "protein": 0, "carbs": 0, "fat": 0 },
+  "goals": {
+    "calories": { "target": <from goals.json>, "actual": 0, "remaining": <target>, "status": "on_track" },
+    "protein": { "target": <from goals.json>, "actual": 0, "remaining": <target>, "status": "on_track" },
+    "water": { "target_oz": <from goals.json>, "actual_oz": 0, "status": "on_track" }
+  },
+  "highlights": ["Welcome to Coach! Log your first meal to get started."],
+  "concerns": [],
+  "pwaProfile": {
+    "goals": <full goals.json content>,
+    "preferences": <full preferences.json content>
+  }
+}
+```
+
+Write it to `analysis/YYYY-MM-DD.json`, then push to the relay:
+```bash
+curl -s -X POST "$HEALTH_SYNC_URL/sync/$HEALTH_SYNC_KEY/day/YYYY-MM-DD/done" \
+  -H "Content-Type: application/json" \
+  -d @analysis/YYYY-MM-DD.json
+```
+
+After it completes: "Check your phone — your goals should be there now. Pull down to refresh if needed."
+
+### 9. Set up processing
+
+Ask the user how they want their food photos and data analyzed:
+
+"I need to process your food photos and sync results back to your phone. How do you want that to work?"
+
+- **Automatic** — "Whenever your computer is open, I'll check for new photos and messages every 30 minutes in the background. You don't need to do anything." → Set up a scheduled task/cron. It only runs while the computer is awake — no battery drain when it's closed.
+- **Manual** — "I'll only process when you start a coaching session or tell me to." → Skip the scheduled task. User runs `/process-day` or processing happens at session start.
+
+If they choose **automatic**, walk them through the scheduled task setup:
 
 **IMPORTANT:** Run `watcher.sh`/`watcher.ps1` (not `process-day` directly) — the watcher handles pending-data checks, quiet hours, and lock management.
 
-"One more thing — let's set up the auto-pilot so I analyze your food photos every 30 minutes. You'll need to paste a command:"
-
-**Windows — elevated PowerShell (Run as Administrator):**
+**Windows — they'll need to paste this in an elevated PowerShell (Run as Administrator):**
 ```powershell
 $a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"COACH_DIR\processing\watcher.ps1`""; $t = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Days 3650); $s = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries; Register-ScheduledTask -TaskName "CoachWatcher" -Action $a -Trigger $t -Settings $s -Description "Coach - processes health data every 30 min"
 ```
@@ -285,7 +324,9 @@ Replace `COACH_DIR` with the actual path before giving it to the user.
 
 **Verify:** Windows: `Get-ScheduledTask -TaskName "CoachWatcher" | Select-Object State` / Mac: `crontab -l | grep Coach`
 
-### 9. Plugin Updates
+Save their choice to `profile/preferences.json` under `processing.mode` (`"automatic"`, `"on-session"`, or `"manual"`) so future sessions know how to behave.
+
+### 10. Plugin Updates
 
 "To get automatic updates when I improve, run this next time you open Claude:"
 
@@ -295,7 +336,7 @@ claude plugin marketplace → select health-tracker → Enable auto-update
 
 "Or update manually anytime with: `claude plugin update coach@health-tracker`"
 
-### 10. Lock down permissions
+### 11. Lock down permissions
 
 Rewrite `.claude/settings.json` to remove setup-only Bash commands. Only keep what Coach needs for normal sessions:
 ```json
@@ -310,7 +351,7 @@ Rewrite `.claude/settings.json` to remove setup-only Bash commands. Only keep wh
 }
 ```
 
-### 11. Confirm
+### 12. Confirm
 
 "You're all set! Here's your plan:
 - **Calories:** {target}/day ({hardcore} on crush-it days)
