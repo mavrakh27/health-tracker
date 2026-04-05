@@ -1011,7 +1011,8 @@ const App = {
       const isToday = date === UI.today();
       // Check if this is a brand new user (no entries anywhere)
       const hasAnyEntries = isToday ? await DB.hasAnyEntries() : true;
-      if (isToday && !hasAnyEntries) {
+      const hasAnalysis = isToday ? !!(await DB.getAnalysis(date)) : false;
+      if (isToday && !hasAnyEntries && !hasAnalysis) {
         // Pre-populate goals for new users
         await App.ensureDefaultGoals();
         entryList.innerHTML = App.renderWelcomeCard();
