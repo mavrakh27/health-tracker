@@ -382,16 +382,19 @@
       <h2>Get the app</h2>
       <p>Scan the QR code to open the app on your phone. Add it to your home screen, then enter the pairing code that Coach gives you during setup.</p>
 
-      <div class="card">
-        <div id="pair-auto-qr" style="text-align:center; margin-bottom: 16px;">
-          <div class="qr-container">
+      <div class="card" style="padding: 32px 24px; text-align: center;">
+        <div style="display: inline-flex; flex-direction: column; align-items: center; gap: 20px;">
+          <div class="qr-container" style="padding: 20px; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.15);">
             <canvas id="pair-install-qr" width="200" height="200"></canvas>
           </div>
-          <p style="font-size: 14px; color: var(--text); margin-bottom: 8px;">Scan with your phone camera</p>
-          <p style="font-size: 13px; color: var(--text-muted);">or open this link on your phone:</p>
-          <p id="pair-install-url" style="font-size: 12px; color: var(--accent); word-break: break-all; margin-top: 4px;"></p>
+          <div>
+            <p style="font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px;">Point your phone camera here</p>
+            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.5;">
+              or open this link on your phone:
+            </p>
+            <a id="pair-install-url" href="#" style="font-size: 13px; color: var(--accent); word-break: break-all; margin-top: 4px; display: block;"></a>
+          </div>
         </div>
-
       </div>
     </div>
 
@@ -566,6 +569,7 @@
     const installUrlEl = document.getElementById('pair-install-url');
     if (installUrlEl) {
       installUrlEl.textContent = APP_BASE;
+      installUrlEl.href = APP_BASE;
     }
 
     const params = new URLSearchParams(location.search);
