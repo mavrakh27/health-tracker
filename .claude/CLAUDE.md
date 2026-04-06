@@ -19,7 +19,7 @@ AI-powered health tracking PWA. Capture food photos, workouts, water, weight, sl
   - `manifest.json` — PWA manifest
   - `sw.js` — service worker for offline
   - `styles/` — CSS (theme.css, main.css, components.css)
-  - `scripts/` — JS modules (app.js, db.js, log.js, camera.js, sync.js, fitness.js, goals.js, plan.js, progress.js, coach.js, profile.js, score.js, ui.js)
+  - `scripts/` — JS modules (app.js, db.js, log.js, camera.js, sync.js, fitness.js, skincare.js, goals.js, plan.js, progress.js, coach.js, score.js, challenges.js, ui.js)
   - 4-tab layout: Today (logging + workout + meal suggestion) | Coach (inbox + analysis) | Progress (insights + trends) | Settings
   - `assets/icons/` — PWA icons
 - `health-sync/` — Cloudflare Worker for cloud relay
@@ -28,8 +28,8 @@ AI-powered health tracking PWA. Capture food photos, workouts, water, weight, sl
 
 ## Data Location
 
-- **Processing data root**: `$HEALTH_DATA_DIR` (default: `~/HealthTracker` on Mac/Linux, `%USERPROFILE%\HealthTracker` on Windows). NEVER in git.
-- **Local backup**: `$HEALTH_BACKUP_DIR` (default: `~/health-data-backup`). Raw ZIPs, analysis, corrections.
+- **Processing data root**: The coach data folder (CWD when running via the `coach` alias). Set up by `/setup` — typically `~/coach` or `~/HealthTracker`. NEVER in git.
+- **Local backup**: `$HEALTH_BACKUP_DIR` (optional, default: `~/health-data-backup`). Raw ZIPs, analysis, corrections. Only used by the watcher for archiving — not required for basic operation.
 - **Repo location**: `$HEALTH_REPO_DIR` (default: auto-detected from script location)
 
 ## Multi-User Model
@@ -38,9 +38,9 @@ Coach supports multiple independent users. Each user:
 1. Installs the PWA on their own device (browser isolation handles data separation)
 2. Configures their own sync key (UUID) for cloud relay
 3. Runs processing on their own computer with their own Claude Code subscription
-4. Stores profile/goals in their own `$HEALTH_DATA_DIR/profile/`
+4. Stores profile/goals in their own coach data folder
 
-No server-side auth — sync keys provide data isolation. See `docs/getting-started.md` for setup.
+No server-side auth — sync keys provide data isolation. See `pwa/welcome.html` for setup.
 
 ## Coach Interaction Avenues
 
@@ -61,7 +61,7 @@ Users interact with the AI coach through three channels:
 
 ## Key Principles
 
-1. Meal photos are temporary (delete after analysis), body photos are permanent
+1. Food photos stay on user devices -- never auto-delete photos
 2. Data layer is the stable contract — views are disposable
 3. No build step, no framework, vanilla everything
 4. All data stays private and local
@@ -96,7 +96,7 @@ The plan file must describe this loop explicitly, including what validation chec
 - **`main`** — release branch. GitHub Pages deploys from here. Only gets polished, tested merges.
 - To release: merge `dev` → `main` via PR or direct merge after `/validate` + `/review` pass.
 - Never push untested work directly to `main`.
-- Always bump the plugin version in `coach-plugin/.claude-plugin/plugin.json` when creating a PR to main. Users need the version number to verify updates worked.
+- Always bump the plugin version in `coach-plugin/.claude-plugin/plugin.json` when creating a PR to main — even for one-line fixes. Use patch (1.3.1) for fixes, minor (1.4.0) for features. Users need the version number to verify updates worked.
 
 ## Running Locally
 

@@ -40,6 +40,7 @@ node test-fixtures/chaos.js --rounds 50 --screenshots
    git diff --exit-code coach-plugin/coach-sdk.md
    ```
    If it differs: FAIL — "coach-sdk.md is stale — run `node coach-plugin/generate-sdk.js` and commit the result"
+6. **Plugin agent reference**: Verify `settings.json` agent value uses the fully qualified `plugin-name:agent-name` format (e.g., `coach:coach`, not just `coach`). The plugin system registers agents as `plugin:agent` — a bare name silently fails to activate.
 
 ## Phase 2 — Playwright Regression Tests
 

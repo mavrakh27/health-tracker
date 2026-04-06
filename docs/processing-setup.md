@@ -19,7 +19,6 @@ Set these as persistent environment variables (user-level, not system-level):
 |----------|----------|---------|-------------|
 | `HEALTH_SYNC_URL` | Yes | — | Relay URL, e.g. `https://health-sync.example.workers.dev` |
 | `HEALTH_SYNC_KEY` | Yes | — | Your UUID sync key |
-| `HEALTH_DATA_DIR` | No | `~/HealthTracker` | Where data, logs, and analysis are stored |
 | `HEALTH_REPO_DIR` | No | auto-detected | Path to your cloned repo |
 | `HEALTH_BACKUP_DIR` | No | `~/health-data-backup` | Local backup destination |
 
@@ -41,20 +40,20 @@ export HEALTH_SYNC_KEY="your-uuid-here"
 
 ## Profile Setup
 
-The processor uses a profile to personalize analysis. Copy the templates and fill them in:
+The processor uses a profile to personalize analysis. The coach folder (your CWD when running `coach`) is the data directory. Copy the templates and fill them in:
 
 ```bash
-# Mac/Linux
-mkdir -p "$HEALTH_DATA_DIR/profile"
-cp processing/templates/*.json "$HEALTH_DATA_DIR/profile/"
-cp processing/profiles/example-bio.txt "$HEALTH_DATA_DIR/profile/bio.txt"
+# Mac/Linux — run from your coach data folder (e.g. ~/coach)
+mkdir -p profile
+cp /path/to/health-tracker/processing/templates/*.json profile/
+cp /path/to/health-tracker/processing/profiles/example-bio.txt profile/bio.txt
 ```
 
 ```powershell
-# Windows
-New-Item -ItemType Directory -Force "$env:HEALTH_DATA_DIR\profile"
-Copy-Item processing\templates\*.json "$env:HEALTH_DATA_DIR\profile\"
-Copy-Item processing\profiles\example-bio.txt "$env:HEALTH_DATA_DIR\profile\bio.txt"
+# Windows — run from your coach data folder (e.g. %USERPROFILE%\coach)
+New-Item -ItemType Directory -Force profile
+Copy-Item health-tracker\processing\templates\*.json profile\
+Copy-Item health-tracker\processing\profiles\example-bio.txt profile\bio.txt
 ```
 
 Edit `bio.txt` with your personal details (age, height, weight, dietary restrictions, goals). Edit the JSON files to set your calorie targets, workout regimen, and preferences.
@@ -70,7 +69,7 @@ cd processing
 .\process-day.bat
 ```
 
-Check `%HEALTH_DATA_DIR%\logs\` for output. If it shows "No pending data on cloud relay", setup is working.
+Check the `logs\` folder in your coach data directory for output. If it shows "No pending data on cloud relay", setup is working.
 
 **Automate with Task Scheduler (run once, elevated PowerShell):**
 
@@ -92,7 +91,7 @@ cd processing
 bash process-day.sh
 ```
 
-Check `$HEALTH_DATA_DIR/logs/` for output.
+Check the `logs/` folder in your coach data directory for output.
 
 **Automate with cron:**
 
@@ -107,16 +106,16 @@ This adds a cron job running `watcher.sh` every 30 minutes. Verify with `crontab
 
 ## Checking Logs
 
-Logs are written per day to `$HEALTH_DATA_DIR/logs/YYYY-MM-DD.log`.
+Logs are written per day to `logs/YYYY-MM-DD.log` inside your coach data folder (CWD).
 
 ```bash
-# Mac/Linux — tail today's log
-tail -f "$HEALTH_DATA_DIR/logs/$(date +%Y-%m-%d).log"
+# Mac/Linux — tail today's log (run from your coach data folder)
+tail -f "logs/$(date +%Y-%m-%d).log"
 ```
 
 ```powershell
-# Windows — view today's log
-Get-Content "$env:HEALTH_DATA_DIR\logs\$(Get-Date -Format yyyy-MM-dd).log" -Wait
+# Windows — view today's log (run from your coach data folder)
+Get-Content "logs\$(Get-Date -Format yyyy-MM-dd).log" -Wait
 ```
 
 ---
