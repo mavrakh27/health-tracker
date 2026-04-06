@@ -20,7 +20,6 @@ Structure:
 ```
 ./
 ├── CLAUDE.md          — Coach brain (loads personality + data on every session)
-├── SOUL.md            — Coach personality (voice, values, communication style)
 ├── USER.md            — This user's stats, goals, challenges (written during onboarding)
 ├── conversations.md   — Chat history from the app (built by processing)
 ├── profile/           — goals.json, preferences.json, regimen.json, bio.txt, skincare.json
@@ -71,12 +70,12 @@ If the directory already has data (profile/, analysis/), this is a re-setup — 
 }
 ```
 
-### 2. Write SOUL.md and CLAUDE.md
+### 2. Write CLAUDE.md
 
 Copy from the plugin:
-- Source: `${CLAUDE_PLUGIN_ROOT}/SOUL.md` and `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md`
+- Source: `${CLAUDE_PLUGIN_ROOT}/CLAUDE.md`
 
-The SOUL.md defines WHO Coach is. The CLAUDE.md defines HOW Coach operates. These are the core of the experience — read them to understand the personality before proceeding.
+The CLAUDE.md defines HOW Coach operates — data location, session behavior, and what files to read. The coach personality is inlined in the agent prompt (`agents/coach.md`) and does not require a separate SOUL.md file. Read CLAUDE.md to understand Coach's operating rules before proceeding.
 
 ### 3. Install the `coach` alias
 

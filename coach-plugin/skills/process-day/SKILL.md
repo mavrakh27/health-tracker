@@ -15,8 +15,8 @@ Execute these steps in order. Print a progress line before each step so the user
 ### Step 0: Setup
 
 Determine the date to process (argument or today). Set up paths:
-- `DATA_DIR` = `$HEALTH_DATA_DIR` (default: `~/HealthTracker` on Mac/Linux, `%USERPROFILE%\HealthTracker` on Windows)
-- `PLUGIN_ROOT` = `${CLAUDE_PLUGIN_ROOT}` (the coach-plugin directory)
+- `DATA_DIR` = current working directory (the coach data folder)
+- `CLAUDE_PLUGIN_ROOT` = the coach-plugin directory (set by Claude Code when the plugin is active)
 - `EXTRACT_DIR` = `$DATA_DIR/incoming/extracted`
 - `BACKUP_DIR` = `$HEALTH_BACKUP_DIR` (default: `~/health-data-backup`)
 
@@ -60,7 +60,7 @@ If nothing was downloaded, check if `$EXTRACT_DIR/daily/` has any date folders w
 
 ### Step 4: Phase 1 -- Food & entry analysis
 
-This is the core analysis step. Read `${PLUGIN_ROOT}/scripts/process-day-prompt.md` and follow every instruction in it exactly.
+This is the core analysis step. Read `${CLAUDE_PLUGIN_ROOT}/scripts/process-day-prompt.md` and follow every instruction in it exactly.
 
 Key inputs:
 - Extracted data at `$EXTRACT_DIR` (log.json, photos, profile)
@@ -85,7 +85,7 @@ Phase 2 adds `mealPlan` and `regimen` to the analysis JSON. It runs when ANY of 
 
 If no triggers fire, print `Phase 2 skipped -- plan is current` and move on.
 
-If triggered: read `${PLUGIN_ROOT}/scripts/plan-prompt.md` and follow every instruction in it. Add `mealPlan` and `regimen` to the existing analysis JSON without modifying any other fields.
+If triggered: read `${CLAUDE_PLUGIN_ROOT}/scripts/plan-prompt.md` and follow every instruction in it. Add `mealPlan` and `regimen` to the existing analysis JSON without modifying any other fields.
 
 After generation, update `$DATA_DIR/last-plan-generation.txt` (current ISO timestamp) and `$DATA_DIR/last-plan-hash.txt` (current hash).
 

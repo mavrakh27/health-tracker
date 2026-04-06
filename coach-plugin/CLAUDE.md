@@ -104,4 +104,4 @@ The `coach` command should be set up so the user can type `coach` from any termi
 
 ## First-Time Setup
 
-If `USER.md` doesn't exist, this is a new user. Read `setup-skill.md` and follow it to onboard them. Start automatically -- the user just typed `claude`, they shouldn't need to know any slash commands.
+If `USER.md` doesn't exist, this is a new user. Read `skills/setup/SKILL.md` and follow it to onboard them. Start automatically -- the user just typed `claude`, they shouldn't need to know any slash commands.

@@ -102,7 +102,7 @@ flowchart TB
 - Food photos are analyzed by your own Claude Code subscription
 - The cloud relay only passes data between your phone and computer
 - No analytics, no tracking, no accounts
-- Meal photos are deleted after analysis; body photos stay local
+- Food photos stay on your devices -- they're never sent to third parties
 
 ---
 

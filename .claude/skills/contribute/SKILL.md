@@ -6,7 +6,7 @@ Guide for developers who want to contribute to Coach, the AI-powered health trac
 
 ```bash
 # Clone the repo
-git clone https://github.com/nemily/health-tracker.git
+git clone https://github.com/nEmily/health-tracker.git
 cd health-tracker
 
 # Serve the PWA locally
@@ -53,15 +53,14 @@ All JS modules are global objects on `window`. No import/export -- script load o
 4. `camera.js` -- Photo capture + compression
 5. `sync.js` -- ZIP builder, cloud relay sync (Sync + CloudRelay objects)
 6. `fitness.js` -- Exercise database, workout checklist
-7. `goals.js` -- Analysis rendering utilities (GoalsView)
-8. `plan.js` -- Plan tab (PlanView)
-9. `progress.js` -- Progress tab (ProgressView)
-10. `coach.js` -- Async coach chat (CoachChat)
-11. `skincare.js` -- Skincare routine checklist (SkinCareView)
-12. `challenges.js` -- Challenge tracking + share cards (Challenges)
-13. `profile.js` -- Profile tab (ProfileView)
-14. `score.js` -- Day score calculator (DayScore)
-15. `app.js` -- Routing, init, navigation, QuickLog, Settings (App, QuickLog, Settings)
+7. `skincare.js` -- Skincare routine checklist (SkinCareView)
+8. `goals.js` -- Analysis rendering utilities (GoalsView)
+9. `plan.js` -- Plan tab (PlanView)
+10. `progress.js` -- Progress tab (ProgressView)
+11. `coach.js` -- Async coach chat (CoachChat)
+12. `score.js` -- Day score calculator (DayScore)
+13. `challenges.js` -- Challenge tracking + share cards (Challenges)
+14. `app.js` -- Routing, init, navigation, QuickLog, Settings (App, QuickLog, Settings)
 
 **Rule**: Any module can reference modules loaded before it. `app.js` loads last and can reference everything.
 
