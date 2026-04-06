@@ -61,7 +61,7 @@ Users interact with the AI coach through three channels:
 
 ## Key Principles
 
-1. Meal photos are temporary (delete after analysis), body photos are permanent
+1. Food photos stay on user devices -- never auto-delete photos
 2. Data layer is the stable contract — views are disposable
 3. No build step, no framework, vanilla everything
 4. All data stays private and local

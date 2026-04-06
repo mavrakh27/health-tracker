@@ -142,7 +142,7 @@ Design system uses CSS variables throughout. Dark theme with cool blue/teal acce
 
 1. Use `DB.setProfile(key, value)` to store and `DB.getProfile(key)` to read
 2. Add UI in the Profile tab (index.html `#screen-profile` section)
-3. Wire up save/load in `app.js` Settings object or `profile.js`
+3. Wire up save/load in `app.js` Settings object
 
 ### Adding a Modal
 
