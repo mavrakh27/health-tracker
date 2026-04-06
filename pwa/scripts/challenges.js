@@ -233,7 +233,7 @@ const Challenges = {
     }
 
     const requiredIds = Challenges._requiredTasks(challenge).map(t => t.id);
-    progress.allComplete = requiredIds.every(id => progress.checked.includes(id));
+    progress.allComplete = requiredIds.length > 0 && requiredIds.every(id => progress.checked.includes(id));
     await DB.saveChallengeProgress(progress);
     return progress;
   },
@@ -748,7 +748,7 @@ const Challenges = {
           description: template.description || '',
           durationDays: template.durationDays,
           restartOnMiss: template.restartOnMiss,
-          tasks: editableTasks.map(t => ({ label: t.label, autoCheck: t.autoCheck || null })),
+          tasks: editableTasks.map(t => ({ label: t.label, autoCheck: t.autoCheck || null, optional: t.optional || false })),
         } : undefined;
 
         let challenge;
@@ -764,7 +764,7 @@ const Challenges = {
               description: template.description,
               durationDays: template.durationDays,
               restartOnMiss: template.restartOnMiss,
-              tasks: editableTasks.map(t => ({ label: t.label, autoCheck: t.autoCheck || null })),
+              tasks: editableTasks.map(t => ({ label: t.label, autoCheck: t.autoCheck || null, optional: t.optional || false })),
             });
           } else {
             challenge = await Challenges.enroll(templateId);
@@ -1081,7 +1081,7 @@ const Challenges = {
         }
 
         const reqIds = Challenges._requiredTasks(challenge).map(t => t.id);
-        progress.allComplete = reqIds.every(id => progress.checked.includes(id));
+        progress.allComplete = reqIds.length > 0 && reqIds.every(id => progress.checked.includes(id));
         await DB.saveChallengeProgress(progress);
 
         // Queue sync
