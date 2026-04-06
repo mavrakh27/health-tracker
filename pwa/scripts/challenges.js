@@ -26,12 +26,14 @@ const ChallengeTemplates = {
     tasks: [
       { id: 'workout_1', label: 'Workout #1 (45+ min)', autoCheck: { source: 'workout', threshold: 1 } },
       { id: 'workout_2', label: 'Workout #2 (45+ min)', autoCheck: { source: 'workout', threshold: 2 } },
-      { id: 'steps_10k', label: '10,000 steps', autoCheck: { source: 'steps', threshold: 10000 } },
+      { id: 'steps_10k', label: '10,000 steps', autoCheck: { source: 'steps', threshold: 10000 }, optional: true },
       { id: 'diet_goals', label: 'Hit diet goals', autoCheck: { source: 'diet_goals', threshold: null } },
       { id: 'no_alcohol', label: 'No alcohol', autoCheck: null },
       { id: 'water', label: 'Drink 64+ oz water', autoCheck: { source: 'water', threshold: 64 } },
       { id: 'read', label: 'Read 10 pages', autoCheck: null },
       { id: 'progress_photo', label: 'Take a progress photo', autoCheck: { source: 'bodyPhotos', threshold: 1 } },
+      { id: 'share_post', label: 'Share/post with friends', autoCheck: null, optional: true },
+      { id: 'bedtime', label: 'In bed by 10pm', autoCheck: null, optional: true },
     ],
   },
   '7day_reset': {
@@ -63,6 +65,14 @@ const ChallengeTemplates = {
 };
 
 const Challenges = {
+  // --- Optional task helpers ---
+  _requiredTasks(challenge) {
+    return challenge.tasks.filter(t => !t.optional);
+  },
+  _requiredCount(challenge) {
+    return challenge.tasks.filter(t => !t.optional).length;
+  },
+
   // --- Enrollment ---
   async enroll(templateId, customOptions) {
     let template;
@@ -77,6 +87,7 @@ const Challenges = {
           id: 'custom_' + i,
           label: t.label || t,
           autoCheck: null,
+          optional: (typeof t === 'object' && t.optional) || false,
         })),
       };
     } else {
@@ -221,7 +232,8 @@ const Challenges = {
       }
     }
 
-    progress.allComplete = progress.checked.length === challenge.tasks.length;
+    const requiredIds = Challenges._requiredTasks(challenge).map(t => t.id);
+    progress.allComplete = requiredIds.every(id => progress.checked.includes(id));
     await DB.saveChallengeProgress(progress);
     return progress;
   },
@@ -349,8 +361,10 @@ const Challenges = {
   _renderChallengeCard(chal, progress, streak, dayNum, allProgress, showActions) {
     const pct = Math.round((dayNum / chal.durationDays) * 100);
     const checked = progress?.checked || [];
-    const checkedCount = checked.length;
-    const totalTasks = chal.tasks.length;
+    const requiredTasks = Challenges._requiredTasks(chal);
+    const requiredIds = requiredTasks.map(t => t.id);
+    const checkedCount = checked.filter(id => requiredIds.includes(id)).length;
+    const totalTasks = requiredTasks.length;
 
     // SVG ring constants
     const ringR = 17;
@@ -393,6 +407,7 @@ const Challenges = {
         <label class="challenge-task${isAuto ? ' auto-checked' : ''}" data-task-id="${UI.escapeHtml(task.id)}" data-challenge-id="${UI.escapeHtml(chal.id)}">
           <button class="challenge-check${isChecked ? ' checked' : ''}" data-task-id="${UI.escapeHtml(task.id)}" data-challenge-id="${UI.escapeHtml(chal.id)}" aria-label="Toggle ${UI.escapeHtml(task.label)}">${isChecked ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}</button>
           <span class="challenge-task-label">${UI.escapeHtml(task.label)}</span>
+          ${task.optional ? '<span class="challenge-optional-label">optional</span>' : ''}
           ${isAuto ? '<span class="challenge-auto-label">auto</span>' : ''}
         </label>
       `;
@@ -426,8 +441,10 @@ const Challenges = {
     const allProgress = await DB.getChallengeProgressRange(challenge.id, challenge.startDate, challenge.endDate);
     const streak = Challenges.getStreak(allProgress);
     const checked = progress?.checked || [];
-    const totalTasks = challenge.tasks.length;
-    const checkedCount = checked.length;
+    const requiredTasks = Challenges._requiredTasks(challenge);
+    const requiredIds = requiredTasks.map(t => t.id);
+    const totalTasks = requiredTasks.length;
+    const checkedCount = checked.filter(id => requiredIds.includes(id)).length;
 
     let html = `<div class="challenge-widget" data-challenge-id="${UI.escapeHtml(challenge.id)}">`;
     html += `<div class="challenge-widget-header" data-nav-challenge="${UI.escapeHtml(challenge.id)}">`;
@@ -443,6 +460,7 @@ const Challenges = {
         <label class="challenge-task${isAuto ? ' auto-checked' : ''}" data-task-id="${UI.escapeHtml(task.id)}" data-challenge-id="${UI.escapeHtml(challenge.id)}">
           <button class="challenge-check${isChecked ? ' checked' : ''}" data-task-id="${UI.escapeHtml(task.id)}" data-challenge-id="${UI.escapeHtml(challenge.id)}" aria-label="Toggle ${UI.escapeHtml(task.label)}">${isChecked ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}</button>
           <span class="challenge-task-label">${UI.escapeHtml(task.label)}</span>
+          ${task.optional ? '<span class="challenge-optional-label">optional</span>' : ''}
           ${isAuto ? '<span class="challenge-auto-label">auto</span>' : ''}
         </label>
       `;
@@ -605,6 +623,7 @@ const Challenges = {
         <div class="chal-confirm-task" data-idx="${i}">
           <div class="chal-confirm-task-main">
             <span class="chal-confirm-task-label">${UI.escapeHtml(t.label)}</span>
+            ${t.optional ? '<span class="challenge-optional-label">optional</span>' : ''}
             ${t.autoCheck ? '<span class="challenge-auto-label">auto</span>' : ''}
           </div>
           <button class="chal-confirm-task-remove" data-idx="${i}" aria-label="Remove task">&times;</button>
@@ -710,7 +729,7 @@ const Challenges = {
       const doAdd = () => {
         const val = addInput.value.trim();
         if (!val) return;
-        editableTasks.push({ id: 'custom_' + Date.now(), label: val, autoCheck: null });
+        editableTasks.push({ id: 'custom_' + Date.now(), label: val, autoCheck: null, optional: false });
         addInput.value = '';
         renderSheet();
         bindConfirmEvents();
@@ -862,7 +881,7 @@ const Challenges = {
     const sheet = UI.createElement('div', 'modal-sheet');
     sheet.style.maxHeight = '90dvh';
 
-    let tasks = prefill ? prefill.tasks.map((t, i) => ({ id: 'custom_' + i, label: typeof t === 'string' ? t : (t.label || ''), autoCheck: null })) : [];
+    let tasks = prefill ? prefill.tasks.map((t, i) => ({ id: 'custom_' + i, label: typeof t === 'string' ? t : (t.label || ''), autoCheck: null, optional: (typeof t === 'object' && t.optional) || false })) : [];
 
     const renderTasks = () => {
       if (tasks.length === 0) {
@@ -877,6 +896,7 @@ const Challenges = {
           <div class="chal-builder-task-actions">
             ${i > 0 ? `<button class="chal-builder-task-move" data-idx="${i}" data-dir="up" aria-label="Move up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="18 15 12 9 6 15"/></svg></button>` : ''}
             ${i < tasks.length - 1 ? `<button class="chal-builder-task-move" data-idx="${i}" data-dir="down" aria-label="Move down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="6 9 12 15 18 9"/></svg></button>` : ''}
+            <button class="chal-builder-task-optional${t.optional ? ' is-optional' : ''}" data-idx="${i}" aria-label="Toggle optional">${t.optional ? 'optional' : 'required'}</button>
             <button class="chal-builder-task-del" data-idx="${i}" aria-label="Remove">&times;</button>
           </div>
         </div>
@@ -949,7 +969,7 @@ const Challenges = {
       const doAdd = () => {
         const val = addInput.value.trim();
         if (!val) return;
-        tasks.push({ id: 'custom_' + Date.now(), label: val, autoCheck: null });
+        tasks.push({ id: 'custom_' + Date.now(), label: val, autoCheck: null, optional: false });
         render();
         bindBuilderEvents();
         // Focus the add input again
@@ -962,6 +982,16 @@ const Challenges = {
       sheet.querySelectorAll('.chal-builder-task-del').forEach(btn => {
         btn.addEventListener('click', () => {
           tasks.splice(parseInt(btn.dataset.idx), 1);
+          render();
+          bindBuilderEvents();
+        });
+      });
+
+      // Toggle optional
+      sheet.querySelectorAll('.chal-builder-task-optional').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx);
+          tasks[idx].optional = !tasks[idx].optional;
           render();
           bindBuilderEvents();
         });
@@ -1050,7 +1080,8 @@ const Challenges = {
           if (ovIdx >= 0) progress.manualOverrides.splice(ovIdx, 1);
         }
 
-        progress.allComplete = progress.checked.length === challenge.tasks.length;
+        const reqIds = Challenges._requiredTasks(challenge).map(t => t.id);
+        progress.allComplete = reqIds.every(id => progress.checked.includes(id));
         await DB.saveChallengeProgress(progress);
 
         // Queue sync
@@ -1124,6 +1155,7 @@ const Challenges = {
       tasks: challenge.tasks.map(t => ({
         label: t.label,
         auto: t.autoCheck || null,
+        optional: t.optional || false,
       })),
     };
     const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
@@ -1180,6 +1212,7 @@ const Challenges = {
           tasks: payload.tasks.map(t => ({
             label: t.label,
             autoCheck: null,
+            optional: t.optional || false,
           })),
         });
         close();
@@ -1295,8 +1328,9 @@ const Challenges = {
     const dayNum = Challenges.getDayNumber(challenge, today);
     const todayProgress = progressRecords.find(p => p.date === today);
     const checked = todayProgress?.checked || [];
-    const totalTasks = challenge.tasks.length;
-    const checkedCount = checked.length;
+    const requiredIds = Challenges._requiredTasks(challenge).map(t => t.id);
+    const totalTasks = requiredIds.length;
+    const checkedCount = checked.filter(id => requiredIds.includes(id)).length;
     const allDone = checkedCount === totalTasks;
 
     // Background gradient
@@ -1393,6 +1427,14 @@ const Challenges = {
         const labelX = cbX + cbSize + 14;
         const labelY = y + 18;
         ctx.fillText(task.label, labelX, labelY);
+        if (task.optional) {
+          const tw = ctx.measureText(task.label).width;
+          ctx.fillStyle = '#64748b';
+          ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillText(' (optional)', labelX + tw, labelY);
+          ctx.font = '15px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillStyle = '#94a3b8';
+        }
         // Strikethrough line
         const textW = ctx.measureText(task.label).width;
         ctx.beginPath();
@@ -1411,6 +1453,12 @@ const Challenges = {
         ctx.fillStyle = '#e2e8f0';
         ctx.font = '15px -apple-system, BlinkMacSystemFont, sans-serif';
         ctx.fillText(task.label, cbX + cbSize + 14, y + 18);
+        if (task.optional) {
+          const tw = ctx.measureText(task.label).width;
+          ctx.fillStyle = '#64748b';
+          ctx.font = '12px -apple-system, BlinkMacSystemFont, sans-serif';
+          ctx.fillText(' (optional)', cbX + cbSize + 14 + tw, y + 18);
+        }
       }
     }
 
@@ -1454,7 +1502,7 @@ const Challenges = {
     const ctx = canvas.getContext('2d');
     const today = App.selectedDate;
     const dayNum = Challenges.getDayNumber(challenge, today);
-    const totalTasks = challenge.tasks.length;
+    const totalTasks = Challenges._requiredCount(challenge);
 
     // Background gradient
     const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -1509,7 +1557,8 @@ const Challenges = {
         dayDate.setDate(dayDate.getDate() + d - 1);
         const dateStr = Challenges._fmt(dayDate);
         const prog = byDate[dateStr];
-        const checkedCount = prog?.checked?.length || 0;
+        const reqIds = Challenges._requiredTasks(challenge).map(t => t.id);
+        const checkedCount = prog?.checked ? prog.checked.filter(id => reqIds.includes(id)).length : 0;
         totalPossible += totalTasks;
         totalChecked += checkedCount;
 
@@ -1635,7 +1684,7 @@ const Challenges = {
     lines.push('');
     for (const task of challenge.tasks) {
       const done = checked.includes(task.id);
-      lines.push((done ? '[x] ' : '[ ] ') + task.label);
+      lines.push((done ? '[x] ' : '[ ] ') + task.label + (task.optional ? ' (optional)' : ''));
     }
     lines.push('');
     lines.push('#' + challenge.name.replace(/\s+/g, '') + ' #Coach');
