@@ -1095,11 +1095,14 @@ const App = {
       } catch (e) { console.warn('Score error:', e); scoreEl.innerHTML = ''; }
     }
 
-    // Workout exercises (individual cards, no collapsible wrapper)
+    // Workout panel — Strong-style tracker + coach plan
     const workoutEl = document.getElementById('today-workout');
     if (workoutEl) {
       try {
-        if (regimen?.weeklySchedule) {
+        // Use Strong-style workout tracker
+        if (typeof Workout !== 'undefined') {
+          await Workout.renderHome();
+        } else if (regimen?.weeklySchedule) {
           const fitnessHtml = await Fitness.render(regimen, date);
           workoutEl.innerHTML = fitnessHtml;
           Fitness.bindEvents(date, workoutEl);
