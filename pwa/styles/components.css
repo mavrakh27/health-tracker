@@ -4730,6 +4730,115 @@ input[type="range"]::-webkit-slider-thumb {
   text-align: left;
 }
 
+/* Warm-up sets */
+.wkt-set-warmup {
+  opacity: 0.6;
+}
+
+.wkt-set-warmup .wkt-set-col-num {
+  color: var(--accent-yellow, #f59e0b);
+  font-style: italic;
+}
+
+.wkt-set-warmup .wkt-input {
+  border-style: dashed;
+}
+
+.wkt-set-type-toggle {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Per-exercise notes */
+.wkt-ex-notes-row {
+  padding: 0 0 var(--space-xs);
+}
+
+.wkt-ex-notes-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid transparent;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  padding: 4px 0;
+  outline: none;
+}
+
+.wkt-ex-notes-input:focus {
+  border-bottom-color: var(--border-color);
+  color: var(--text-secondary);
+}
+
+.wkt-ex-notes-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+
+/* Exercise footer (add set button row) */
+.wkt-ex-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-xs);
+}
+
+/* Superset */
+.wkt-superset {
+  border-left: 3px solid var(--accent-primary);
+}
+
+.wkt-superset-badge {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent-primary);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  padding: 0 0 var(--space-xs);
+}
+
+.wkt-superset-connector {
+  width: 3px;
+  height: 8px;
+  background: var(--accent-primary);
+  margin-left: var(--space-md);
+}
+
+/* Exercise context menu */
+.wkt-ex-menu {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-xs) 0;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.wkt-ex-menu-item {
+  display: block;
+  width: 100%;
+  padding: 10px var(--space-md);
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.wkt-ex-menu-item:active {
+  background: var(--bg-primary);
+}
+
+.wkt-ex-menu-danger {
+  color: var(--accent-red);
+}
+
+/* Exercise actions row */
+.wkt-ex-actions {
+  display: flex;
+  gap: 2px;
+}
+
 /* Search results */
 .wkt-search-result:active {
   background: var(--bg-secondary);

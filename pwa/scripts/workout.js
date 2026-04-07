@@ -481,6 +481,7 @@ const Workout = {
         weight: prevSet?.weight || null,
         reps: prevSet?.reps || null,
         done: false,
+        warmup: false,
         previous: prevSet ? `${prevSet.weight || 0} x ${prevSet.reps || 0}` : null,
       });
     }
@@ -531,8 +532,8 @@ const Workout = {
     set.done = !set.done;
     Workout._saveActiveState();
 
-    // Auto-start rest timer on set completion
-    if (set.done) {
+    // Auto-start rest timer on set completion (skip for warm-up sets)
+    if (set.done && !set.warmup) {
       const restSecs = Workout._getRestTime(Workout.active.exercises[exerciseIndex].name);
       Workout.startRestTimer(restSecs);
     }
@@ -544,6 +545,70 @@ const Workout = {
     if (!set) return;
     set[field] = value;
     Workout._saveActiveState();
+  },
+
+  toggleWarmup(exerciseIndex, setIndex) {
+    if (!Workout.active) return;
+    const set = Workout.active.exercises[exerciseIndex]?.sets[setIndex];
+    if (!set) return;
+    set.warmup = !set.warmup;
+    Workout._saveActiveState();
+    Workout.renderActiveWorkout();
+  },
+
+  updateExerciseNotes(exerciseIndex, notes) {
+    if (!Workout.active) return;
+    Workout.active.exercises[exerciseIndex].notes = notes;
+    Workout._saveActiveState();
+  },
+
+  toggleSuperset(exerciseIndex) {
+    if (!Workout.active) return;
+    const ex = Workout.active.exercises[exerciseIndex];
+    if (!ex) return;
+    ex.supersetWith = ex.supersetWith ? null : (exerciseIndex + 1);
+    Workout._saveActiveState();
+    Workout.renderActiveWorkout();
+  },
+
+  reorderExercise(fromIndex, toIndex) {
+    if (!Workout.active) return;
+    if (toIndex < 0 || toIndex >= Workout.active.exercises.length) return;
+    const [moved] = Workout.active.exercises.splice(fromIndex, 1);
+    Workout.active.exercises.splice(toIndex, 0, moved);
+    Workout._saveActiveState();
+    Workout.renderActiveWorkout();
+  },
+
+  replaceExercise(exerciseIndex) {
+    if (!Workout.active) return;
+    const origAdd = Workout.addExercise.bind(Workout);
+    Workout.addExercise = async (name) => {
+      const last = await Workout.getLastPerformance(name);
+      const oldEx = Workout.active.exercises[exerciseIndex];
+      const numSets = oldEx.sets.length;
+      const sets = [];
+      for (let i = 0; i < numSets; i++) {
+        const prevSet = last?.sets?.[i];
+        sets.push({
+          weight: prevSet?.weight || null,
+          reps: prevSet?.reps || null,
+          done: false,
+          warmup: false,
+          previous: prevSet ? `${prevSet.weight || 0} x ${prevSet.reps || 0}` : null,
+        });
+      }
+      Workout.active.exercises[exerciseIndex] = {
+        name,
+        info: Workout.exerciseDB[name] || null,
+        sets,
+        notes: '',
+      };
+      await Workout._saveActiveState();
+      Workout.renderActiveWorkout();
+      Workout.addExercise = origAdd;
+    };
+    Workout.showExerciseSearch();
   },
 
   _getRestTime(exerciseName) {
@@ -723,14 +788,24 @@ const Workout = {
       const info = ex.info || Workout.exerciseDB[ex.name];
       const allDone = ex.sets.every(s => s.done);
 
+      // Superset indicator
+      const isSuperset = ex.supersetWith != null;
+      const prevIsSuperset = ei > 0 && Workout.active.exercises[ei - 1]?.supersetWith === ei;
+      const supersetLabel = isSuperset ? `<div class="wkt-superset-badge">SUPERSET</div>` : '';
+      const supersetConnector = prevIsSuperset ? `<div class="wkt-superset-connector"></div>` : '';
+
       html += `
-        <div class="card wkt-exercise-card${allDone ? ' wkt-ex-done' : ''}" data-ex-idx="${ei}" style="margin-bottom:var(--space-sm);">
+        ${supersetConnector}
+        <div class="card wkt-exercise-card${allDone ? ' wkt-ex-done' : ''}${isSuperset ? ' wkt-superset' : ''}" data-ex-idx="${ei}" style="margin-bottom:var(--space-sm);">
+          ${supersetLabel}
           <div class="wkt-ex-header">
-            <div>
+            <div style="flex:1;">
               <div class="wkt-ex-name">${UI.escapeHtml(ex.name)}</div>
               ${info ? `<div class="wkt-ex-muscles">${UI.escapeHtml(info.muscles)}</div>` : ''}
             </div>
-            <button class="btn btn-ghost wkt-remove-ex" data-ex-idx="${ei}" style="font-size:var(--text-xs); color:var(--accent-red); padding:4px;">X</button>
+            <div class="wkt-ex-actions">
+              <button class="btn btn-ghost wkt-ex-menu-btn" data-ex-idx="${ei}" style="font-size:var(--text-xs); padding:4px 6px;">...</button>
+            </div>
           </div>
 
           <div class="wkt-set-header">
@@ -744,9 +819,11 @@ const Workout = {
 
       for (let si = 0; si < ex.sets.length; si++) {
         const set = ex.sets[si];
+        const warmupClass = set.warmup ? ' wkt-set-warmup' : '';
+        const setLabel = set.warmup ? 'W' : String(si + 1 - ex.sets.slice(0, si).filter(s => s.warmup).length);
         html += `
-          <div class="wkt-set-row${set.done ? ' wkt-set-done' : ''}" data-ex-idx="${ei}" data-set-idx="${si}">
-            <span class="wkt-set-col-num">${si + 1}</span>
+          <div class="wkt-set-row${set.done ? ' wkt-set-done' : ''}${warmupClass}" data-ex-idx="${ei}" data-set-idx="${si}">
+            <span class="wkt-set-col-num wkt-set-type-toggle" data-ex-idx="${ei}" data-set-idx="${si}" title="Tap to toggle warm-up">${setLabel}</span>
             <span class="wkt-set-col-prev">${set.previous || '-'}</span>
             <input type="number" class="wkt-input wkt-weight-input" value="${set.weight || ''}" placeholder="-" inputmode="decimal" data-ex-idx="${ei}" data-set-idx="${si}" data-field="weight">
             <input type="number" class="wkt-input wkt-reps-input" value="${set.reps || ''}" placeholder="-" inputmode="numeric" data-ex-idx="${ei}" data-set-idx="${si}" data-field="reps">
@@ -755,8 +832,15 @@ const Workout = {
         `;
       }
 
+      // Per-exercise notes
+      const exNotes = ex.notes || '';
       html += `
-          <button class="btn btn-ghost wkt-add-set" data-ex-idx="${ei}" style="width:100%; font-size:var(--text-xs); color:var(--text-muted); margin-top:var(--space-xs);">+ Add Set</button>
+          <div class="wkt-ex-footer">
+            <button class="btn btn-ghost wkt-add-set" data-ex-idx="${ei}" style="font-size:var(--text-xs); color:var(--text-muted);">+ Add Set</button>
+          </div>
+          <div class="wkt-ex-notes-row">
+            <input type="text" class="wkt-ex-notes-input" data-ex-idx="${ei}" value="${UI.escapeHtml(exNotes)}" placeholder="Add exercise notes...">
+          </div>
         </div>
       `;
     }
@@ -850,13 +934,37 @@ const Workout = {
       btn.addEventListener('click', () => Workout.addSet(parseInt(btn.dataset.exIdx)));
     });
 
-    // Remove exercise
-    container.querySelectorAll('.wkt-remove-ex').forEach(btn => {
+    // Exercise menu (replace, reorder, superset, remove)
+    container.querySelectorAll('.wkt-ex-menu-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const idx = parseInt(btn.dataset.exIdx);
-        const name = Workout.active.exercises[idx]?.name;
-        if (confirm(`Remove ${name}?`)) Workout.removeExercise(idx);
+        Workout._showExerciseMenu(idx, btn);
+      });
+    });
+
+    // Warm-up toggle (tap set number)
+    container.querySelectorAll('.wkt-set-type-toggle').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const ei = parseInt(el.dataset.exIdx);
+        const si = parseInt(el.dataset.setIdx);
+        Workout.toggleWarmup(ei, si);
+      });
+    });
+
+    // Per-exercise notes
+    container.querySelectorAll('.wkt-ex-notes-input').forEach(input => {
+      let timer = null;
+      input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          Workout.updateExerciseNotes(parseInt(input.dataset.exIdx), input.value);
+        }, 800);
+      });
+      input.addEventListener('blur', () => {
+        clearTimeout(timer);
+        Workout.updateExerciseNotes(parseInt(input.dataset.exIdx), input.value);
       });
     });
 
@@ -873,6 +981,60 @@ const Workout = {
         const adj = parseInt(btn.dataset.adjust);
         Workout.restTimer.total = Math.max(15, Workout.restTimer.total + adj);
         Workout.restTimer.startedAt = Date.now() - ((Workout.restTimer.total - Workout.restTimer.remaining - adj) * 1000);
+      });
+    });
+  },
+
+  // ============================================================
+  // EXERCISE CONTEXT MENU (HEVY-style)
+  // ============================================================
+
+  _showExerciseMenu(exerciseIndex, anchorEl) {
+    const ex = Workout.active?.exercises[exerciseIndex];
+    if (!ex) return;
+
+    // Remove existing menu
+    document.querySelector('.wkt-ex-menu')?.remove();
+
+    const menu = UI.createElement('div', 'wkt-ex-menu');
+    const canMoveUp = exerciseIndex > 0;
+    const canMoveDown = exerciseIndex < Workout.active.exercises.length - 1;
+    const isSupersetted = ex.supersetWith != null;
+
+    menu.innerHTML = `
+      <button class="wkt-ex-menu-item" data-action="replace">Replace Exercise</button>
+      ${canMoveUp ? '<button class="wkt-ex-menu-item" data-action="move-up">Move Up</button>' : ''}
+      ${canMoveDown ? '<button class="wkt-ex-menu-item" data-action="move-down">Move Down</button>' : ''}
+      ${canMoveDown ? `<button class="wkt-ex-menu-item" data-action="superset">${isSupersetted ? 'Remove Superset' : 'Superset with Next'}</button>` : ''}
+      <button class="wkt-ex-menu-item wkt-ex-menu-danger" data-action="remove">Remove Exercise</button>
+    `;
+
+    // Position near anchor
+    const rect = anchorEl.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.right = `${window.innerWidth - rect.right}px`;
+    menu.style.zIndex = '100';
+    document.body.appendChild(menu);
+
+    const close = () => menu.remove();
+    const closeOnOutside = (e) => {
+      if (!menu.contains(e.target)) { close(); document.removeEventListener('click', closeOnOutside); }
+    };
+    setTimeout(() => document.addEventListener('click', closeOnOutside), 10);
+
+    menu.querySelectorAll('.wkt-ex-menu-item').forEach(item => {
+      item.addEventListener('click', () => {
+        close();
+        switch (item.dataset.action) {
+          case 'replace': Workout.replaceExercise(exerciseIndex); break;
+          case 'move-up': Workout.reorderExercise(exerciseIndex, exerciseIndex - 1); break;
+          case 'move-down': Workout.reorderExercise(exerciseIndex, exerciseIndex + 1); break;
+          case 'superset': Workout.toggleSuperset(exerciseIndex); break;
+          case 'remove':
+            if (confirm(`Remove ${ex.name}?`)) Workout.removeExercise(exerciseIndex);
+            break;
+        }
       });
     });
   },
